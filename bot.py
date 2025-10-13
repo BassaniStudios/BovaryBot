@@ -5,6 +5,8 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import os
+import json
+import random
 
 # 🟢 Mantém o bot online (servidor Flask)
 from keep_alive import keep_alive
@@ -33,6 +35,81 @@ intents.members = True
 # 🤖 Criação do bot
 bot = commands.Bot(command_prefix="|", intents=intents)
 
+# ===================== 🎟️ SISTEMA DE SORTEIO ===================== #
+
+DATA_FILE = "sorteio.json"
+participants = {}
+
+# 🔄 Carregar dados existentes
+def load_data():
+    global participants
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            try:
+                participants = json.load(f)
+            except json.JSONDecodeError:
+                participants = {}
+    else:
+        participants = {}
+
+# 💾 Salvar dados
+def save_data():
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(participants, f, indent=4, ensure_ascii=False)
+
+# ➕ Adiciona participante
+@bot.tree.command(name="adicionar", description="Adiciona uma pessoa à lista do sorteio (1 entrada por vez)")
+@app_commands.describe(nome="Nome da pessoa que vai participar do sorteio")
+async def adicionar(interaction: discord.Interaction, nome: str):
+    nome = nome.strip().title()
+    participants[nome] = participants.get(nome, 0) + 1
+    save_data()
+    await interaction.response.send_message(f"✅ {nome} agora tem **{participants[nome]}** entrada(s) no sorteio!")
+
+# 📋 Mostra lista
+@bot.tree.command(name="lista", description="Mostra a lista atual de participantes e suas entradas")
+async def lista(interaction: discord.Interaction):
+    if not participants:
+        await interaction.response.send_message("⚠️ A lista está vazia!")
+        return
+    lista_formatada = "\n".join([f"{i+1}. **{nome}** — {qtd} entrada(s)" for i, (nome, qtd) in enumerate(participants.items())])
+    await interaction.response.send_message(f"📝 **Lista de Participantes:**\n{lista_formatada}")
+
+# 🎲 Sorteio
+@bot.tree.command(name="sortear", description="Realiza o sorteio considerando o número de entradas de cada participante")
+async def sortear(interaction: discord.Interaction):
+    if not participants:
+        await interaction.response.send_message("⚠️ Não há participantes para sortear!")
+        return
+
+    pool = []
+    for nome, qtd in participants.items():
+        pool.extend([nome] * qtd)
+
+    vencedor = random.choice(pool)
+    lista_formatada = "\n".join([f"{i+1}. **{nome}** — {qtd} entrada(s)" for i, (nome, qtd) in enumerate(participants.items())])
+
+    await interaction.response.send_message(
+        f"🎉 **SORTEIO REALIZADO!** 🎉\n\n📝 **Lista de Participantes:**\n{lista_formatada}\n\n🏆 **Vencedor:** **{vencedor}**! 🎊"
+    )
+
+    # Limpa após sorteio
+    participants.clear()
+    save_data()
+
+# 🧹 Limpar manualmente a lista
+@bot.tree.command(name="limpar_lista", description="Limpa a lista atual de participantes (admin)")
+async def limpar_lista(interaction: discord.Interaction):
+    if not participants:
+        await interaction.response.send_message("⚠️ A lista já está vazia!")
+        return
+
+    participants.clear()
+    save_data()
+    await interaction.response.send_message("🧹 A lista de sorteio foi limpa com sucesso!")
+
+# ===================== 🔧 EVENTOS E OUTROS COMANDOS ===================== #
+
 # 🚀 Quando o bot iniciar
 @bot.event
 async def on_ready():
@@ -40,6 +117,7 @@ async def on_ready():
         activity=discord.Game("in Bovary Club Society 🏎️"),
         status=discord.Status.online
     )
+    load_data()
     try:
         synced = await bot.tree.sync()
         print(f"✅ {bot.user} está online com {len(synced)} comandos de barra sincronizados!")
@@ -61,7 +139,7 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
-# ⚡ Comando de barra (/ping)
+# ⚡ /ping
 @bot.tree.command(name="ping", description="Verifica se o bot está ativo")
 async def ping(interaction: discord.Interaction):
     await interaction.response.send_message("🏓 Pong! Estou ativo!")
@@ -69,7 +147,6 @@ async def ping(interaction: discord.Interaction):
 # 🎬 Enviar vídeo local
 @bot.command(name="enviar")
 async def enviar(ctx, caminho: str):
-    """Envia um vídeo local para o canal atual"""
     try:
         await ctx.send("📤 Enviando vídeo...")
         await ctx.channel.send(file=discord.File(caminho))
