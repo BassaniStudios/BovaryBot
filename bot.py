@@ -125,14 +125,13 @@ async def on_ready():
         activity=discord.Game("in Bovary Club Society 🏎️"),
         status=discord.Status.online
     )
-
+    load_data()
     try:
-        guild_id = 1384173136085258292  # ID do seu servidor
-        guild = discord.Object(id=guild_id)
-
-        # Sincroniza apenas com o Bovary Club Society (instantâneo)
-        synced = await bot.tree.sync(guild=guild)
-
-        print(f"✅ {bot.user} está online e sincronizou {len(synced)} comandos no servidor Bovary Club Society!")
+        synced = await bot.tree.sync()
+        print(f"✅ {bot.user} está online com {len(synced)} comandos de barra sincronizados!")
     except Exception as e:
         print(f"❌ Erro ao sincronizar comandos: {e}")
+
+@bot.event
+async def on_message(message):
+    if messa
