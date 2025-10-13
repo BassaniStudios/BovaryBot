@@ -4,13 +4,16 @@ load_dotenv()
 import discord
 from discord.ext import commands
 from discord import app_commands
+import os
+
+# 🟢 Mantém o bot online (servidor Flask)
+from keep_alive import keep_alive
 
 # 🔑 Token do bot
-import os
 TOKEN = os.getenv("TOKEN")
 
-# ✋ Emojis automáticos
-AUTO_REACTIONS = ["💗", "👏", "💯", "💪", "✨", "💕", "😁"]
+# ✋ Emojis automáticos (atualizados)
+AUTO_REACTIONS = ["❤️", "🔥", "💯", "💥", "💕", "💎", "🎊", "🎉", "🎀"]
 
 # 💬 Canais onde o bot reage automaticamente
 CHANNEL_IDS = [
@@ -163,5 +166,5 @@ async def on_member_remove(membro):
     await log_channel.send(embed=embed)
 
 # ▶️ Rodar o bot
+keep_alive()  # Mantém o bot online (Replit/Render)
 bot.run(TOKEN)
-
