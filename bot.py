@@ -7,6 +7,7 @@ from discord import app_commands
 import os
 import json
 import random
+from datetime import datetime, timezone
 
 # 🟢 Mantém o bot online (servidor Flask)
 from keep_alive import keep_alive
@@ -149,8 +150,6 @@ async def limpar_lista(interaction: discord.Interaction):
     save_data()
     await interaction.response.send_message("🧹 A lista de sorteio foi limpa com sucesso!")
 
-from datetime import datetime, timezone
-
 # 🕒 Cria um timestamp global
 @bot.tree.command(name="timestamp", description="Gera um horário global visível corretamente em todos os fusos")
 @app_commands.describe(
@@ -161,31 +160,37 @@ async def timestamp(interaction: discord.Interaction, hora: str, data: str = Non
     try:
         agora = datetime.now()
 
-        # Se não foi passada data, usa o dia de hoje
         if data:
             dia, mes, ano = map(int, data.split("/"))
         else:
             dia, mes, ano = agora.day, agora.month, agora.year
 
-        # Converte hora e minuto
         h, m = map(int, hora.split(":"))
-
-        # Cria um objeto datetime UTC (não afeta a visualização final)
         dt = datetime(ano, mes, dia, h, m, tzinfo=timezone.utc)
         timestamp = int(dt.timestamp())
 
-        # Resposta com formatos diferentes
         await interaction.response.send_message(
             f"🕒 **Horário Global:** <t:{timestamp}:F>\n"
             f"⏰ **Tempo relativo:** <t:{timestamp}:R>\n\n"
             f"🧩 Use isso em mensagens futuras:\n"
             f"`<t:{timestamp}:F>` ou `<t:{timestamp}:R>`"
         )
-
     except Exception as e:
         await interaction.response.send_message("⚠️ Use o formato correto: `/timestamp hora:19:30 data:14/10/2025`", ephemeral=True)
         print(e)
 
+# ===================== 🏓 COMANDO PING ===================== #
+
+@bot.tree.command(name="ping", description="Mostra a latência do bot.")
+async def ping(interaction: discord.Interaction):
+    latency = round(bot.latency * 1000)
+    embed = discord.Embed(
+        title="🏓 Pong!",
+        description=f"**Latência:** `{latency}ms`",
+        color=discord.Color.blue()
+    )
+    embed.set_footer(text="Bovary Club Society")
+    await interaction.response.send_message(embed=embed)
 
 # ===================== 🔧 EVENTOS E OUTROS COMANDOS ===================== #
 
@@ -201,9 +206,6 @@ async def on_ready():
         print(f"✅ {bot.user} está online com {len(synced)} comandos de barra sincronizados!")
     except Exception as e:
         print(f"❌ Erro ao sincronizar comandos: {e}")
-
-# (Seu trecho estava cortado, então removi o "on_message" incompleto)
-# Se quiser reativar reações automáticas, posso reescrever essa parte depois.
 
 # 🟢 Mantém o bot vivo
 keep_alive()
