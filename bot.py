@@ -18,18 +18,27 @@ AUTO_REACTIONS = ["❤️", "🔥", "💯", "💥", "💕", "💎", "🎊", "�
 
 # 💬 Canais onde o bot reage automaticamente
 CHANNEL_IDS = [
-    1384173879295213689, 1384174586345816134, 1424515140660760647,
-    1424515636524220516, 1384173136853078038, 1384173136853078037,
-    1424434022058033242, 1384173137071177753, 1424509207172087849,
-    1424586421599076473
+    1384173879295213689,
+    1384174586345816134,
+    1424515140660760647,
+    1424515636524220516,
+    1384173136853078038,
+    1425870476290428978,
+    1424434022058033242,
+    1384173137071177753,
+    1424509207172087849,
+    1424586421599076473,
+    1425669117750284318
 ]
 
-LOG_CHANNEL_ID = 1384173137985540230  # Canal de log
+
+LOG_CHANNEL_ID = 1424436722984423529  # Canal de log
 
 # ⚙️ Intents do bot
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
+intents.guilds = True
 
 # 🤖 Inicialização do bot
 bot = commands.Bot(command_prefix="|", intents=intents)
@@ -155,6 +164,57 @@ async def ping(interaction: discord.Interaction):
     )
     embed.set_footer(text="Bovary Club Society")
     await interaction.response.send_message(embed=embed)
+
+# ===================== 👀 MONITOR DE ATIVIDADES ===================== #
+
+@bot.event
+async def on_member_join(member):
+    channel = bot.get_channel(LOG_CHANNEL_ID)
+    if channel:
+        await channel.send(f"🟢 **{member}** entrou no servidor! (ID: `{member.id}`)")
+
+@bot.event
+async def on_member_remove(member):
+    channel = bot.get_channel(LOG_CHANNEL_ID)
+    if channel:
+        await channel.send(f"🔴 **{member}** saiu do servidor.")
+
+@bot.event
+async def on_message_delete(message):
+    if message.author.bot:
+        return
+    channel = bot.get_channel(LOG_CHANNEL_ID)
+    if channel:
+        content = message.content or "[sem texto]"
+        await channel.send(
+            f"🗑️ Mensagem apagada em {message.channel.mention}\n"
+            f"👤 Autor: {message.author}\n💬 Conteúdo: {content}"
+        )
+
+@bot.event
+async def on_message_edit(before, after):
+    if before.author.bot or before.content == after.content:
+        return
+    channel = bot.get_channel(LOG_CHANNEL_ID)
+    if channel:
+        await channel.send(
+            f"✏️ Mensagem editada em {before.channel.mention}\n"
+            f"👤 Autor: {before.author}\n"
+            f"📄 Antes: {before.content}\n"
+            f"📄 Depois: {after.content}"
+        )
+
+@bot.event
+async def on_guild_channel_create(channel):
+    log_channel = bot.get_channel(LOG_CHANNEL_ID)
+    if log_channel:
+        await log_channel.send(f"🆕 Canal criado: **{channel.name}** ({channel.mention})")
+
+@bot.event
+async def on_guild_channel_delete(channel):
+    log_channel = bot.get_channel(LOG_CHANNEL_ID)
+    if log_channel:
+        await log_channel.send(f"🗑️ Canal apagado: **{channel.name}**")
 
 # ===================== EVENTOS ===================== #
 
