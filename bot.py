@@ -31,7 +31,6 @@ CHANNEL_IDS = [
     1425669117750284318
 ]
 
-
 LOG_CHANNEL_ID = 1424436722984423529  # Canal de log
 
 # ⚙️ Intents do bot
@@ -164,6 +163,25 @@ async def ping(interaction: discord.Interaction):
     )
     embed.set_footer(text="Bovary Club Society")
     await interaction.response.send_message(embed=embed)
+
+# ===================== 💬 REAÇÕES AUTOMÁTICAS ===================== #
+
+@bot.event
+async def on_message(message):
+    # Ignora mensagens de bots (incluindo o próprio bot)
+    if message.author.bot:
+        return
+
+    # Se a mensagem for enviada em um dos canais configurados
+    if message.channel.id in CHANNEL_IDS:
+        for emoji in AUTO_REACTIONS:
+            try:
+                await message.add_reaction(emoji)
+            except discord.errors.HTTPException:
+                continue  # ignora emojis inválidos ou indisponíveis
+
+    # Mantém a execução dos comandos normais
+    await bot.process_commands(message)
 
 # ===================== 👀 MONITOR DE ATIVIDADES ===================== #
 
