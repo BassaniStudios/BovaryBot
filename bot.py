@@ -168,19 +168,14 @@ async def ping(interaction: discord.Interaction):
 
 @bot.event
 async def on_message(message):
-    # Ignora mensagens de bots (incluindo o próprio bot)
     if message.author.bot:
         return
-
-    # Se a mensagem for enviada em um dos canais configurados
     if message.channel.id in CHANNEL_IDS:
         for emoji in AUTO_REACTIONS:
             try:
                 await message.add_reaction(emoji)
             except discord.errors.HTTPException:
-                continue  # ignora emojis inválidos ou indisponíveis
-
-    # Mantém a execução dos comandos normais
+                continue
     await bot.process_commands(message)
 
 # ===================== 👀 MONITOR DE ATIVIDADES ===================== #
@@ -246,9 +241,10 @@ async def on_ready():
     except Exception as e:
         print(f"❌ Erro ao sincronizar comandos: {e}")
 
-# 🟢 Manter ativo
+# ===================== EXECUÇÃO ===================== #
+
 if __name__ == "__main__":
-    keep_alive()
+    keep_alive()  # 🚀 inicia o servidor Flask em thread separada
     if TOKEN:
         bot.run(TOKEN)
     else:
