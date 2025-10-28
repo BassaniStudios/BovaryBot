@@ -31,7 +31,9 @@ CHANNEL_IDS = [
     1425669117750284318
 ]
 
-LOG_CHANNEL_ID = 1424436722984423529  # Canal de log
+# 📜 Canais de log
+LOG_CHANNEL_ID = 1424436722984423529        # Canal para entradas, saídas e canais criados/deletados
+MESSAGE_LOG_CHANNEL_ID = 1432715549116207248  # Canal específico para mensagens apagadas/editadas
 
 # ⚙️ Intents do bot
 intents = discord.Intents.default()
@@ -196,10 +198,10 @@ async def on_member_remove(member):
 async def on_message_delete(message):
     if message.author.bot:
         return
-    channel = bot.get_channel(LOG_CHANNEL_ID)
-    if channel:
+    msg_log = bot.get_channel(MESSAGE_LOG_CHANNEL_ID)
+    if msg_log:
         content = message.content or "[sem texto]"
-        await channel.send(
+        await msg_log.send(
             f"🗑️ Mensagem apagada em {message.channel.mention}\n"
             f"👤 Autor: {message.author}\n💬 Conteúdo: {content}"
         )
@@ -208,9 +210,9 @@ async def on_message_delete(message):
 async def on_message_edit(before, after):
     if before.author.bot or before.content == after.content:
         return
-    channel = bot.get_channel(LOG_CHANNEL_ID)
-    if channel:
-        await channel.send(
+    msg_log = bot.get_channel(MESSAGE_LOG_CHANNEL_ID)
+    if msg_log:
+        await msg_log.send(
             f"✏️ Mensagem editada em {before.channel.mention}\n"
             f"👤 Autor: {before.author}\n"
             f"📄 Antes: {before.content}\n"
