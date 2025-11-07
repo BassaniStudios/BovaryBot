@@ -8,15 +8,15 @@ import os
 import json
 import random
 from datetime import datetime, timezone
-from keep_alive import keep_alive  # 🔥 Mantém o bot ativo
+from keep_alive import keep_alive  # 🔥 Keeps bot alive
 
 # 🔑 Token
 TOKEN = os.getenv("TOKEN")
 
-# ✋ Emojis de auto-reação
+# ✋ Auto-reaction emojis
 AUTO_REACTIONS = ["❤️", "🔥", "💯", "💥", "💕", "💎", "🎊", "🎉", "🎀"]
 
-# 💬 Canais onde o bot reage automaticamente
+# 💬 Channels where bot reacts automatically
 CHANNEL_IDS = [
     1384173879295213689,
     1384174586345816134,
@@ -31,23 +31,23 @@ CHANNEL_IDS = [
     1425669117750284318
 ]
 
-# 📜 Canais de log
-LOG_CHANNEL_ID = 1424436722984423529        # Canal para entradas, saídas e canais criados/deletados
-MESSAGE_LOG_CHANNEL_ID = 1432715549116207248  # Canal específico para mensagens apagadas/editadas
+# 📜 Log channels
+LOG_CHANNEL_ID = 1424436722984423529         # Join/leave/channel logs
+MESSAGE_LOG_CHANNEL_ID = 1432715549116207248 # Message delete/edit logs
 
-# 🚫 Canal ignorado para logs de mensagens
+# 🚫 Channel ignored for message logs
 IGNORE_CHANNEL_ID = 1384173137985540233
 
-# ⚙️ Intents do bot
+# ⚙️ Bot intents
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 intents.guilds = True
 
-# 🤖 Inicialização do bot
+# 🤖 Bot initialization
 bot = commands.Bot(command_prefix="|", intents=intents)
 
-# ===================== 🎟️ SISTEMA DE SORTEIO ===================== #
+# ===================== 🎟️ GIVEAWAY SYSTEM ===================== #
 
 DATA_FILE = "giveaway.json"
 participants = {}
@@ -67,80 +67,80 @@ def save_data():
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(participants, f, indent=4, ensure_ascii=False)
 
-# ➕ Adicionar participante
-@bot.tree.command(name="add", description="Adiciona uma pessoa ao sorteio (1 entrada por vez)")
-@app_commands.describe(name="Nome da pessoa que vai participar")
+# ➕ Add participant
+@bot.tree.command(name="add", description="Adds a person to the giveaway (1 entry per time)")
+@app_commands.describe(name="Name of the person joining")
 async def add(interaction: discord.Interaction, name: str):
     name = name.strip().title()
     participants[name] = participants.get(name, 0) + 1
     save_data()
-    await interaction.response.send_message(f"✅ **{name}** agora tem **{participants[name]}** entrada(s)!")
+    await interaction.response.send_message(f"✅ **{name}** now has **{participants[name]}** entry(ies)!")
 
-# ✏️ Editar nome
-@bot.tree.command(name="edit_name", description="Edita o nome de um participante")
-@app_commands.describe(old="Nome atual", new="Novo nome")
+# ✏️ Edit name
+@bot.tree.command(name="edit_name", description="Edits a participant’s name")
+@app_commands.describe(old="Current name", new="New name")
 async def edit_name(interaction: discord.Interaction, old: str, new: str):
     old, new = old.strip().title(), new.strip().title()
     if old not in participants:
-        await interaction.response.send_message(f"⚠️ **{old}** não foi encontrado!")
+        await interaction.response.send_message(f"⚠️ **{old}** not found!")
         return
     participants[new] = participants.pop(old)
     save_data()
-    await interaction.response.send_message(f"✏️ **{old}** foi renomeado para **{new}** com sucesso!")
+    await interaction.response.send_message(f"✏️ **{old}** renamed to **{new}** successfully!")
 
-# ➖ Remover entrada
-@bot.tree.command(name="remove_entry", description="Remove uma entrada de um participante")
-@app_commands.describe(name="Nome da pessoa")
+# ➖ Remove entry
+@bot.tree.command(name="remove_entry", description="Removes one entry from a participant")
+@app_commands.describe(name="Name of the person")
 async def remove_entry(interaction: discord.Interaction, name: str):
     name = name.strip().title()
     if name not in participants:
-        await interaction.response.send_message(f"⚠️ **{name}** não está na lista!")
+        await interaction.response.send_message(f"⚠️ **{name}** not found!")
         return
     participants[name] -= 1
     if participants[name] <= 0:
         del participants[name]
-        await interaction.response.send_message(f"🗑️ **{name}** foi completamente removido!")
+        await interaction.response.send_message(f"🗑️ **{name}** completely removed!")
     else:
-        await interaction.response.send_message(f"➖ Uma entrada removida de **{name}**. Agora tem **{participants[name]}** entrada(s).")
+        await interaction.response.send_message(f"➖ One entry removed from **{name}**. Now has **{participants[name]}** entry(ies).")
     save_data()
 
-# 📋 Mostrar lista
-@bot.tree.command(name="list", description="Mostra a lista de participantes")
+# 📋 List participants
+@bot.tree.command(name="list", description="Shows all participants")
 async def list_command(interaction: discord.Interaction):
     if not participants:
-        await interaction.response.send_message("⚠️ Nenhum participante no momento!")
+        await interaction.response.send_message("⚠️ No participants yet!")
         return
-    formatted = "\n".join([f"{i+1}. **{n}** — {c} entrada(s)" for i, (n, c) in enumerate(participants.items())])
-    await interaction.response.send_message(f"📝 **Participantes:**\n{formatted}")
+    formatted = "\n".join([f"{i+1}. **{n}** — {c} entry(ies)" for i, (n, c) in enumerate(participants.items())])
+    await interaction.response.send_message(f"📝 **Participants:**\n{formatted}")
 
-# 🎲 Sortear
-@bot.tree.command(name="draw", description="Realiza o sorteio (apenas admin)")
+# 🎲 Draw winner
+@bot.tree.command(name="draw", description="Draws a winner (admin only)")
 async def draw(interaction: discord.Interaction):
     if not interaction.user.guild_permissions.administrator:
-        await interaction.response.send_message("🚫 Apenas administradores podem usar este comando.", ephemeral=True)
+        await interaction.response.send_message("🚫 Admins only.", ephemeral=True)
         return
     if not participants:
-        await interaction.response.send_message("⚠️ Nenhum participante para sortear!")
+        await interaction.response.send_message("⚠️ No participants to draw from!")
         return
     pool = [n for n, c in participants.items() for _ in range(c)]
     winner = random.choice(pool)
-    await interaction.response.send_message(f"🎉 **Resultado do Sorteio!** 🎉\n🏆 Vencedor: **{winner}**! 🎊")
+    await interaction.response.send_message(f"🎉 **Giveaway Result!** 🎉\n🏆 Winner: **{winner}**! 🎊")
     participants.clear()
     save_data()
 
-# 🧹 Limpar lista
-@bot.tree.command(name="clear_list", description="Limpa toda a lista (admin)")
+# 🧹 Clear list
+@bot.tree.command(name="clear_list", description="Clears the participant list (admin only)")
 async def clear_list(interaction: discord.Interaction):
     if not interaction.user.guild_permissions.administrator:
-        await interaction.response.send_message("🚫 Apenas admin pode limpar a lista.", ephemeral=True)
+        await interaction.response.send_message("🚫 Admins only.", ephemeral=True)
         return
     participants.clear()
     save_data()
-    await interaction.response.send_message("🧹 Lista de sorteio limpa com sucesso!")
+    await interaction.response.send_message("🧹 Giveaway list cleared!")
 
-# 🕒 Gerar timestamp global
-@bot.tree.command(name="timestamp", description="Gera um horário global para eventos")
-@app_commands.describe(date="DD/MM/AAAA (opcional)", time="HH:MM (24h)")
+# 🕒 Timestamp generator
+@bot.tree.command(name="timestamp", description="Generates a global event time")
+@app_commands.describe(date="DD/MM/YYYY (optional)", time="HH:MM (24h)")
 async def timestamp(interaction: discord.Interaction, time: str, date: str = None):
     try:
         now = datetime.now()
@@ -152,24 +152,24 @@ async def timestamp(interaction: discord.Interaction, time: str, date: str = Non
         dt = datetime(y, m, d, h, mn, tzinfo=timezone.utc)
         ts = int(dt.timestamp())
         await interaction.response.send_message(
-            f"🕒 **Tempo Global:** <t:{ts}:F>\n⏰ **Tempo Relativo:** <t:{ts}:R>\n\nUse em mensagens:\n`t:{ts}:F` ou `t:{ts}:R`"
+            f"🕒 **Global Time:** <t:{ts}:F>\n⏰ **Relative Time:** <t:{ts}:R>\n\nUse in messages:\n`t:{ts}:F` or `t:{ts}:R`"
         )
     except Exception:
-        await interaction.response.send_message("⚠️ Formato inválido! Use `/timestamp time:19:30 date:14/10/2025`")
+        await interaction.response.send_message("⚠️ Invalid format! Use `/timestamp time:19:30 date:14/10/2025`")
 
 # 🏓 Ping
-@bot.tree.command(name="ping", description="Mostra a latência do bot")
+@bot.tree.command(name="ping", description="Shows bot latency")
 async def ping(interaction: discord.Interaction):
     latency = round(bot.latency * 1000)
     embed = discord.Embed(
         title="🏓 Pong!",
-        description=f"Latência: `{latency}ms`",
+        description=f"Latency: `{latency}ms`",
         color=discord.Color.blue()
     )
     embed.set_footer(text="Bovary Club Society")
     await interaction.response.send_message(embed=embed)
 
-# ===================== 💬 REAÇÕES AUTOMÁTICAS (APENAS MÍDIA) ===================== #
+# ===================== 💬 AUTO REACTIONS ===================== #
 
 @bot.event
 async def on_message(message):
@@ -179,21 +179,18 @@ async def on_message(message):
     if message.channel.id in CHANNEL_IDS:
         has_media = False
 
-        # 🖼️ Verifica anexos (imagens, vídeos)
         if message.attachments:
             has_media = any(
                 a.content_type and a.content_type.startswith(("image/", "video/"))
                 for a in message.attachments
             )
 
-        # 🔗 Verifica embeds (como links de Instagram/Twitter)
         if not has_media and message.embeds:
             has_media = any(
                 e.type in ["image", "video", "gifv"] or (e.thumbnail and e.thumbnail.url)
                 for e in message.embeds
             )
 
-        # Se for mídia, adiciona as reações
         if has_media:
             for emoji in AUTO_REACTIONS:
                 try:
@@ -203,82 +200,93 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
-# ===================== 👀 MONITOR DE ATIVIDADES ===================== #
+# ===================== 👀 ACTIVITY MONITOR ===================== #
 
 @bot.event
 async def on_member_join(member):
     channel = bot.get_channel(LOG_CHANNEL_ID)
     if channel:
-        await channel.send(f"🟢 **{member}** entrou no servidor! (ID: `{member.id}`)")
+        await channel.send(f"🟢 **{member}** joined the server! (ID: `{member.id}`)")
 
 @bot.event
 async def on_member_remove(member):
     channel = bot.get_channel(LOG_CHANNEL_ID)
     if channel:
-        await channel.send(f"🔴 **{member}** saiu do servidor.")
+        await channel.send(f"🔴 **{member}** left the server.")
 
 @bot.event
 async def on_message_delete(message):
-    if message.author.bot:
-        return
-
-    if message.channel.id == IGNORE_CHANNEL_ID:
+    if message.author.bot or message.channel.id == IGNORE_CHANNEL_ID:
         return
 
     msg_log = bot.get_channel(MESSAGE_LOG_CHANNEL_ID)
     if msg_log:
-        content = message.content or "[sem texto]"
-        await msg_log.send(
-            f"🗑️ Mensagem apagada em {message.channel.mention}\n"
-            f"👤 Autor: {message.author}\n💬 Conteúdo: {content}"
+        content = message.content or "[no text]"
+        embed = discord.Embed(
+            title="🗑️ Message Deleted",
+            color=discord.Color.red(),
+            timestamp=datetime.now()
         )
+        embed.add_field(name="Channel", value=message.channel.mention, inline=True)
+        embed.add_field(name="Author", value=str(message.author), inline=True)
+        embed.add_field(name="Content", value=content, inline=False)
+        if message.author.avatar:
+            embed.set_thumbnail(url=message.author.avatar.url)
+        embed.set_footer(text="Bova’s bot | Delete log")
+        await msg_log.send(embed=embed)
 
 @bot.event
 async def on_message_edit(before, after):
-    if before.author.bot or before.content == after.content:
-        return
-
-    if before.channel.id == IGNORE_CHANNEL_ID:
+    if before.author.bot or before.content == after.content or before.channel.id == IGNORE_CHANNEL_ID:
         return
 
     msg_log = bot.get_channel(MESSAGE_LOG_CHANNEL_ID)
     if msg_log:
-        await msg_log.send(
-            f"✏️ Mensagem editada em {before.channel.mention}\n"
-            f"👤 Autor: {before.author}\n"
-            f"📄 Antes: {before.content}\n"
-            f"📄 Depois: {after.content}"
+        before_content = before.content or "[no text]"
+        after_content = after.content or "[no text]"
+        embed = discord.Embed(
+            title="✏️ Message Edited",
+            color=discord.Color.orange(),
+            timestamp=datetime.now()
         )
+        embed.add_field(name="Channel", value=before.channel.mention, inline=True)
+        embed.add_field(name="Author", value=str(before.author), inline=True)
+        embed.add_field(name="Before", value=before_content, inline=False)
+        embed.add_field(name="After", value=after_content, inline=False)
+        if before.author.avatar:
+            embed.set_thumbnail(url=before.author.avatar.url)
+        embed.set_footer(text="Bova’s bot | Edit log")
+        await msg_log.send(embed=embed)
 
 @bot.event
 async def on_guild_channel_create(channel):
     log_channel = bot.get_channel(LOG_CHANNEL_ID)
     if log_channel:
-        await log_channel.send(f"🆕 Canal criado: **{channel.name}** ({channel.mention})")
+        await log_channel.send(f"🆕 Channel created: **{channel.name}** ({channel.mention})")
 
 @bot.event
 async def on_guild_channel_delete(channel):
     log_channel = bot.get_channel(LOG_CHANNEL_ID)
     if log_channel:
-        await log_channel.send(f"🗑️ Canal apagado: **{channel.name}**")
+        await log_channel.send(f"🗑️ Channel deleted: **{channel.name}**")
 
-# ===================== EVENTOS ===================== #
+# ===================== EVENTS ===================== #
 
 @bot.event
 async def on_ready():
-    await bot.change_presence(activity=discord.Game("em Bovary Club Society 🏎️"))
+    await bot.change_presence(activity=discord.Game("at Bovary Club Society 🏎️"))
     load_data()
     try:
         synced = await bot.tree.sync()
-        print(f"✅ {bot.user} está online com {len(synced)} comandos slash!")
+        print(f"✅ {bot.user} is online with {len(synced)} slash commands!")
     except Exception as e:
-        print(f"❌ Erro ao sincronizar comandos: {e}")
+        print(f"❌ Error syncing commands: {e}")
 
-# ===================== EXECUÇÃO ===================== #
+# ===================== EXECUTION ===================== #
 
 if __name__ == "__main__":
-    keep_alive()  # 🚀 inicia o servidor Flask em thread separada
+    keep_alive()
     if TOKEN:
         bot.run(TOKEN)
     else:
-        print("❌ ERRO: TOKEN não encontrado. Configure no painel do Replit!")
+        print("❌ ERROR: TOKEN not found. Configure it in Replit panel!")
