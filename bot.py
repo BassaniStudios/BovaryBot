@@ -35,6 +35,9 @@ CHANNEL_IDS = [
 LOG_CHANNEL_ID = 1424436722984423529        # Canal para entradas, saídas e canais criados/deletados
 MESSAGE_LOG_CHANNEL_ID = 1432715549116207248  # Canal específico para mensagens apagadas/editadas
 
+# 🚫 Canal ignorado para logs de mensagens
+IGNORE_CHANNEL_ID = 1384173137985540233
+
 # ⚙️ Intents do bot
 intents = discord.Intents.default()
 intents.message_content = True
@@ -166,18 +169,38 @@ async def ping(interaction: discord.Interaction):
     embed.set_footer(text="Bovary Club Society")
     await interaction.response.send_message(embed=embed)
 
-# ===================== 💬 REAÇÕES AUTOMÁTICAS ===================== #
+# ===================== 💬 REAÇÕES AUTOMÁTICAS (APENAS MÍDIA) ===================== #
 
 @bot.event
 async def on_message(message):
     if message.author.bot:
         return
+
     if message.channel.id in CHANNEL_IDS:
-        for emoji in AUTO_REACTIONS:
-            try:
-                await message.add_reaction(emoji)
-            except discord.errors.HTTPException:
-                continue
+        has_media = False
+
+        # 🖼️ Verifica anexos (imagens, vídeos)
+        if message.attachments:
+            has_media = any(
+                a.content_type and a.content_type.startswith(("image/", "video/"))
+                for a in message.attachments
+            )
+
+        # 🔗 Verifica embeds (como links de Instagram/Twitter)
+        if not has_media and message.embeds:
+            has_media = any(
+                e.type in ["image", "video", "gifv"] or (e.thumbnail and e.thumbnail.url)
+                for e in message.embeds
+            )
+
+        # Se for mídia, adiciona as reações
+        if has_media:
+            for emoji in AUTO_REACTIONS:
+                try:
+                    await message.add_reaction(emoji)
+                except discord.errors.HTTPException:
+                    continue
+
     await bot.process_commands(message)
 
 # ===================== 👀 MONITOR DE ATIVIDADES ===================== #
@@ -198,6 +221,10 @@ async def on_member_remove(member):
 async def on_message_delete(message):
     if message.author.bot:
         return
+
+    if message.channel.id == IGNORE_CHANNEL_ID:
+        return
+
     msg_log = bot.get_channel(MESSAGE_LOG_CHANNEL_ID)
     if msg_log:
         content = message.content or "[sem texto]"
@@ -210,6 +237,10 @@ async def on_message_delete(message):
 async def on_message_edit(before, after):
     if before.author.bot or before.content == after.content:
         return
+
+    if before.channel.id == IGNORE_CHANNEL_ID:
+        return
+
     msg_log = bot.get_channel(MESSAGE_LOG_CHANNEL_ID)
     if msg_log:
         await msg_log.send(
