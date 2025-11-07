@@ -169,6 +169,41 @@ async def ping(interaction: discord.Interaction):
     embed.set_footer(text="Bovary Club Society")
     await interaction.response.send_message(embed=embed)
 
+# ===================== 🧹 DELETE MESSAGE BY ID (ANONYMOUS) ===================== #
+
+@bot.tree.command(name="apagar", description="Apaga uma mensagem pelo ID (anonimamente)")
+@app_commands.describe(
+    canal="Canal onde está a mensagem",
+    mensagem_id="ID da mensagem que deseja apagar"
+)
+async def apagar(interaction: discord.Interaction, canal: discord.TextChannel, mensagem_id: str):
+    if not interaction.user.guild_permissions.manage_messages:
+        await interaction.response.send_message("🚫 Você não tem permissão para apagar mensagens.", ephemeral=True)
+        return
+
+    try:
+        mensagem = await canal.fetch_message(int(mensagem_id))
+        await mensagem.delete()
+        await interaction.response.send_message("✅ Mensagem apagada com sucesso!", ephemeral=True)
+
+        msg_log = bot.get_channel(MESSAGE_LOG_CHANNEL_ID)
+        if msg_log:
+            embed = discord.Embed(
+                title="🧹 Mensagem apagada via comando",
+                description=f"Canal: {canal.mention}\nID da mensagem: `{mensagem_id}`",
+                color=discord.Color.blurple(),
+                timestamp=datetime.now()
+            )
+            embed.set_footer(text="Ação executada anonimamente")
+            await msg_log.send(embed=embed)
+
+    except discord.NotFound:
+        await interaction.response.send_message("⚠️ Mensagem não encontrada.", ephemeral=True)
+    except discord.Forbidden:
+        await interaction.response.send_message("🚫 Não tenho permissão para apagar mensagens nesse canal.", ephemeral=True)
+    except Exception as e:
+        await interaction.response.send_message(f"❌ Ocorreu um erro: `{e}`", ephemeral=True)
+
 # ===================== 💬 AUTO REACTIONS ===================== #
 
 @bot.event
