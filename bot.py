@@ -14,7 +14,7 @@ from keep_alive import keep_alive  # 🔥 Keeps bot alive
 TOKEN = os.getenv("TOKEN")
 
 # ✋ Auto-reaction emojis
-AUTO_REACTIONS = ["❤️", "🔥", "💯", "💥", "💕", "💎", "🎊", "🎉", "🎀"]
+AUTO_REACTIONS = ["❤️", "🔥", "💯", "💥", "🎀"]
 
 # 💬 Channels where bot reacts automatically
 CHANNEL_IDS = [
@@ -325,3 +325,4 @@ if __name__ == "__main__":
         bot.run(TOKEN)
     else:
         print("❌ ERROR: TOKEN not found. Configure it in Replit panel!")
+
