@@ -305,6 +305,118 @@ async def on_guild_channel_delete(channel):
     if log_channel:
         await log_channel.send(f"🗑️ Channel deleted: **{channel.name}**")
 
+
+# ==========================================
+# 📘 PAINEL DE COMANDOS COM BOTÕES ELEGANTES
+# ==========================================
+
+class HelpView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=180)
+
+    # 🎟️ GIVEAWAY BUTTON
+    @discord.ui.button(label="Giveaway 🎟️", style=discord.ButtonStyle.blurple)
+    async def giveaway_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        embed = discord.Embed(
+            title="🎟️ Sistema de Giveaway",
+            description="Comandos relacionados ao sistema de sorteios",
+            color=discord.Color.blurple()
+        )
+        embed.add_field(
+            name="Comandos:",
+            value=(
+                "`/add <nome>` — Adiciona 1 entrada\n"
+                "`/edit_name <old> <new>` — Renomeia participante\n"
+                "`/remove_entry <nome>` — Remove 1 entrada\n"
+                "`/list` — Lista participantes\n"
+                "`/draw` — Sorteia um vencedor (admin)\n"
+                "`/clear_list` — Limpa a lista (admin)"
+            ),
+            inline=False
+        )
+
+        embed.set_footer(text="Bovary Club Society")
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    # 🧹 MODERAÇÃO BUTTON
+    @discord.ui.button(label="Moderação 🧹", style=discord.ButtonStyle.red)
+    async def mod_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        embed = discord.Embed(
+            title="🧹 Moderação",
+            description="Comandos administrativos disponíveis no bot",
+            color=discord.Color.red()
+        )
+        embed.add_field(
+            name="Comandos:",
+            value=(
+                "`/apagar <canal> <id>` — Apaga mensagem anonimamente\n"
+                "`/timestamp` — Cria horários globais"
+            ),
+            inline=False
+        )
+        embed.set_footer(text="Bovary Club Society")
+
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    # ⚙️ UTILIDADE BUTTON
+    @discord.ui.button(label="Utilidades ⚙️", style=discord.ButtonStyle.green)
+    async def util_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        embed = discord.Embed(
+            title="⚙️ Utilidades",
+            description="Comandos gerais e úteis do bot",
+            color=discord.Color.green()
+        )
+        embed.add_field(
+            name="Comandos:",
+            value=(
+                "`/ping` — Mostra a latência\n"
+                "`/timestamp` — Horário global"
+            ),
+            inline=False
+        )
+        embed.set_footer(text="Bovary Club Society")
+
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    # 🔙 VOLTAR
+    @discord.ui.button(label="Voltar ⬅️", style=discord.ButtonStyle.grey)
+    async def back_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        embed = discord.Embed(
+            title="📘 Painel de Comandos — Bovary Bot",
+            description="Escolha uma categoria abaixo:",
+            color=discord.Color.blue()
+        )
+        embed.set_footer(text="Bovary Club Society")
+
+        await interaction.response.edit_message(embed=embed, view=self)
+
+
+# ============================
+# 📌 COMANDO SLASH: /help
+# ============================
+
+@bot.tree.command(name="help", description="Mostra o painel de comandos do bot")
+async def help_command(interaction: discord.Interaction):
+
+    embed = discord.Embed(
+        title="📘 Painel de Comandos — Bovary Bot",
+        description="Escolha uma categoria usando os botões abaixo:",
+        color=discord.Color.blue()
+    )
+
+    embed.set_thumbnail(
+        url=interaction.client.user.avatar.url if interaction.client.user.avatar else None
+    )
+    embed.set_footer(text="Bovary Club Society")
+
+    view = HelpView()
+    await interaction.response.send_message(embed=embed, view=view)
+
+
 # ===================== EVENTS ===================== #
 
 @bot.event
@@ -325,4 +437,3 @@ if __name__ == "__main__":
         bot.run(TOKEN)
     else:
         print("❌ ERROR: TOKEN not found. Configure it in Replit panel!")
-
