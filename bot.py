@@ -169,7 +169,7 @@ async def ping(interaction: discord.Interaction):
     embed.set_footer(text="Bovary Club Society")
     await interaction.response.send_message(embed=embed)
 
-# ===================== ℹ️ INFO COMMAND (ADICIONADO) ===================== #
+# ===================== ℹ️ INFO COMMAND ===================== #
 
 @bot.tree.command(name="info", description="Mostra informações sobre o bot, servidor e usuário")
 async def info(interaction: discord.Interaction):
@@ -219,7 +219,7 @@ async def info(interaction: discord.Interaction):
 
     await interaction.response.send_message(embed=embed)
 
-# ===================== 🧹 DELETE MESSAGE BY ID (ANONYMOUS) ===================== #
+# ===================== 🧹 DELETE MESSAGE BY ID (ANON) ===================== #
 
 @bot.tree.command(name="apagar", description="Apaga uma mensagem pelo ID (anonimamente)")
 @app_commands.describe(
@@ -355,7 +355,6 @@ async def on_guild_channel_delete(channel):
     if log_channel:
         await log_channel.send(f"🗑️ Channel deleted: **{channel.name}**")
 
-
 # ==========================================
 # 📘 PAINEL DE COMANDOS COM BOTÕES ELEGANTES
 # ==========================================
@@ -444,7 +443,6 @@ class HelpView(discord.ui.View):
 
         await interaction.response.edit_message(embed=embed, view=self)
 
-
 # ============================
 # 📌 COMANDO SLASH: /help
 # ============================
@@ -465,7 +463,6 @@ async def help_command(interaction: discord.Interaction):
 
     view = HelpView()
     await interaction.response.send_message(embed=embed, view=view)
-
 
 # ===================== EVENTS ===================== #
 
