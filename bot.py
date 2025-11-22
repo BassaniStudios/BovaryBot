@@ -32,7 +32,7 @@ CHANNEL_IDS = [
 ]
 
 # 📜 Log channels
-LOG_CHANNEL_ID = 1424436722984423529         # Join/leave/channel logs
+LOG_CHANNEL_ID = 1441663299065217114         # Join/leave/channel logs
 MESSAGE_LOG_CHANNEL_ID = 1432715549116207248 # Message delete/edit logs
 
 # 🚫 Channel ignored for message logs
@@ -484,3 +484,4 @@ if __name__ == "__main__":
         bot.run(TOKEN)
     else:
         print("❌ ERROR: TOKEN not found. Configure it in Replit panel!")
+
