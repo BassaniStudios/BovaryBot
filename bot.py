@@ -169,6 +169,56 @@ async def ping(interaction: discord.Interaction):
     embed.set_footer(text="Bovary Club Society")
     await interaction.response.send_message(embed=embed)
 
+# ===================== ℹ️ INFO COMMAND (ADICIONADO) ===================== #
+
+@bot.tree.command(name="info", description="Mostra informações sobre o bot, servidor e usuário")
+async def info(interaction: discord.Interaction):
+
+    bot_user = interaction.client.user
+    server = interaction.guild
+    user = interaction.user
+
+    embed = discord.Embed(
+        title="ℹ️ Informações do Bot",
+        color=discord.Color.purple(),
+        timestamp=datetime.now(timezone.utc)
+    )
+
+    embed.set_thumbnail(url=bot_user.avatar.url if bot_user.avatar else None)
+
+    embed.add_field(
+        name="🤖 Bot",
+        value=(
+            f"**Nome:** {bot_user.name}\n"
+            f"**ID:** `{bot_user.id}`\n"
+            f"**Latência:** `{round(bot.latency * 1000)}ms`"
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="🛡️ Servidor",
+        value=(
+            f"**Nome:** {server.name}\n"
+            f"**ID:** `{server.id}`\n"
+            f"**Membros:** `{server.member_count}`"
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="👤 Usuário",
+        value=(
+            f"**Nome:** {user.display_name}\n"
+            f"**ID:** `{user.id}`"
+        ),
+        inline=False
+    )
+
+    embed.set_footer(text="Bovary Club Society")
+
+    await interaction.response.send_message(embed=embed)
+
 # ===================== 🧹 DELETE MESSAGE BY ID (ANONYMOUS) ===================== #
 
 @bot.tree.command(name="apagar", description="Apaga uma mensagem pelo ID (anonimamente)")
