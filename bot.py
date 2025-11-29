@@ -279,8 +279,8 @@ async def help_command(interaction):
 # =============== INVITE VIEW (COOLDOWN 5 MIN + MENTION ROLE) ===============
 
 INVITE_COOLDOWN_SECONDS = 5 * 60   # 5 minutos
-STAFF_LOG_CHANNEL = 1441663299065217114  # canal onde staff recebe pedidos
-CREW_LEADER_ROLE_ID = 1384173136177791048  # ID do cargo 『👑』Crew Leaders
+STAFF_LOG_CHANNEL = 1428173462387822764  # 📩┃request-invitations
+CREW_LEADER_ROLE_ID = 1444179094983020605  # ID do cargo Host - invitations
 
 last_invite_request = {}  # cooldown por usuário
 
@@ -322,7 +322,7 @@ class InviteView(discord.ui.View):
         channel = interaction.client.get_channel(STAFF_LOG_CHANNEL)
         guild = interaction.guild
 
-        # pega cargo de Crew Leaders
+        # pega o cargo Host - invitations
         crew_leader_role = guild.get_role(CREW_LEADER_ROLE_ID)
 
         if channel:
@@ -337,7 +337,7 @@ class InviteView(discord.ui.View):
             )
             embed.set_footer(text="Bovary Club • Invite System")
 
-            # 🔥 AQUI está a mensagem do jeito que você pediu:
+            # 🔥 MENSAGEM QUE VOCÊ PEDIU:
             message_text = (
                 f"✨ **New announcement request!**\n"
                 f"{crew_leader_role.mention if crew_leader_role else ''}, "
@@ -348,7 +348,6 @@ class InviteView(discord.ui.View):
                 content=message_text,
                 embed=embed
             )
-
 
 # =============== INVITE PANEL (ÚNICA VERSÃO LIMPA) ===============
 REQUIRED_INVITE_CHANNEL = 1444094610157600859
@@ -405,6 +404,7 @@ async def on_ready():
 if __name__ == "__main__":
     keep_alive()
     bot.run(TOKEN)
+
 
 
 
