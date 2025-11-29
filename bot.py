@@ -385,6 +385,12 @@ async def invitepanel(interaction):
 
     await interaction.channel.send(embed=embed, view=InviteView())
     await interaction.response.send_message("✅ Panel sent!", ephemeral=True)
+    
+# Mensagem temporária no canal
+temp_msg = await interaction.channel.send(
+    f"📨 {interaction.user.mention} has requested an invite!"
+)
+await temp_msg.delete(delay=10)  # apaga depois de 10 segundos
 
 
 # =============== READY ===============
@@ -399,4 +405,5 @@ async def on_ready():
 if __name__ == "__main__":
     keep_alive()
     bot.run(TOKEN)
+
 
