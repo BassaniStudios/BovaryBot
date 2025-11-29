@@ -390,7 +390,7 @@ async def invitepanel(interaction):
 temp_msg = await interaction.channel.send(
     f"📨 {interaction.user.mention} has requested an invite!"
 )
-await temp_msg.delete(delay=10)  # apaga depois de 10 segundos
+await temp_msg.delete(delay=520)  # apaga depois de 5 minutos
 
 
 # =============== READY ===============
@@ -405,5 +405,6 @@ async def on_ready():
 if __name__ == "__main__":
     keep_alive()
     bot.run(TOKEN)
+
 
 
