@@ -47,97 +47,6 @@ intents.guilds = True
 # 🤖 Bot initialization
 bot = commands.Bot(command_prefix="|", intents=intents)
 
-# ===================== 🎟️ GIVEAWAY SYSTEM ===================== #
-
-DATA_FILE = "giveaway.json"
-participants = {}
-
-def load_data():
-    global participants
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
-            try:
-                participants = json.load(f)
-            except json.JSONDecodeError:
-                participants = {}
-    else:
-        participants = {}
-
-def save_data():
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(participants, f, indent=4, ensure_ascii=False)
-
-# ➕ Add participant
-@bot.tree.command(name="add", description="Adds a person to the giveaway (1 entry per time)")
-@app_commands.describe(name="Name of the person joining")
-async def add(interaction: discord.Interaction, name: str):
-    name = name.strip().title()
-    participants[name] = participants.get(name, 0) + 1
-    save_data()
-    await interaction.response.send_message(f"✅ **{name}** now has **{participants[name]}** entry(ies)!")
-
-# ✏️ Edit name
-@bot.tree.command(name="edit_name", description="Edits a participant’s name")
-@app_commands.describe(old="Current name", new="New name")
-async def edit_name(interaction: discord.Interaction, old: str, new: str):
-    old, new = old.strip().title(), new.strip().title()
-    if old not in participants:
-        await interaction.response.send_message(f"⚠️ **{old}** not found!")
-        return
-    participants[new] = participants.pop(old)
-    save_data()
-    await interaction.response.send_message(f"✏️ **{old}** renamed to **{new}** successfully!")
-
-# ➖ Remove entry
-@bot.tree.command(name="remove_entry", description="Removes one entry from a participant")
-@app_commands.describe(name="Name of the person")
-async def remove_entry(interaction: discord.Interaction, name: str):
-    name = name.strip().title()
-    if name not in participants:
-        await interaction.response.send_message(f"⚠️ **{name}** not found!")
-        return
-    participants[name] -= 1
-    if participants[name] <= 0:
-        del participants[name]
-        await interaction.response.send_message(f"🗑️ **{name}** completely removed!")
-    else:
-        await interaction.response.send_message(f"➖ One entry removed from **{name}**. Now has **{participants[name]}** entry(ies).")
-    save_data()
-
-# 📋 List participants
-@bot.tree.command(name="list", description="Shows all participants")
-async def list_command(interaction: discord.Interaction):
-    if not participants:
-        await interaction.response.send_message("⚠️ No participants yet!")
-        return
-    formatted = "\n".join([f"{i+1}. **{n}** — {c} entry(ies)" for i, (n, c) in enumerate(participants.items())])
-    await interaction.response.send_message(f"📝 **Participants:**\n{formatted}")
-
-# 🎲 Draw winner
-@bot.tree.command(name="draw", description="Draws a winner (admin only)")
-async def draw(interaction: discord.Interaction):
-    if not interaction.user.guild_permissions.administrator:
-        await interaction.response.send_message("🚫 Admins only.", ephemeral=True)
-        return
-    if not participants:
-        await interaction.response.send_message("⚠️ No participants to draw from!")
-        return
-    pool = [n for n, c in participants.items() for _ in range(c)]
-    winner = random.choice(pool)
-    await interaction.response.send_message(f"🎉 **Giveaway Result!** 🎉\n🏆 Winner: **{winner}**! 🎊")
-    participants.clear()
-    save_data()
-
-# 🧹 Clear list
-@bot.tree.command(name="clear_list", description="Clears the participant list (admin only)")
-async def clear_list(interaction: discord.Interaction):
-    if not interaction.user.guild_permissions.administrator:
-        await interaction.response.send_message("🚫 Admins only.", ephemeral=True)
-        return
-    participants.clear()
-    save_data()
-    await interaction.response.send_message("🧹 Giveaway list cleared!")
-
 # 🕒 Timestamp generator
 @bot.tree.command(name="timestamp", description="Generates a global event time")
 @app_commands.describe(date="DD/MM/YYYY (optional)", time="HH:MM (24h)")
@@ -659,3 +568,4 @@ async def invitepanel(interaction: discord.Interaction):
     view = InviteView()
 
     await interaction.response.send_message(embed=embed, view=view)
+
