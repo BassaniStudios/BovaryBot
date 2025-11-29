@@ -572,11 +572,10 @@ async def invitepanel(interaction: discord.Interaction):
 # ====================================
 # 🚀 COMMAND: START INVITE PANEL
 # ====================================
-
 @bot.tree.command(name="start_invite", description="Starts the official Bovary Invite Panel.")
 async def start_invite(interaction: discord.Interaction):
 
-    required_channel_id = 1444094610157600859
+    required_channel_id = 1444094610157600859  # channel where the panel should appear
 
     if interaction.channel_id != required_channel_id:
         return await interaction.response.send_message(
@@ -587,9 +586,59 @@ async def start_invite(interaction: discord.Interaction):
     embed = discord.Embed(
         title="🚗 **Bovary Club – Invitation Request Panel**",
         description=(
-            "To request an invite, simply click the button below.\n\n"
-            "Your request will be sent **directly to the staff team** responsible.\n\n"
+            "**Request an invite by clicking the button below.**\n\n"
+            "Your request will be forwarded **automatically** to the staff team.\n\n"
             "⏳ **Cooldown:** 2 hours per user"
+        ),
+        color=discord.Color.from_rgb(80, 120, 255)
+    )
+
+    embed.set_image(
+        url="https://cdn.discordapp.com/attachments/1427794118440124567/1444131435106664469/Ekipa-w-GTA-Online-1280x720.jpg"
+    )
+
+    embed.set_thumbnail(
+        url=interaction.client.user.avatar.url if interaction.client.user.avatar else None
+    )
+
+    embed.set_footer(
+        text="Bovary Club Society • Premium Invite System",
+        icon_url=interaction.client.user.avatar.url if interaction.client.user.avatar else None
+    )
+
+    view = InviteView()
+
+    # Confirmation message only for the staff member
+    await interaction.response.send_message(
+        "✅ **Invite Panel Started Successfully!**",
+        ephemeral=True
+    )
+
+    # Sends the panel to the channel
+    channel = bot.get_channel(required_channel_id)
+    await channel.send(embed=embed, view=view)
+
+
+# ====================================
+# 📌 COMMAND: SEND PANEL DIRECTLY
+# ====================================
+@bot.tree.command(name="invitepanel", description="Sends the official invite panel.")
+async def invitepanel(interaction: discord.Interaction):
+
+    required_channel_id = 1444094610157600859  # channel where panel must be used
+
+    if interaction.channel_id != required_channel_id:
+        return await interaction.response.send_message(
+            f"❌ You can only use this command in <#{required_channel_id}>.",
+            ephemeral=True
+        )
+
+    embed = discord.Embed(
+        title="🚗 **Bovary Club – Invitation Request Panel**",
+        description=(
+            "Click the button below to request an invite.\n"
+            "Your request will be forwarded **automatically** to the responsible staff.\n\n"
+            "⏳ *Cooldown: 2 hours per user*"
         ),
         color=discord.Color.from_rgb(80, 120, 255)
     )
@@ -609,13 +658,4 @@ async def start_invite(interaction: discord.Interaction):
 
     view = InviteView()
 
-    await interaction.response.send_message(
-        content="✅ **Invite Panel Started Successfully!**",
-        ephemeral=True
-    )
-
-    # Sends the panel to the channel
-    channel = bot.get_channel(required_channel_id)
-    await channel.send(embed=embed, view=view)
-
-
+    await interaction.response.send_message(embed=embed, view=view)
