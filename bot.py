@@ -276,17 +276,78 @@ async def help_command(interaction):
     await interaction.response.send_message(embed=embed, view=HelpView())
 
 
-# =============== INVITE VIEW ===============
+# =============== INVITE VIEW (COOLDOWN 5 MIN + MENTION ROLE) ===============
+
+INVITE_COOLDOWN_SECONDS = 5 * 60   # 5 minutos
+STAFF_LOG_CHANNEL = 1441663299065217114  # canal onde staff recebe pedidos
+CREW_LEADER_ROLE_ID = 1384173136177791048  # ID do cargo 『👑』Crew Leaders
+
+last_invite_request = {}  # cooldown por usuário
+
+
 class InviteView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
     @discord.ui.button(label="Request Invite ✉️", style=discord.ButtonStyle.blurple)
-    async def request_invite(self, interaction, button):
+    async def request_invite(self, interaction: discord.Interaction, button):
+
+        user = interaction.user
+        now = datetime.now(timezone.utc)
+
+        # --- VERIFICA COOLDOWN ---
+        if user.id in last_invite_request:
+            diff = (now - last_invite_request[user.id]).total_seconds()
+            remaining = INVITE_COOLDOWN_SECONDS - diff
+
+            if remaining > 0:
+                minutes = int(remaining // 60)
+                seconds = int(remaining % 60)
+
+                return await interaction.response.send_message(
+                    f"⏳ You must wait **{minutes}m {seconds}s** before requesting another invite.",
+                    ephemeral=True
+                )
+
+        # Atualiza o horário da última solicitação
+        last_invite_request[user.id] = now
+
+        # Resposta para o usuário (ephemeral)
         await interaction.response.send_message(
             "✅ Your invite request has been sent to the staff!",
             ephemeral=True
         )
+
+        # Envia para o canal da staff
+        channel = interaction.client.get_channel(STAFF_LOG_CHANNEL)
+        guild = interaction.guild
+
+        # pega cargo de Crew Leaders
+        crew_leader_role = guild.get_role(CREW_LEADER_ROLE_ID)
+
+        if channel:
+            embed = discord.Embed(
+                title="📨 New Invite Request",
+                description=(
+                    f"👤 **User:** {user.mention}\n"
+                    f"⏰ **Time:** <t:{int(now.timestamp())}:R>"
+                ),
+                color=discord.Color.blue(),
+                timestamp=now
+            )
+            embed.set_footer(text="Bovary Club • Invite System")
+
+            # 🔥 AQUI está a mensagem do jeito que você pediu:
+            message_text = (
+                f"✨ **New announcement request!**\n"
+                f"{crew_leader_role.mention if crew_leader_role else ''}, "
+                f"**{user.display_name}** has requested a broadcast."
+            )
+
+            await channel.send(
+                content=message_text,
+                embed=embed
+            )
 
 
 # =============== INVITE PANEL (ÚNICA VERSÃO LIMPA) ===============
@@ -338,3 +399,4 @@ async def on_ready():
 if __name__ == "__main__":
     keep_alive()
     bot.run(TOKEN)
+
