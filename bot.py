@@ -279,7 +279,7 @@ async def help_command(interaction):
 # =============== INVITE VIEW (COOLDOWN 5 MIN + MENTION ROLE) ===============
 
 INVITE_COOLDOWN_SECONDS = 5 * 60   # 5 minutos
-STAFF_LOG_CHANNEL = 1428173462387822764  # 📩┃request-invitations
+STAFF_LOG_CHANNEL = 1444186478157500508  # 📩┃request-invitations
 CREW_LEADER_ROLE_ID = 1444179094983020605  # ID do cargo Host - invitations
 
 last_invite_request = {}  # cooldown por usuário
@@ -382,14 +382,15 @@ async def invitepanel(interaction):
         icon_url=interaction.client.user.avatar.url
     )
 
+    # Envia o painel
     await interaction.channel.send(embed=embed, view=InviteView())
     await interaction.response.send_message("✅ Panel sent!", ephemeral=True)
-    
-# Mensagem temporária no canal
-temp_msg = await interaction.channel.send(
-    f"📨 {interaction.user.mention} has requested an invite!"
-)
-await temp_msg.delete(delay=520)  # apaga depois de 5 minutos
+
+    # ✅ MENSAGEM TEMPORÁRIA (agora corretamente dentro da função)
+    temp_msg = await interaction.channel.send(
+        f"📨 {interaction.user.mention} has requested an invite!"
+    )
+    await temp_msg.delete(delay=520)  # apaga depois de 5 minutos
 
 
 # =============== READY ===============
@@ -404,7 +405,3 @@ async def on_ready():
 if __name__ == "__main__":
     keep_alive()
     bot.run(TOKEN)
-
-
-
-
