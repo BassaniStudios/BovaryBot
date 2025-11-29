@@ -272,30 +272,6 @@ class HelpView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=180)
 
-    # 🎟️ GIVEAWAY BUTTON
-    @discord.ui.button(label="Giveaway 🎟️", style=discord.ButtonStyle.blurple)
-    async def giveaway_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-
-        embed = discord.Embed(
-            title="🎟️ Sistema de Giveaway",
-            description="Comandos relacionados ao sistema de sorteios",
-            color=discord.Color.blurple()
-        )
-        embed.add_field(
-            name="Comandos:",
-            value=(
-                "`/add <nome>` — Adiciona 1 entrada\n"
-                "`/edit_name <old> <new>` — Renomeia participante\n"
-                "`/remove_entry <nome>` — Remove 1 entrada\n"
-                "`/list` — Lista participantes\n"
-                "`/draw` — Sorteia um vencedor (admin)\n"
-                "`/clear_list` — Limpa a lista (admin)"
-            ),
-            inline=False
-        )
-
-        embed.set_footer(text="Bovary Club Society")
-        await interaction.response.edit_message(embed=embed, view=self)
 
     # 🧹 MODERAÇÃO BUTTON
     @discord.ui.button(label="Moderação 🧹", style=discord.ButtonStyle.red)
@@ -378,7 +354,6 @@ async def help_command(interaction: discord.Interaction):
 @bot.event
 async def on_ready():
     await bot.change_presence(activity=discord.Game("at Bovary Club Society 🏎️"))
-    load_data()
     try:
         synced = await bot.tree.sync()
         print(f"✅ {bot.user} is online with {len(synced)} slash commands!")
@@ -568,4 +543,5 @@ async def invitepanel(interaction: discord.Interaction):
     view = InviteView()
 
     await interaction.response.send_message(embed=embed, view=view)
+
 
