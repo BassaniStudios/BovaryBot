@@ -485,54 +485,53 @@ if __name__ == "__main__":
     else:
         print("❌ ERROR: TOKEN not found. Configure it in Replit panel!")
 
-# ================================
-# 💎 PREMIUM INVITE PANEL
-# ================================
-class InviteView(discord.ui.View):
-    def __init__(self, cooldown_seconds=7200):
-        super().__init__(timeout=None)
-        self.cooldown_seconds = cooldown_seconds
-        self.cooldowns = {}
+# ====================================
+# 🚀 COMMAND: START INVITE PANEL
+# ====================================
+@bot.tree.command(name="start_invite", description="Starts the official Bovary Invite Panel.")
+async def start_invite(interaction: discord.Interaction):
 
-    @discord.ui.button(
-        label="✨ INVITE ME ✨",
-        style=discord.ButtonStyle.blurple,
-        emoji="📩",
-        custom_id="invite_button_001"
+    required_channel_id = 1444094610157600859
+
+    if interaction.channel_id != required_channel_id:
+        return await interaction.response.send_message(
+            f"❌ You must use this command in <#{required_channel_id}>.",
+            ephemeral=True
+        )
+
+    embed = discord.Embed(
+        title="🚗 **Bovary Club – Invitation Request Panel**",
+        description=(
+            "**Request an invite by clicking the button below.**\n\n"
+            "Your request will be forwarded automatically to the staff team.\n\n"
+            "⏳ **Cooldown:** 5 minutes per user"
+        ),
+        color=discord.Color.from_rgb(0, 180, 90)
     )
-    async def invite_button(self, interaction: discord.Interaction, button: discord.ui.Button):
 
-        now = discord.utils.utcnow()
-        last_used = self.cooldowns.get(interaction.user.id)
+    embed.set_image(
+        url="https://cdn.discordapp.com/attachments/1427794118440124567/1444131435106664469/Ekipa-w-GTA-Online-1280x720.jpg"
+    )
 
-        # Cooldown check
-        if last_used and (now - last_used).total_seconds() < self.cooldown_seconds:
-            remaining = int(self.cooldown_seconds - (now - last_used).total_seconds())
-            hours = remaining // 3600
-            minutes = (remaining % 3600) // 60
-            seconds = remaining % 60
+    embed.set_thumbnail(
+        url=interaction.client.user.avatar.url if interaction.client.user.avatar else None
+    )
 
-            return await interaction.response.send_message(
-                f"⏳ **Cooldown active!** You can use this again in **{hours}h {minutes}m {seconds}s**.",
-                ephemeral=True
-            )
+    embed.set_footer(
+        text="Bovary Club Society • Premium Invite System",
+        icon_url=interaction.client.user.avatar.url if interaction.client.user.avatar else None
+    )
 
-        self.cooldowns[interaction.user.id] = now
+    view = InviteView()
 
-        # Roles to ping
-        role1 = discord.utils.get(interaction.guild.roles, name="『👑』Crew Leaders")
-        role2 = discord.utils.get(interaction.guild.roles, name="『✍🏻』Administrator")
+    await interaction.response.send_message(
+        "✅ **Invite Panel Started Successfully!**",
+        ephemeral=True
+    )
 
-        mention_text = f"{role1.mention if role1 else ''} {role2.mention if role2 else ''}".strip()
-
-        # Send temporary message
-        msg = await interaction.channel.send(f"{mention_text} 👉 **Hey invite me please!**")
-
-        # Delete after 2h
-        await msg.delete(delay=7200)
-
-        await interaction.response.send_message("📨 **Your request has been delivered!**", ephemeral=True)
-
+    # Send panel to the fixed channel
+    channel = bot.get_channel(required_channel_id)
+    await channel.send(embed=embed, view=view)
 
 # ================================
 # 📌 COMMAND TO SEND THE PANEL
@@ -618,4 +617,5 @@ async def start_invite(interaction: discord.Interaction):
     # Sends the panel to the channel
     channel = bot.get_channel(required_channel_id)
     await channel.send(embed=embed, view=view)
+
 
