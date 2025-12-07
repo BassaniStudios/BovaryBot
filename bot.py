@@ -365,18 +365,6 @@ async def help_command(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed, view=view)
 
 
-# ===================== EVENTS ===================== #
-
-@bot.event
-async def on_ready():
-    await bot.change_presence(activity=discord.Game("at Bovary Club Society 🏎️"))
-    try:
-        synced = await bot.tree.sync()
-        print(f"✅ {bot.user} is online with {len(synced)} slash commands!")
-    except Exception as e:
-        print(f"❌ Error syncing commands: {e}")
-
-
 # =========================================================
 # 📨 REQUEST INVITE SYSTEM (COOLDOWN + STAFF NOTIFICATION)
 # =========================================================
@@ -484,6 +472,19 @@ async def invitepanel(interaction: discord.Interaction):
         f"📨 {interaction.user.mention} has requested an invite!"
     )
     await temp_msg.delete(delay=300)
+
+
+# ===================== EVENTS ===================== #
+
+@bot.event
+async def on_ready():
+    await bot.change_presence(activity=discord.Game("at Bovary Club Society 🏎️"))
+    try:
+        bot.add_view(InviteView())  # 🔥 registra a View dos botões permanentes
+        synced = await bot.tree.sync()
+        print(f"✅ {bot.user} is online with {len(synced)} slash commands!")
+    except Exception as e:
+        print(f"❌ Error syncing commands: {e}")
 
 
 # ===================== EXECUTION ===================== #
