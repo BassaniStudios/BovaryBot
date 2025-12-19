@@ -102,6 +102,30 @@ bot.remove_command("help")  # we'll use a slash help
 # Keep cooldown map for invite requests
 last_invite_request: Dict[int, datetime] = {}
 
+# Dynamic status (presence rotation)
+STATUS_INTERVAL_SECONDS = 2 * 60 * 60  # 2 horas
+
+STATUS_ROTATION = [
+    discord.Game("at Bovary Club Society"),
+    discord.Game("Private Crew Access"),
+
+    discord.Game("Curated automotive art"),
+    discord.Game("Design. Form. Identity."),
+    discord.Game("Where cars become art"),
+    discord.Game("Aesthetic over noise"),
+
+    discord.Game("Capturing motion"),
+    discord.Game("Frames of luxury"),
+    discord.Game("Night shots & neon lines"),
+    discord.Game("Composition in motion"),
+
+    discord.Game("Neon tones & deep shadows"),
+    discord.Game("Muted colors, loud presence"),
+    discord.Game("Light, shadow, contrast"),
+    discord.Game("Color tells the story"),
+]
+
+
 # -------------------------
 # ====== HELPERS ===========
 # -------------------------
@@ -173,6 +197,16 @@ def parse_date_time_strings(time_str: str, date_str: Optional[str]) -> datetime:
     local_dt = datetime(year=y, month=mo, day=d, hour=h, minute=m, tzinfo=SERVER_TZ)
     utc_dt = local_dt.astimezone(timezone.utc)
     return utc_dt
+
+import itertools
+from discord.ext import tasks
+
+status_cycle = itertools.cycle(STATUS_ROTATION)
+
+@tasks.loop(seconds=STATUS_INTERVAL_SECONDS)
+async def rotate_status():
+    await bot.change_presence(activity=next(status_cycle))
+
 
 # -------------------------
 # ====== SLASH COMMANDS ====
@@ -404,7 +438,9 @@ async def invitepanel(interaction: discord.Interaction):
 # -------------------------
 @bot.event
 async def on_ready():
-    await bot.change_presence(activity=discord.Game("at Bovary Club Society 🏎️"))
+    if not rotate_status.is_running():
+        rotate_status.start()
+
     try:
         bot.add_view(InviteView())  # register persistent view
     except Exception:
@@ -565,3 +601,4 @@ if __name__ == "__main__":
             bot.run(TOKEN)
         except Exception as e:
             logger.exception("Failed to start bot: %s", e)
+
