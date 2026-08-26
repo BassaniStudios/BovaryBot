@@ -404,8 +404,13 @@ class InviteView(discord.ui.View):
         custom_id="invite_request_button"
     )
     async def request_invite(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Handle an invite request from the persistent button."""
         user = interaction.user
         now = datetime.now(timezone.utc)
+
+        # Acknowledge the interaction immediately. Discord only gives the bot
+        # a few seconds to acknowledge a button interaction.
+        await interaction.response.defer(ephemeral=True)
 
         last = last_invite_request.get(user.id)
         if last:
@@ -414,36 +419,76 @@ class InviteView(discord.ui.View):
             if remaining > 0:
                 minutes = int(remaining // 60)
                 seconds = int(remaining % 60)
-                await interaction.response.send_message(
+                await interaction.followup.send(
                     f"⏳ Please wait **{minutes}m {seconds}s** before requesting another invite.",
                     ephemeral=True
                 )
                 return
 
-        last_invite_request[user.id] = now
-        await interaction.response.send_message(
-            MESSAGES.INVITE_REQUEST_SENT,
-            ephemeral=True
-        )
-
         channel = safe_get_channel(bot, STAFF_LOG_CHANNEL)
+
+        # If the channel is not cached, try fetching it directly.
+        if channel is None:
+            try:
+                channel = await bot.fetch_channel(STAFF_LOG_CHANNEL)
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                logger.exception(
+                    "Could not access STAFF_LOG_CHANNEL=%s",
+                    STAFF_LOG_CHANNEL
+                )
+                await interaction.followup.send(
+                    "❌ I could not contact the staff channel. Please contact a staff member.",
+                    ephemeral=True
+                )
+                return
+
         guild = interaction.guild
         crew_leader_role = guild.get_role(CREW_LEADER_ROLE_ID) if guild else None
 
-        if channel:
-            embed = make_embed(
-                title="📨 New Invite Request",
-                color=discord.Color.blue()
-            )
-            embed.description = (
-                f"👤 **User:** {user.mention}\n"
-                f"⏰ **Time:** <t:{int(now.timestamp())}:R>"
-            )
+        embed = make_embed(
+            title="📨 New Invite Request",
+            color=discord.Color.blue()
+        )
+        embed.description = (
+            f"👤 **User:** {user.mention}\n"
+            f"⏰ **Time:** <t:{int(now.timestamp())}:R>"
+        )
+
+        try:
             await channel.send(
                 content=f"{crew_leader_role.mention if crew_leader_role else ''} "
                         f"**{user.display_name}** has requested an invitation.",
                 embed=embed
             )
+        except (discord.Forbidden, discord.HTTPException):
+            logger.exception(
+                "Could not send invite request to STAFF_LOG_CHANNEL=%s",
+                STAFF_LOG_CHANNEL
+            )
+            await interaction.followup.send(
+                "❌ I could not send your request to staff. Please try again later.",
+                ephemeral=True
+            )
+            return
+
+        # Only start the cooldown after the request was successfully sent.
+        last_invite_request[user.id] = now
+
+        await interaction.followup.send(
+            MESSAGES.INVITE_REQUEST_SENT,
+            ephemeral=True
+        )
+
+
+# Register the persistent view when the module loads.
+# The existing Discord panel uses custom_id="invite_request_button".
+# Registering the view here makes that old button work again after restarts.
+try:
+    bot.add_view(InviteView())
+    logger.info("Persistent InviteView registered successfully.")
+except Exception:
+    logger.exception("Failed to register persistent InviteView.")
+
 
 @bot.tree.command(name="invitepanel", description="Send the official invite panel")
 async def invitepanel(interaction: discord.Interaction):
@@ -489,11 +534,6 @@ async def invitepanel(interaction: discord.Interaction):
 async def on_ready():
     if not rotate_status.is_running():
         rotate_status.start()
-
-    try:
-        bot.add_view(InviteView())
-    except Exception:
-        logger.warning("Could not add persistent InviteView on startup")
 
     try:
         synced = await bot.tree.sync()
