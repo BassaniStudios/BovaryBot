@@ -509,7 +509,7 @@ async def invitepanel(interaction: discord.Interaction):
         f"⏳ *Cooldown: {INVITE_COOLDOWN_SECONDS // 60} minutes*"
     )
     embed.set_image(
-        url="https://cdn.discordapp.com/attachments/1427794118440124567/1444131435106664469/Ekipa-w-GTA-Online-1280x720.jpg"
+        url="https://i.imgur.com/GTItHzJ.png"
     )
 
     if interaction.client.user and interaction.client.user.avatar:
