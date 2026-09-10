@@ -14,6 +14,24 @@ from discord.ext import commands
 # Timezone do servidor (São Paulo / Brasil = UTC-3)
 SERVER_TZ = timezone(timedelta(hours=-3))
 
+# Common timezone offsets (hours from UTC) for panel + commands
+TIMEZONES = {
+    "America/Sao_Paulo": -3,
+    "UTC": 0,
+    "America/New_York": -5,
+    "America/Los_Angeles": -8,
+    "Europe/London": 0,
+    "Europe/Paris": 1,
+    "Asia/Tokyo": 9,
+}
+
+
+def tz_from_offset(hours: float):
+    """Build a fixed-offset timezone from hours relative to UTC."""
+    return timezone(timedelta(hours=hours))
+
+
+
 
 def make_embed(
     title: str = "",

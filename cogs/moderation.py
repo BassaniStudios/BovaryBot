@@ -1,6 +1,7 @@
 """
 Moderation cog: delete message, purge.
 Kick/ban intentionally removed per project requirements.
+Logs go through WebLogs (message log + bot-room).
 """
 from __future__ import annotations
 
@@ -11,8 +12,6 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from utils.helpers import make_embed, safe_get_channel
-
 logger = logging.getLogger("bovary_bot.moderation")
 
 
@@ -22,8 +21,8 @@ class Moderation(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    def _get_msg_log(self) -> Optional[discord.abc.GuildChannel]:
-        return safe_get_channel(self.bot, self.bot.config.get("MESSAGE_LOG_CHANNEL_ID"))
+    def _weblogs(self):
+        return self.bot.get_cog("WebLogs")
 
     @app_commands.command(
         name="delete",
@@ -34,6 +33,7 @@ class Moderation(commands.Cog):
         message_id="ID of the message to delete",
     )
     @app_commands.checks.has_permissions(manage_messages=True)
+    @app_commands.checks.cooldown(1, 3.0)
     async def delete_msg(
         self,
         interaction: discord.Interaction,
@@ -66,19 +66,22 @@ class Moderation(commands.Cog):
                 ephemeral=True,
             )
 
-            msg_log = self._get_msg_log()
-            if msg_log:
-                embed = make_embed(
-                    title="🧹 Message deleted via command",
-                    description=(
+            wl = self._weblogs()
+            if wl:
+                await wl.log_message(
+                    "🧹 Message deleted via command",
+                    (
                         f"**Channel:** {channel.mention}\n"
                         f"**Message ID:** `{msg_id}`\n"
                         f"**Executor:** {interaction.user.mention} (`{interaction.user.id}`)"
                     ),
-                    color=discord.Color.blurple(),
+                    discord.Color.blurple(),
                 )
-                embed.set_footer(text="Action executed anonymously for the end user")
-                await msg_log.send(embed=embed)
+                await wl.log_admin(
+                    "🧹 Staff delete",
+                    f"{interaction.user.mention} deleted message `{msg_id}` in {channel.mention}",
+                    discord.Color.blurple(),
+                )
 
         except discord.NotFound:
             await interaction.followup.send("⚠️ Message not found.", ephemeral=True)
@@ -97,6 +100,7 @@ class Moderation(commands.Cog):
     )
     @app_commands.describe(amount="Number of messages to delete (1-100)")
     @app_commands.checks.has_permissions(manage_messages=True)
+    @app_commands.checks.cooldown(1, 5.0)
     async def purge(
         self,
         interaction: discord.Interaction,
@@ -118,18 +122,22 @@ class Moderation(commands.Cog):
                 ephemeral=True,
             )
 
-            msg_log = self._get_msg_log()
-            if msg_log:
-                embed = make_embed(
-                    title="🧹 Channel purged via command",
-                    description=(
+            wl = self._weblogs()
+            if wl:
+                await wl.log_message(
+                    "🧹 Channel purged via command",
+                    (
                         f"**Channel:** {interaction.channel.mention}\n"
                         f"**Amount:** `{len(deleted)}`\n"
                         f"**Executor:** {interaction.user.mention}"
                     ),
-                    color=discord.Color.orange(),
+                    discord.Color.orange(),
                 )
-                await msg_log.send(embed=embed)
+                await wl.log_admin(
+                    "🧹 Staff purge",
+                    f"{interaction.user.mention} purged **{len(deleted)}** messages in {interaction.channel.mention}",
+                    discord.Color.orange(),
+                )
 
         except discord.Forbidden:
             await interaction.followup.send(
@@ -145,6 +153,8 @@ class Moderation(commands.Cog):
     async def mod_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         if isinstance(error, app_commands.MissingPermissions):
             msg = "🚫 You do not have permission to run this command."
+        elif isinstance(error, app_commands.CommandOnCooldown):
+            msg = f"⏳ Wait {error.retry_after:.1f}s before using this again."
         else:
             msg = "❌ An error occurred while running the command."
             logger.exception("Moderation command error: %s", error)

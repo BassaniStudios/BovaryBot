@@ -8,7 +8,6 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from utils.helpers import make_embed
 from utils.storage import load_json, save_json
 
 logger = logging.getLogger("bovary_bot.boost")
@@ -26,13 +25,20 @@ class Boost(commands.Cog):
         self.bot = bot
         self.config = load_json(CONFIG_FILE, {
             "enabled": True,
-            "channel_id": None,
+            "channel_id": None,  # falls back to BOOST_CHANNEL_ID in bot config
             "message": DEFAULT_MSG,
             "embed_color": 0xF47FFF,
         })
 
     def _save(self):
         save_json(CONFIG_FILE, self.config)
+
+    def _channel_id(self) -> Optional[int]:
+        return (
+            self.config.get("channel_id")
+            or self.bot.config.get("BOOST_CHANNEL_ID")
+            or 1384173136638906407
+        )
 
     @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member):
@@ -42,7 +48,7 @@ class Boost(commands.Cog):
     async def _send_thanks(self, member: discord.Member):
         if not self.config.get("enabled", True):
             return
-        channel_id = self.config.get("channel_id") or self.bot.config.get("LOG_CHANNEL_ID")
+        channel_id = self._channel_id()
         channel = self.bot.get_channel(channel_id) if channel_id else None
         if not channel:
             return
@@ -64,7 +70,7 @@ class Boost(commands.Cog):
 
     @app_commands.command(name="boost_config", description="Configure boost thank-you message")
     @app_commands.describe(
-        channel="Channel for boost messages",
+        channel="Channel for boost messages (default: dedicated boost channel)",
         message="Message template — use {user} for mention",
         enabled="Enable or disable boost notifications",
     )
@@ -86,7 +92,7 @@ class Boost(commands.Cog):
         await interaction.response.send_message(
             f"✅ Boost config saved.\n"
             f"**Enabled:** {self.config.get('enabled')}\n"
-            f"**Channel:** {self.config.get('channel_id')}\n"
+            f"**Channel:** {self._channel_id()}\n"
             f"**Message:** {self.config.get('message', '')[:200]}",
             ephemeral=True,
         )

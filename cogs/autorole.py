@@ -1,4 +1,4 @@
-"""Auto-role (reaction roles) module."""
+"""Auto-role (button roles) module — supports multiple roles."""
 from __future__ import annotations
 
 import logging
@@ -8,7 +8,6 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from utils.helpers import make_embed
 from utils.storage import load_json, save_json, default_autorole
 
 logger = logging.getLogger("bovary_bot.autorole")
@@ -16,7 +15,7 @@ CONFIG_FILE = "autorole.json"
 
 
 class AutoRoleView(discord.ui.View):
-    """Dynamic buttons for each configured role."""
+    """Dynamic buttons for each configured role (up to 20 / 4 rows)."""
 
     def __init__(self, bot: commands.Bot, roles_data: list):
         super().__init__(timeout=None)
@@ -44,16 +43,30 @@ class AutoRoleView(discord.ui.View):
             if not role:
                 await interaction.response.send_message("Role not found.", ephemeral=True)
                 return
-            member = interaction.user
-            if role in member.roles:
-                await member.remove_roles(role, reason="Auto-role toggle")
+
+            me = interaction.guild.me
+            if me and role >= me.top_role:
                 await interaction.response.send_message(
-                    f"Removed **{role.name}**.", ephemeral=True
+                    "I cannot manage this role (hierarchy). Move my role higher.",
+                    ephemeral=True,
                 )
-            else:
-                await member.add_roles(role, reason="Auto-role toggle")
+                return
+
+            member = interaction.user
+            try:
+                if role in member.roles:
+                    await member.remove_roles(role, reason="Auto-role toggle")
+                    await interaction.response.send_message(
+                        f"Removed **{role.name}**.", ephemeral=True
+                    )
+                else:
+                    await member.add_roles(role, reason="Auto-role toggle")
+                    await interaction.response.send_message(
+                        f"Added **{role.name}**.", ephemeral=True
+                    )
+            except discord.Forbidden:
                 await interaction.response.send_message(
-                    f"Added **{role.name}**.", ephemeral=True
+                    "I lack permission to manage this role.", ephemeral=True
                 )
         return callback
 
@@ -62,7 +75,6 @@ class AutoRole(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.config = load_json(CONFIG_FILE, default_autorole())
-        # Re-register persistent view on load if roles exist
         if self.config.get("roles"):
             try:
                 self.bot.add_view(AutoRoleView(bot, self.config["roles"]))
@@ -72,13 +84,21 @@ class AutoRole(commands.Cog):
     def _save(self):
         save_json(CONFIG_FILE, self.config)
 
+    def _reregister_view(self):
+        roles = self.config.get("roles") or []
+        if roles:
+            try:
+                self.bot.add_view(AutoRoleView(self.bot, roles))
+            except Exception:
+                logger.exception("Failed to re-register AutoRoleView")
+
     @app_commands.command(name="autorole_panel", description="Post the auto-role panel in this channel")
     @app_commands.checks.has_permissions(manage_roles=True)
     async def autorole_panel(self, interaction: discord.Interaction):
         roles = self.config.get("roles") or []
         if not roles:
             await interaction.response.send_message(
-                "No roles configured. Use the web panel or `/autorole_add` first.",
+                "No roles configured. Use `/autorole_add` (multiple times) or the web panel first.",
                 ephemeral=True,
             )
             return
@@ -89,15 +109,16 @@ class AutoRole(commands.Cog):
             description=self.config.get("description", ""),
             color=color,
         )
-        embed.set_footer(text="Bova's Bot · Auto-Role")
+        embed.set_footer(text="Bova's Bot · Auto-Role · Click to toggle")
         view = AutoRoleView(self.bot, roles)
         await interaction.response.send_message(embed=embed, view=view)
         msg = await interaction.original_response()
         self.config["message_id"] = msg.id
         self.config["channel_id"] = interaction.channel_id
         self._save()
+        self._reregister_view()
 
-    @app_commands.command(name="autorole_add", description="Add a role to the auto-role panel")
+    @app_commands.command(name="autorole_add", description="Add a role to the auto-role panel (supports many)")
     @app_commands.describe(role="Role to add", label="Button label", emoji="Optional emoji")
     @app_commands.checks.has_permissions(manage_roles=True)
     async def autorole_add(
@@ -117,8 +138,10 @@ class AutoRole(commands.Cog):
         roles.append(entry)
         self.config["roles"] = roles
         self._save()
+        self._reregister_view()
         await interaction.response.send_message(
-            f"Added **{role.name}** to auto-role. Re-post the panel with `/autorole_panel`.",
+            f"Added **{role.name}** ({len(roles)} role(s) total). "
+            f"Re-post the panel with `/autorole_panel` to update buttons.",
             ephemeral=True,
         )
 
@@ -129,9 +152,26 @@ class AutoRole(commands.Cog):
         before = len(self.config.get("roles", []))
         self.config["roles"] = [r for r in self.config.get("roles", []) if r.get("role_id") != role.id]
         self._save()
+        self._reregister_view()
         removed = before - len(self.config["roles"])
         await interaction.response.send_message(
             f"Removed {removed} entry/entries. Re-post panel with `/autorole_panel`.",
+            ephemeral=True,
+        )
+
+    @app_commands.command(name="autorole_list", description="List roles configured for auto-role")
+    @app_commands.checks.has_permissions(manage_roles=True)
+    async def autorole_list(self, interaction: discord.Interaction):
+        roles = self.config.get("roles") or []
+        if not roles:
+            await interaction.response.send_message("No roles configured.", ephemeral=True)
+            return
+        lines = [
+            f"{r.get('emoji') or '•'} **{r.get('label')}** — `<@&{r.get('role_id')}>`"
+            for r in roles
+        ]
+        await interaction.response.send_message(
+            f"**Auto-role entries ({len(roles)}):**\n" + "\n".join(lines),
             ephemeral=True,
         )
 

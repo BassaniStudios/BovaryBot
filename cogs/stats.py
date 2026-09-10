@@ -1,19 +1,46 @@
-"""Server activity stats and weekly top media."""
+"""Server activity stats, weekly top media, and chart images."""
 from __future__ import annotations
 
+import io
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List, Tuple
 
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
-from utils.helpers import make_embed, is_media_in_message
+from utils.helpers import make_embed, is_media_in_message, SERVER_TZ
 from utils.storage import load_json, save_json, default_stats
 
 logger = logging.getLogger("bovary_bot.stats")
 STATS_FILE = "stats.json"
+
+
+def _make_bar_chart(title: str, labels: List[str], values: List[float], color: str = "#B450FF") -> Optional[io.BytesIO]:
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+    except ImportError:
+        logger.warning("matplotlib not installed — skip charts")
+        return None
+
+    fig, ax = plt.subplots(figsize=(8, 4), facecolor="#0a0a12")
+    ax.set_facecolor("#12121e")
+    bars = ax.bar(labels, values, color=color, edgecolor="#2a2a45")
+    ax.set_title(title, color="#e8e8f0", fontsize=12, pad=10)
+    ax.tick_params(colors="#8888a8", labelsize=8)
+    for spine in ax.spines.values():
+        spine.set_color("#2a2a45")
+    ax.yaxis.label.set_color("#8888a8")
+    ax.xaxis.label.set_color("#8888a8")
+    fig.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=120, facecolor=fig.get_facecolor())
+    plt.close(fig)
+    buf.seek(0)
+    return buf
 
 
 class Stats(commands.Cog):
@@ -46,17 +73,20 @@ class Stats(commands.Cog):
     async def before_save(self):
         await self.bot.wait_until_ready()
 
-    @tasks.loop(hours=24)
+    @tasks.loop(hours=1)
     async def weekly_loop(self):
-        """Compute weekly top media every day; reset scores on Monday."""
-        now = datetime.now(timezone.utc)
+        now_sp = datetime.now(SERVER_TZ)
         top = self._top_media()
         if top:
             self.data["weekly_top"] = top
             self._save()
-        if now.weekday() == 0 and now.hour < 2:
+        today_key = now_sp.strftime("%Y-%m-%d")
+        last = self.data.get("last_weekly_reset")
+        if now_sp.weekday() == 0 and last != today_key:
             self.data["media_scores"] = {}
+            self.data["last_weekly_reset"] = today_key
             self._save()
+            logger.info("Weekly media scores reset (Monday SP)")
 
     @weekly_loop.before_loop
     async def before_weekly(self):
@@ -76,14 +106,25 @@ class Stats(commands.Cog):
             return None
         return {"message_id": best_id, **best}
 
+    def _media_channels(self) -> list:
+        return self.bot.config.get("MEDIA_SCORE_CHANNEL_IDS") or self.bot.config.get("CHANNEL_IDS", [])
+
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if not message.guild or not message.author or message.author.bot:
             return
+        ignore = self.bot.config.get("IGNORE_CHANNEL_ID")
+        if ignore and message.channel.id == ignore:
+            return
+
         self._inc_user("messages", message.author.id)
-        now = datetime.now(timezone.utc)
-        self.data["hourly"][str(now.hour)] = self.data.get("hourly", {}).get(str(now.hour), 0) + 1
-        self.data["weekday"][str(now.weekday())] = self.data.get("weekday", {}).get(str(now.weekday()), 0) + 1
+        now_sp = datetime.now(SERVER_TZ)
+        self.data["hourly"][str(now_sp.hour)] = self.data.get("hourly", {}).get(str(now_sp.hour), 0) + 1
+        self.data["weekday"][str(now_sp.weekday())] = self.data.get("weekday", {}).get(str(now_sp.weekday()), 0) + 1
+
+        media_channels = self._media_channels()
+        if media_channels and message.channel.id not in media_channels:
+            return
 
         if is_media_in_message(message):
             mid = str(message.id)
@@ -92,7 +133,7 @@ class Stats(commands.Cog):
                 "channel_id": message.channel.id,
                 "author_id": message.author.id,
                 "jump_url": message.jump_url,
-                "created": now.isoformat(),
+                "created": datetime.now(timezone.utc).isoformat(),
             }
 
     @commands.Cog.listener()
@@ -127,9 +168,10 @@ class Stats(commands.Cog):
         items = sorted(bucket.items(), key=lambda x: x[1], reverse=True)
         return items[:n]
 
-    @app_commands.command(name="stats", description="Show server activity statistics")
+    @app_commands.command(name="stats", description="Show server activity statistics (numbers + charts)")
     @app_commands.checks.has_permissions(manage_guild=True)
     async def stats_cmd(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         embed = make_embed(title="◈ Server Statistics", color=discord.Color.from_rgb(0, 220, 255))
         embed.add_field(
             name="Members",
@@ -150,7 +192,11 @@ class Stats(commands.Cog):
         hourly = self.data.get("hourly") or {}
         if any(hourly.values()):
             peak_h = max(hourly.items(), key=lambda x: x[1])
-            embed.add_field(name="Peak hour (UTC)", value=f"**{peak_h[0]}:00** (`{peak_h[1]}` events)", inline=True)
+            embed.add_field(
+                name="Peak hour (São Paulo)",
+                value=f"**{peak_h[0]}:00** (`{peak_h[1]}` events)",
+                inline=True,
+            )
 
         weekday = self.data.get("weekday") or {}
         names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -170,7 +216,26 @@ class Stats(commands.Cog):
                 inline=False,
             )
 
-        await interaction.response.send_message(embed=embed)
+        files = []
+        if hourly and any(hourly.values()):
+            labels = [f"{h}" for h in range(24)]
+            values = [float(hourly.get(str(h), 0)) for h in range(24)]
+            buf = _make_bar_chart("Activity by hour (São Paulo)", labels, values, "#00E5FF")
+            if buf:
+                files.append(discord.File(buf, filename="hourly.png"))
+                embed.set_image(url="attachment://hourly.png")
+
+        if weekday and any(weekday.values()):
+            labels = names
+            values = [float(weekday.get(str(i), 0)) for i in range(7)]
+            buf = _make_bar_chart("Activity by weekday", labels, values, "#B450FF")
+            if buf:
+                files.append(discord.File(buf, filename="weekday.png"))
+
+        if files:
+            await interaction.followup.send(embed=embed, files=files)
+        else:
+            await interaction.followup.send(embed=embed)
 
     @app_commands.command(
         name="topmedia",

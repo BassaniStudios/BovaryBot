@@ -2,74 +2,72 @@
 
 ## 1. Bot (Discord process)
 
-Same method as before — nothing fundamental changed.
-
 ```bash
-# On your host (VPS, Replit, Railway, etc.)
 cd BovaryBot
 pip install -r requirements.txt
 cp .env.example .env
-# Edit .env → set TOKEN, PANEL_URL, PANEL_ACCESS_ROLE_ID, channel IDs
+# Edit .env → TOKEN, GUILD_ID, channel IDs, PANEL_URL, PANEL_ACCESS_KEY
 python bot.py
 ```
 
 ### Discord Developer Portal
-Invite the bot **without** Kick Members / Ban Members if you want to match the code
-(those commands were removed). Still need:
-
-- Manage Messages  
-- Manage Roles (for auto-role)  
-- Send Messages, Embed Links, Add Reactions, Read Message History  
+Invite with:
+- Manage Messages, Manage Roles, Manage Channels (tickets)
+- Send Messages, Embed Links, Add Reactions, Read Message History, Attach Files
 - Privileged intents: **Message Content**, **Server Members**
 
-After first run, slash commands sync automatically (`GUILD_ID` in `.env` makes sync faster).
+Slash commands sync automatically (`GUILD_ID` makes sync faster).
 
 ### Data files (created at runtime)
-- `data/cooldowns.json` — invite cooldowns  
-- `data/autorole.json` — auto-role config  
-- `data/meets.json` — scheduled meet reminders  
-- `data/stats.json` — activity tracking  
+- `data/cooldowns.json`
+- `data/autorole.json`
+- `data/meets.json`
+- `data/stats.json`
+- `data/autofeeds.json`
+- `data/boost.json`
+- `data/tickets.json`
+- `data/weblogs.json`
+- `data/transcripts/` — ticket transcripts
 
-Keep these if you restart the bot.
+Keep these across restarts. Storage uses atomic writes + `.bak` backups.
+
+### Health check
+If using `keep_alive.py`: `GET /health` returns JSON `{ status, uptime_seconds }`.
 
 ---
 
 ## 2. Web panel (static)
 
-The panel is static HTML/CSS/JS in `web/`.
+### GitHub Pages (recommended)
+1. Repo e.g. `BovaryBot-Panel`
+2. Upload contents of `web/` to repo root
+3. Settings → Pages → branch `main` / root
+4. Set `PANEL_URL` in bot `.env`
+5. Staff: `/panel` → link + key
 
-### Option A — GitHub Pages (recommended)
-1. Create a repo (e.g. `BovaryBot-Panel`)
-2. Upload the contents of the `web/` folder to the repo root  
-   (index.html, css/, js/)
-3. Settings → Pages → Deploy from branch `main` / root
-4. URL will be like `https://USERNAME.github.io/BovaryBot-Panel/`
-5. Put that URL in `.env` as `PANEL_URL`
-6. Staff uses `/panel` on Discord → gets link + key `BOVA-CORE-2026`
+**Access key:** change `ACCESS_KEY` in `web/js/app.js` and `PANEL_ACCESS_KEY` in `.env` together.
 
-### Option B — Same machine as the bot
-Serve the folder with any static server, or extend Flask in `keep_alive.py`.
-
-Change the access key in `web/js/app.js` (`ACCESS_KEY`) if you want.
+**Roles / channels** for dropdowns: edit `web/js/config.js`.
 
 ---
 
-## 3. Auto-role workflow
-1. Configure title/description/roles on the web panel (export JSON) **or** use  
-   `/autorole_add` + `/autorole_config` on Discord  
-2. Post the panel: `/autorole_panel`  
-3. Members click buttons to toggle roles  
-
-## 4. Meet announcements
-Use `/meet` with title, description, date (`DD/MM/YYYY HH:MM` São Paulo), hosts, server, optional image URL, optional reminder channel + enable flag.
-
-## 5. Stats
-Runs automatically in the background. Staff:
-- `/stats` — overview  
-- `/topmedia` — preview top media  
-- `/topmedia post:True` — publish highlight  
+## 3. Log channel map
+| Event | Default channel ID | Env var |
+|-------|--------------------|---------|
+| Join / leave | 1441663299065217114 (Info) | `LOG_CHANNEL_ID` |
+| Admin (purge, tickets, channels) | 1424436722984423529 (bot-room) | `BOT_ROOM_CHANNEL_ID` |
+| Message delete/edit | 1432715549116207248 | `MESSAGE_LOG_CHANNEL_ID` |
+| Boost thank-you | 1384173136638906407 | `BOOST_CHANNEL_ID` |
 
 ---
 
-**Summary:** Bot deploy is the same as before (`python bot.py` + `.env`).  
-Web panel is a separate static deploy (GitHub Pages). Link them with `PANEL_URL`.
+## 4. Common workflows
+**Auto-role:** `/autorole_add` (repeat for each role) → `/autorole_panel`  
+**Meet:** `/meet` with date_time `DD/MM/YYYY HH:MM` (São Paulo)  
+**Tickets:** `/ticket_config` → `/ticket_panel`  
+**Auto-feed:** `/autofeed_add` (interval or `fixed_hour` + optional `use_embed:True`)  
+**Logs toggles:** `/weblogs_config`
+
+---
+
+**Summary:** Bot = `python bot.py` + `.env`. Panel = static GitHub Pages. Link with `PANEL_URL`.

@@ -1,38 +1,31 @@
 # Bova's Bot
 
-Official bot of **Bovary Club Society**.
+Official **private** bot of **Bovary Club Society**. Developed by **Bassani**.
 
 ## Features
 - Auto-reactions on media channels  
 - Invite request panel (persistent cooldown)  
-- Logs (members, channels, message delete/edit)  
-- Moderation: `/delete`, `/purge` (no kick/ban)  
-- Auto-role panel (buttons)  
-- Car meet announcements + 30-min reminder  
-- Server stats + top media of the period  
-- Utilities: `/ping`, `/info`, `/timestamp`, `/help`  
-- Cyberpunk Discord panel + external web dashboard  
+- Structured logs (Info / bot-room / message log) with rich delete/edit embeds  
+- Member name history (join registry + renames → bot-room)  
+- Moderation: `/delete`, `/purge`  
+- Auto-role (multiple buttons)  
+- Car meets + reminder + timezone offset  
+- Stats with chart images (`matplotlib`)  
+- Tickets + auto transcript  
+- Auto-feeds (interval or fixed time, optional embed)  
+- Boost thank-you  
+- Cyberpunk `/help` + web panel (sidebar)
 
 ## Quick start
 ```bash
 pip install -r requirements.txt
-cp .env.example .env   # set TOKEN
+cp .env.example .env
 python bot.py
 ```
 
-See **DEPLOY.md** for full deploy instructions (bot + web panel).
-
-## Structure
-```
-BovaryBot/
-├── bot.py
-├── keep_alive.py
-├── cogs/          # moderation, utilities, invite, events, autorole, meets, stats
-├── utils/
-├── data/          # runtime JSON
-└── web/           # static control panel
-```
+Read **sumario.txt** for channel map, future goals, and safe-edit guide.  
+Read **BOT_PROFILE.md** for avatar/banner/bio.  
+Read **DEPLOY.md** for deploy steps.
 
 ## License
-MIT — BassaniStudios / Bovary Club Society  
-created by Bassani
+MIT — BassaniStudios / Bovary Club Society

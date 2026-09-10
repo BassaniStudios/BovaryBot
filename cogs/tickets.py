@@ -1,8 +1,9 @@
-"""Ticket / support system (Ticket Tool inspired, simplified)."""
+"""Ticket / support system — improved with auto-transcript, logs and robustness."""
 from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional, Dict, Any
 
 import discord
@@ -10,10 +11,12 @@ from discord import app_commands
 from discord.ext import commands
 
 from utils.helpers import make_embed
-from utils.storage import load_json, save_json
+from utils.storage import load_json, save_json, DATA_DIR
 
 logger = logging.getLogger("bovary_bot.tickets")
 CONFIG_FILE = "tickets.json"
+TRANSCRIPTS_DIR = DATA_DIR / "transcripts"
+TRANSCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class TicketPanelView(discord.ui.View):
@@ -67,12 +70,30 @@ class Tickets(commands.Cog):
     def _save(self):
         save_json(CONFIG_FILE, self.config)
 
+    def _log_channel(self) -> Optional[discord.abc.GuildChannel]:
+        cid = self.config.get("log_channel_id") or self.bot.config.get("BOT_ROOM_CHANNEL_ID")
+        return self.bot.get_channel(cid) if cid else None
+
+    async def _build_transcript(self, channel: discord.TextChannel) -> Path:
+        lines = []
+        async for msg in channel.history(limit=1500, oldest_first=True):
+            ts = msg.created_at.strftime("%Y-%m-%d %H:%M:%S")
+            content = msg.content or ""
+            if msg.attachments:
+                content += " " + " ".join(a.url for a in msg.attachments)
+            lines.append(f"[{ts}] {msg.author} ({msg.author.id}): {content}")
+        text = "\n".join(lines) or "(empty ticket)"
+        path = TRANSCRIPTS_DIR / f"transcript-{channel.id}.txt"
+        path.write_text(text, encoding="utf-8")
+        return path
+
     async def create_ticket(self, interaction: discord.Interaction):
         guild = interaction.guild
         if not guild:
             return
-        # prevent duplicates
-        for tid, data in self.config.get("tickets", {}).items():
+
+        # Prevent duplicates
+        for tid, data in list(self.config.get("tickets", {}).items()):
             if data.get("user_id") == interaction.user.id and data.get("status") == "open":
                 ch = guild.get_channel(int(tid))
                 if ch:
@@ -80,6 +101,8 @@ class Tickets(commands.Cog):
                         f"You already have an open ticket: {ch.mention}", ephemeral=True
                     )
                     return
+                # Stale entry
+                data["status"] = "closed"
 
         category = None
         cat_id = self.config.get("category_id")
@@ -92,7 +115,9 @@ class Tickets(commands.Cog):
             interaction.user: discord.PermissionOverwrite(
                 view_channel=True, send_messages=True, attach_files=True, read_message_history=True
             ),
-            guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_channels=True),
+            guild.me: discord.PermissionOverwrite(
+                view_channel=True, send_messages=True, manage_channels=True, manage_messages=True
+            ),
         }
         if staff_role_id:
             role = guild.get_role(staff_role_id)
@@ -111,8 +136,13 @@ class Tickets(commands.Cog):
             )
         except discord.Forbidden:
             await interaction.response.send_message(
-                "I cannot create channels. Check my permissions.", ephemeral=True
+                "I cannot create channels. Check my permissions (Manage Channels).",
+                ephemeral=True,
             )
+            return
+        except Exception as e:
+            logger.exception("Ticket create failed")
+            await interaction.response.send_message(f"❌ Failed to create ticket: `{e}`", ephemeral=True)
             return
 
         self.config.setdefault("tickets", {})[str(channel.id)] = {
@@ -139,20 +169,75 @@ class Tickets(commands.Cog):
             f"✅ Ticket created: {channel.mention}", ephemeral=True
         )
 
+        log_ch = self._log_channel()
+        if log_ch:
+            try:
+                await log_ch.send(
+                    embed=make_embed(
+                        title="🎫 Ticket opened",
+                        description=(
+                            f"**User:** {interaction.user.mention}\n"
+                            f"**Channel:** {channel.mention}"
+                        ),
+                        color=discord.Color.green(),
+                    )
+                )
+            except Exception:
+                pass
+
     async def close_ticket(self, interaction: discord.Interaction):
         channel = interaction.channel
+        if not isinstance(channel, discord.TextChannel):
+            await interaction.response.send_message("Not a text channel.", ephemeral=True)
+            return
+
         data = self.config.get("tickets", {}).get(str(channel.id))
         if not data:
             await interaction.response.send_message("This is not a ticket channel.", ephemeral=True)
             return
-        data["status"] = "closed"
-        self._save()
-        await interaction.response.send_message("🔒 Ticket closed. Channel will be deleted in 5 seconds.")
+
+        await interaction.response.defer()
+
+        # Transcript
+        transcript_path = None
         try:
-            await channel.send("Ticket closed.")
+            transcript_path = await self._build_transcript(channel)
+        except Exception:
+            logger.exception("Transcript build failed")
+
+        data["status"] = "closed"
+        data["closed_by"] = interaction.user.id
+        data["closed_at"] = datetime.now(timezone.utc).isoformat()
+        self._save()
+
+        log_ch = self._log_channel()
+        if log_ch:
+            try:
+                embed = make_embed(
+                    title="🔒 Ticket closed",
+                    description=(
+                        f"**Channel:** `{channel.name}`\n"
+                        f"**Closed by:** {interaction.user.mention}\n"
+                        f"**Opener:** <@{data.get('user_id')}>"
+                    ),
+                    color=discord.Color.red(),
+                )
+                files = []
+                if transcript_path and transcript_path.exists():
+                    files.append(discord.File(transcript_path, filename=transcript_path.name))
+                await log_ch.send(embed=embed, files=files or None)
+            except Exception:
+                logger.exception("Ticket close log failed")
+
+        try:
+            await channel.send("🔒 Ticket closed. Channel will be deleted in a few seconds.")
             await channel.delete(reason=f"Closed by {interaction.user}")
         except Exception:
             logger.exception("Ticket close/delete failed")
+            try:
+                await interaction.followup.send("Ticket closed but channel could not be deleted.", ephemeral=True)
+            except Exception:
+                pass
 
     async def claim_ticket(self, interaction: discord.Interaction):
         channel = interaction.channel
@@ -179,7 +264,7 @@ class Tickets(commands.Cog):
     @app_commands.describe(
         category="Category for new tickets",
         staff_role="Staff role that can see tickets",
-        log_channel="Optional log channel",
+        log_channel="Log channel for open/close + transcripts",
     )
     @app_commands.checks.has_permissions(manage_guild=True)
     async def ticket_config(
@@ -226,18 +311,14 @@ class Tickets(commands.Cog):
     @app_commands.checks.has_permissions(manage_messages=True)
     async def ticket_transcript(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
-        lines = []
-        async for msg in interaction.channel.history(limit=1000, oldest_first=True):
-            ts = msg.created_at.strftime("%Y-%m-%d %H:%M")
-            lines.append(f"[{ts}] {msg.author}: {msg.content}")
-        content = "\n".join(lines) or "(empty)"
-        path = f"/tmp/transcript-{interaction.channel.id}.txt"
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(content)
-        await interaction.followup.send(
-            file=discord.File(path, filename=f"transcript-{interaction.channel.id}.txt"),
-            ephemeral=True,
-        )
+        try:
+            path = await self._build_transcript(interaction.channel)
+            await interaction.followup.send(
+                file=discord.File(path, filename=path.name),
+                ephemeral=True,
+            )
+        except Exception as e:
+            await interaction.followup.send(f"❌ Failed: `{e}`", ephemeral=True)
 
 
 async def setup(bot: commands.Bot):

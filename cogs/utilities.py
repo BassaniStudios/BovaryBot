@@ -9,7 +9,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from utils.helpers import make_embed, SERVER_TZ
+from utils.helpers import SERVER_TZ, tz_from_offset
 
 logger = logging.getLogger("bovary_bot.utilities")
 
@@ -63,7 +63,7 @@ class MainPanelView(discord.ui.View):
             value="`/delete` — Delete message by ID\n`/purge` — Purge 1–100 messages",
             inline=False,
         )
-        await interaction.response.edit_message(embed=embed, view=ModPanel(self.bot))
+        await interaction.response.edit_message(embed=embed, view=BackOnly(self.bot))
 
     @discord.ui.button(label="◈ UTILITIES", style=discord.ButtonStyle.success, row=0)
     async def util_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -72,11 +72,7 @@ class MainPanelView(discord.ui.View):
             description="Latency · Info · Timestamps",
             color=CYBER_GREEN,
         )
-        embed.add_field(
-            name="▸ Commands",
-            value="`/ping` `/info` `/timestamp`",
-            inline=False,
-        )
+        embed.add_field(name="▸ Commands", value="`/ping` `/info` `/timestamp`", inline=False)
         await interaction.response.edit_message(embed=embed, view=UtilPanel(self.bot))
 
     @discord.ui.button(label="◈ INVITES", style=discord.ButtonStyle.primary, row=0)
@@ -93,12 +89,12 @@ class MainPanelView(discord.ui.View):
     async def ar_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         embed = cyber_embed(
             title="◈ AUTO-ROLE",
-            description="Reaction / button roles. Configure via web panel or slash commands.",
+            description="Button roles — add multiple roles via slash or web panel.",
             color=CYBER_PURPLE,
         )
         embed.add_field(
             name="▸ Commands",
-            value="`/autorole_panel` `/autorole_add` `/autorole_remove` `/autorole_config`",
+            value="`/autorole_panel` `/autorole_add` `/autorole_remove` `/autorole_list` `/autorole_config`",
             inline=False,
         )
         await interaction.response.edit_message(embed=embed, view=BackOnly(self.bot))
@@ -107,7 +103,7 @@ class MainPanelView(discord.ui.View):
     async def meet_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         embed = cyber_embed(
             title="◈ CAR MEETS",
-            description="Announce meets with timezone-aware timestamps and optional 30-min reminder.",
+            description="Announce meets with timezone-aware timestamps and ~30-min reminder.",
             color=CYBER_PINK,
         )
         embed.add_field(name="▸ Commands", value="`/meet`", inline=False)
@@ -117,13 +113,69 @@ class MainPanelView(discord.ui.View):
     async def stats_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         embed = cyber_embed(
             title="◈ STATISTICS",
-            description="Activity tracking · Top chatters · Peak hours · Top media",
+            description="Activity tracking · Top chatters · Peak hours (SP) · Top media",
             color=CYBER_CYAN,
         )
         embed.add_field(name="▸ Commands", value="`/stats` `/topmedia`", inline=False)
         await interaction.response.edit_message(embed=embed, view=BackOnly(self.bot))
 
-    @discord.ui.button(label="◈ WEB PANEL", style=discord.ButtonStyle.secondary, row=2)
+    @discord.ui.button(label="◈ TICKETS", style=discord.ButtonStyle.secondary, row=2)
+    async def tickets_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = cyber_embed(
+            title="◈ TICKETS",
+            description="Support tickets with claim, close, transcript and staff logs.",
+            color=CYBER_PURPLE,
+        )
+        embed.add_field(
+            name="▸ Commands",
+            value=(
+                "`/ticket_panel` `/ticket_config` `/ticket_close`\n"
+                "`/ticket_add` `/ticket_remove` `/ticket_rename` `/ticket_transcript`"
+            ),
+            inline=False,
+        )
+        await interaction.response.edit_message(embed=embed, view=BackOnly(self.bot))
+
+    @discord.ui.button(label="◈ AUTO FEEDS", style=discord.ButtonStyle.secondary, row=2)
+    async def af_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = cyber_embed(
+            title="◈ AUTO FEEDS",
+            description="Scheduled messages — interval or fixed daily time · plain or embed.",
+            color=CYBER_GREEN,
+        )
+        embed.add_field(
+            name="▸ Commands",
+            value="`/autofeed_add` `/autofeed_list` `/autofeed_remove` `/autofeed_toggle`",
+            inline=False,
+        )
+        await interaction.response.edit_message(embed=embed, view=BackOnly(self.bot))
+
+    @discord.ui.button(label="◈ BOOST", style=discord.ButtonStyle.secondary, row=2)
+    async def boost_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = cyber_embed(
+            title="◈ BOOST",
+            description="Thank-you embeds when someone boosts the server.",
+            color=CYBER_PINK,
+        )
+        embed.add_field(name="▸ Commands", value="`/boost_config`", inline=False)
+        await interaction.response.edit_message(embed=embed, view=BackOnly(self.bot))
+
+    @discord.ui.button(label="◈ WEBLOGS", style=discord.ButtonStyle.secondary, row=3)
+    async def wl_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = cyber_embed(
+            title="◈ WEBLOGS",
+            description=(
+                "Structured logs with toggles.\n"
+                "Joins/leaves → Info channel\n"
+                "Admin actions → bot-room\n"
+                "Message delete/edit → message log"
+            ),
+            color=CYBER_CYAN,
+        )
+        embed.add_field(name="▸ Commands", value="`/weblogs_config`", inline=False)
+        await interaction.response.edit_message(embed=embed, view=BackOnly(self.bot))
+
+    @discord.ui.button(label="◈ WEB PANEL", style=discord.ButtonStyle.secondary, row=3)
     async def web_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         embed = cyber_embed(
             title="◈ WEB PANEL",
@@ -134,16 +186,6 @@ class MainPanelView(discord.ui.View):
 
 
 class BackOnly(discord.ui.View):
-    def __init__(self, bot: commands.Bot):
-        super().__init__(timeout=300)
-        self.bot = bot
-
-    @discord.ui.button(label="◀ BACK", style=discord.ButtonStyle.secondary)
-    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(embed=_main_embed(), view=MainPanelView(self.bot))
-
-
-class ModPanel(discord.ui.View):
     def __init__(self, bot: commands.Bot):
         super().__init__(timeout=300)
         self.bot = bot
@@ -217,12 +259,21 @@ class Utilities(commands.Cog):
         )
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="timestamp", description="Generate a Discord timestamp (São Paulo timezone)")
-    @app_commands.describe(date_time="DD/MM/YYYY HH:MM or DD/MM/YYYY. Empty = now.")
-    async def timestamp(self, interaction: discord.Interaction, date_time: Optional[str] = None):
+    @app_commands.command(name="timestamp", description="Generate a Discord timestamp")
+    @app_commands.describe(
+        date_time="DD/MM/YYYY HH:MM or DD/MM/YYYY. Empty = now.",
+        timezone_offset="UTC offset hours (default -3 = São Paulo)",
+    )
+    async def timestamp(
+        self,
+        interaction: discord.Interaction,
+        date_time: Optional[str] = None,
+        timezone_offset: float = -3.0,
+    ):
         try:
+            tz = tz_from_offset(timezone_offset)
             if not date_time or not date_time.strip():
-                dt = datetime.now(SERVER_TZ)
+                dt = datetime.now(tz)
             else:
                 date_time = date_time.strip()
                 for fmt in ("%d/%m/%Y %H:%M", "%d/%m/%Y"):
@@ -237,10 +288,10 @@ class Utilities(commands.Cog):
                         ephemeral=True,
                     )
                     return
-                dt = dt.replace(tzinfo=SERVER_TZ)
+                dt = dt.replace(tzinfo=tz)
             unix = int(dt.timestamp())
             embed = cyber_embed(title="◈ TIMESTAMP", color=CYBER_CYAN)
-            embed.add_field(name="▸ Local (São Paulo)", value=f"`{dt.strftime('%d/%m/%Y %H:%M:%S')}`", inline=False)
+            embed.add_field(name=f"▸ Local (UTC{timezone_offset:+g})", value=f"`{dt.strftime('%d/%m/%Y %H:%M:%S')}`", inline=False)
             embed.add_field(name="▸ Unix", value=f"`{unix}`", inline=True)
             embed.add_field(
                 name="▸ Discord formats",
@@ -270,6 +321,7 @@ class Utilities(commands.Cog):
     async def panel(self, interaction: discord.Interaction):
         role_id = self.bot.config.get("PANEL_ACCESS_ROLE_ID")
         panel_url = self.bot.config.get("PANEL_URL") or "https://bovaryclub.github.io/BovaryBot-Panel/"
+        access_key = self.bot.config.get("PANEL_ACCESS_KEY") or "BOVA-CORE-2026"
         if not role_id:
             await interaction.response.send_message(
                 "❌ Panel access role not configured (`PANEL_ACCESS_ROLE_ID`).",
@@ -294,8 +346,9 @@ class Utilities(commands.Cog):
             title="◈ WEB PANEL — ACCESS GRANTED",
             description=(
                 f"**Link:** {panel_url}\n\n"
-                "**Access key:** `BOVA-CORE-2026`\n\n"
-                "▸ Tabs: Dashboard · Commands · Auto-Role · Embed · Meets · Timestamp · Stats\n"
+                f"**Access key:** `{access_key}`\n\n"
+                "▸ Sidebar modules: Dashboard · Auto-Role · Embed · Meets · Timestamp\n"
+                "▸ Auto Feeds · Tickets · Boost · WebLogs · Stats · Commands\n"
                 "▸ Keep link and key private"
             ),
             color=CYBER_GREEN,
