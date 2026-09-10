@@ -1,31 +1,27 @@
-# Bot profile (Discord)
+# Bot profile & privacy
 
-Avatar and banner are applied automatically on startup from:
+## Banner / avatar
+The bot does **NOT** overwrite profile assets unless `APPLY_BOT_PROFILE=true`.
 
-- `BOT_AVATAR_URL` (default: ImageKit teste.png)
-- `BOT_BANNER_URL` (default: ImageKit banner)
+Set banner and icon in: **Discord Developer Portal → Your App → Bot**.
 
-Discord may rate-limit profile edits. If it fails, set them once in the
-**Discord Developer Portal → Your Application → Bot → Icon / Banner**.
+If the banner still reverts, check Render env is `APPLY_BOT_PROFILE=false` (or unset).
 
-## About / Bio (set in Developer Portal → App → Description)
-
-Suggested text (private crew bot — no panel/invite links):
-
+## Bio (Developer Portal → Application description)
 ```
 Bova's Bot — private operations core for Bovary Club Society.
 
-Moderation tools · media auto-reactions · car meet announcements ·
-support tickets · activity stats · structured logging.
+Moderation · media reactions · meets · tickets · stats · structured logs.
 
-Crafted for a closed automotive community.
-Developed by Bassani.
+Private crew bot. Developed by Bassani.
 ```
 
-Short tagline option:
+## Make the bot private (hide "Add to Server")
+Discord controls this — not the Python code:
 
-```
-Private crew bot · Bovary Club Society · by Bassani
-```
+1. Discord Developer Portal → Application
+2. **Installation** / **Bot** settings
+3. Turn **Public Bot** **OFF** (or disable default authorization link / install link)
+4. Do not share OAuth2 invite URLs
 
-Do **not** put the web panel URL or public invite links in the bio.
+The bot will only exist on servers where you already added it with your owner account.

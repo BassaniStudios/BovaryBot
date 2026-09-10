@@ -332,9 +332,11 @@ class Utilities(commands.Cog):
         if not isinstance(member, discord.Member):
             await interaction.response.send_message("❌ Guild only.", ephemeral=True)
             return
+        api_role = self.bot.config.get("STAFF_API_ROLE_ID")
         has_role = any(r.id == role_id for r in member.roles)
+        has_api_role = api_role and any(r.id == api_role for r in member.roles)
         is_admin = member.guild_permissions.administrator
-        if not has_role and not is_admin:
+        if not has_role and not has_api_role and not is_admin:
             embed = cyber_embed(
                 title="◈ ACCESS DENIED",
                 description="```ansi\n\u001b[0;31m> ACCESS DENIED\n```",
@@ -349,7 +351,8 @@ class Utilities(commands.Cog):
                 f"**Access key:** `{access_key}`\n\n"
                 "▸ Sidebar modules: Dashboard · Auto-Role · Embed · Meets · Timestamp\n"
                 "▸ Auto Feeds · Tickets · Boost · WebLogs · Stats · Commands\n"
-                "▸ Keep link and key private"
+                "▸ Keep link and key private\n"
+                "▸ API: set Render URL in panel config.js (BOVA_API.baseUrl)"
             ),
             color=CYBER_GREEN,
         )

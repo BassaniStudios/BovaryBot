@@ -1,31 +1,13 @@
-# Bova's Bot
+# Bova's Bot — v2.2-api
 
-Official **private** bot of **Bovary Club Society**. Developed by **Bassani**.
+Private bot for **Bovary Club Society**. Developed by **Bassani**.
 
-## Features
-- Auto-reactions on media channels  
-- Invite request panel (persistent cooldown)  
-- Structured logs (Info / bot-room / message log) with rich delete/edit embeds  
-- Member name history (join registry + renames → bot-room)  
-- Moderation: `/delete`, `/purge`  
-- Auto-role (multiple buttons)  
-- Car meets + reminder + timezone offset  
-- Stats with chart images (`matplotlib`)  
-- Tickets + auto transcript  
-- Auto-feeds (interval or fixed time, optional embed)  
-- Boost thank-you  
-- Cyberpunk `/help` + web panel (sidebar)
+Includes HTTP API for the web panel (embed, meet, autorole, autofeed).
 
-## Quick start
-```bash
-pip install -r requirements.txt
-cp .env.example .env
-python bot.py
-```
+## Quick deploy
+1. Push this folder to the **bot** GitHub repo (not the panel).
+2. Render: `pip install -r requirements.txt` → `python bot.py`
+3. Env: `TOKEN`, `GUILD_ID`, `PANEL_ACCESS_KEY`, `STAFF_API_ROLE_ID=1547647694997037137`, `CORS_ORIGIN`, `APPLY_BOT_PROFILE=false`
+4. Panel repo: upload `web/` and set `BOVA_API.baseUrl` in `js/config.js` to the Render URL.
 
-Read **sumario.txt** for channel map, future goals, and safe-edit guide.  
-Read **BOT_PROFILE.md** for avatar/banner/bio.  
-Read **DEPLOY.md** for deploy steps.
-
-## License
-MIT — BassaniStudios / Bovary Club Society
+See **sumario.txt** and **BOT_PROFILE.md**.

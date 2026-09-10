@@ -1,140 +1,82 @@
 ================================================================================
-BOVA'S BOT — MASTER SUMMARY
-Last update: 2026-09-10
+BOVA'S BOT — v2.2-api  (2026-09-10)
 ================================================================================
 
-PURPOSE
--------
-Private Discord bot for Bovary Club Society only.
-No public invites or panel links in the bot bio.
-Developer credit: Bassani.
+VERSION FOLDER NAME: BovaryBot-v2.2-api
+
+WHAT'S NEW IN 2.2
+-----------------
+- HTTP API on the same Render process (api.py + Flask + flask-cors)
+- Web panel can POST embed / meet / autorole panel / autofeed
+- Auth: X-API-Key + X-Discord-User-Id with role STAFF_API_ROLE_ID
+  default role: 1547647694997037137 (or administrator)
+- APPLY_BOT_PROFILE=false by default → banner/avatar no longer overwritten
+- Private bot guidance (Public Bot OFF in Developer Portal)
 
 ================================================================================
-ARCHITECTURE
+API
 ================================================================================
-bot.py              Core, config, status rotation, avatar/banner apply
-keep_alive.py       Flask / and /health
-cogs/
-  events.py         Auto-reactions ONLY (no channel/member log spam)
-  weblogs.py        ONLY structured logs (toggles) — single source
-  moderation.py     /delete /purge → logs via WebLogs
-  utilities.py      /ping /info /timestamp /help /panel
-  invite.py         Invite request panel
-  autorole.py       Multi-role button panel
-  meets.py          Meet announce + robust reminder + timezone_offset
-  stats.py          Activity + media scores + matplotlib charts
-  tickets.py        Tickets + auto transcript in data/transcripts/
-  autofeeds.py      Interval OR fixed daily + optional embed
-  boost.py          Boost thank-you → BOOST_CHANNEL_ID
-  namehistory.py    Join registry + rename history → bot-room
-utils/
-  storage.py        Atomic JSON + .bak
-  helpers.py        Embeds, media detect, TIMEZONES, SERVER_TZ
-  cooldown.py       Persistent invite cooldown
-web/                Static panel (sidebar layout)
-data/               Runtime JSON + transcripts/
+Base URL = your Render service URL (same as the bot)
+
+Headers on every protected route:
+  X-API-Key: <PANEL_ACCESS_KEY>
+  X-Discord-User-Id: <your discord snowflake>
+
+Routes:
+  GET  /health
+  POST /api/embed
+  POST /api/meet
+  POST /api/autorole/panel
+  POST /api/autofeed
+  GET  /api/autofeeds
+  GET  /api/stats/summary
+  GET  /api/namehistory
+
+Panel: set window.BOVA_API.baseUrl in web/js/config.js
+First API action prompts for Discord User ID (stored in localStorage).
 
 ================================================================================
-LOG CHANNEL MAP (do not mix)
+RENDER ENV (minimum)
 ================================================================================
-Joins / leaves              → LOG_CHANNEL_ID (Info)           1441663299065217114
-Name registry + renames     → BOT_ROOM_CHANNEL_ID             1424436722984423529
-Message delete/edit (+img)  → MESSAGE_LOG_CHANNEL_ID          1432715549116207248
-Staff purge/delete/tickets  → bot-room (+ message log)
-Boost thank-you             → BOOST_CHANNEL_ID                1384173136638906407
+TOKEN=
+GUILD_ID=
+PANEL_URL=https://bovaryclub.github.io/BovaryBot-Panel/
+PANEL_ACCESS_KEY=BOVA-CORE-2026
+STAFF_API_ROLE_ID=1547647694997037137
+CORS_ORIGIN=https://bovaryclub.github.io
+APPLY_BOT_PROFILE=false
+PUBLIC_API_URL=https://YOUR-SERVICE.onrender.com
 
-If you still see DUPLICATE channel-delete messages:
-  1) Confirm only ONE bot process is running (Render/host).
-  2) events.py must NOT log channels (current code does not).
-  3) Only weblogs.py handles channel create/delete.
-
-================================================================================
-MEDIA / STATS CHANNELS
-================================================================================
-Auto-react channels: CHANNEL_IDS in .env
-Media scoring channels: MEDIA_SCORE_CHANNEL_IDS
-  Includes media galleries + chat channels:
-  1384173137071177752, 1425230894641451059, 1542185824173424650, 1425297078816473109
-  (plus existing gallery IDs)
-
-/stats sends numbers + chart PNG (hourly + weekday). Requires matplotlib.
+Start command: python bot.py
+Build: pip install -r requirements.txt
+Must be Web Service (open PORT) so API is reachable.
 
 ================================================================================
-TIMEZONES
+PANEL REPO
 ================================================================================
-Default server timezone: America/Sao_Paulo (UTC-3)
-Slash: /meet timezone_offset:-3   /timestamp timezone_offset:-3
-Web panel: dropdowns on Meets, Timestamp, AutoFeeds fixed time.
-Helpers: utils/helpers.py TIMEZONES + tz_from_offset()
+Upload web/ contents only.
+Edit js/config.js → BOVA_API.baseUrl = Render URL (no trailing slash).
 
 ================================================================================
-BOT PROFILE
+PRIVATE BOT
 ================================================================================
-Avatar/banner URLs in bot.py (env BOT_AVATAR_URL / BOT_BANNER_URL).
-Applied once on ready (Discord rate limits apply).
-Bio/description: set in Discord Developer Portal — see BOT_PROFILE.md
-Do not put panel URL or invites in bio.
+Developer Portal → disable Public Bot / public install.
+Code never generates invite links for the bot itself.
 
 ================================================================================
-WEB PANEL LIMITS (STATIC)
+BANNER FIX
 ================================================================================
-CAN: previews, generate slash command text, webhook JSON, local namehistory paste view
-CANNOT: post as the bot, list live feeds/tickets/stats from Discord
-
-FUTURE GOALS (API bridge)
--------------------------
-- Backend on Render (or same host) with authenticated endpoints
-- One-click post: Auto-Role panel, Embed, Meet, AutoFeed from the website
-- Live tables for feeds, open tickets, stats, namehistory
-- Rotate ACCESS_KEY via env only (no hardcoded key in JS ideally)
-
-Until then: copy command from panel → run in Discord.
+Do not set APPLY_BOT_PROFILE=true unless you want code to push ImageKit assets.
+Edit banner only in Developer Portal.
 
 ================================================================================
-KEY COMMANDS
+LOG CHANNELS (unchanged)
 ================================================================================
-/help /panel /ping /info /timestamp
-/delete /purge
-/invitepanel
-/autorole_panel /autorole_add /autorole_remove /autorole_list /autorole_config
-/meet
-/stats /topmedia
-/ticket_panel /ticket_config /ticket_close /ticket_add /ticket_remove /ticket_rename /ticket_transcript
-/autofeed_add /autofeed_list /autofeed_remove /autofeed_toggle
-/boost_config
-/weblogs_config
-/namehistory /namehistory_export
+Joins/leaves     → LOG_CHANNEL_ID (Info)
+Names/registry   → BOT_ROOM_CHANNEL_ID
+Msg delete/edit  → MESSAGE_LOG_CHANNEL_ID
+Boost            → BOOST_CHANNEL_ID
 
 ================================================================================
-DEPLOY CHECKLIST
-================================================================================
-1. pip install -r requirements.txt  (discord.py, dotenv, Flask, matplotlib, aiohttp)
-2. .env from .env.example — TOKEN, GUILD_ID, channel IDs
-3. python bot.py  (or Render deploy)
-4. Upload web/ to GitHub Pages repo; set PANEL_URL
-5. Developer Portal: intents Message Content + Server Members; set bio text
-6. Keep data/ across restarts
-
-================================================================================
-SAFE CHANGE GUIDE (for future edits)
-================================================================================
-- New feature → new cog under cogs/ + load_extension auto-picks *.py
-- New log type → weblogs.py only (never duplicate in events.py)
-- New channel ID → .env + bot._load_config + DEPLOY/sumario
-- Panel dropdown data → web/js/config.js
-- Panel access key → web/js/app.js ACCESS_KEY + PANEL_ACCESS_KEY in .env
-- Storage always via utils.storage.save_json / load_json
-- Never commit real TOKEN
-
-================================================================================
-KNOWN LIMITS
-================================================================================
-- Attachment URLs in delete logs may expire after Discord CDN purge
-- Meet reminder needs bot online within ~35 min before start (catch-up window)
-- Stats media history is not retroactive (only from deploy onward)
-- Bot profile edit may fail if Discord rate-limits avatar changes
-- Static panel cannot sync live Discord data without a backend API
-
-================================================================================
-END OF SUMMARY
+END
 ================================================================================
