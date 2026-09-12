@@ -322,53 +322,313 @@ class Backup(commands.Cog):
             except OSError:
                 pass
 
-    async def _send_db_backup(self, channel: discord.abc.GuildChannel, *, reason: str = "manual") -> bool:
-        """Post current SQLite file to channel. Returns True on success."""
-        _bootstrap()
-        try:
-            conn = sqldb.get_connection()
-            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-            conn.commit()
-        except Exception:
-            logger.debug("WAL checkpoint failed", exc_info=True)
+    def _export_snapshot_bytes(self) -> tuple[bytes, int, int, str]:
+        """
+        Build a portable SQLite snapshot for Discord (safety copy).
 
-        path = sqldb._db_path()
-        valid, kv, audit, validation_reason = self._sqlite_file_status(path)
-        if not valid:
-            logger.warning("Backup refused because local DB is invalid: %s", validation_reason)
+        - Local mode: read data/bovary.db
+        - Turso mode: dump kv_store + audit_log + meta into a temp .db
+        Returns (data, kv_count, audit_count, mode_label)
+        """
+        _bootstrap()
+        src = sqldb.get_connection()
+
+        if not sqldb.is_remote():
+            try:
+                src.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                src.commit()
+            except Exception:
+                logger.debug("WAL checkpoint failed", exc_info=True)
+            path = sqldb._db_path()
+            valid, kv, audit, reason = self._sqlite_file_status(path)
+            if not valid:
+                raise RuntimeError(f"local DB invalid: {reason}")
+            return path.read_bytes(), kv, audit, "local"
+
+        # --- Turso → temp SQLite file ---
+        fd, temp_name = tempfile.mkstemp(prefix="bovary-turso-export-", suffix=".db")
+        os.close(fd)
+        temp_path = Path(temp_name)
+        try:
+            dst = sqlite3.connect(str(temp_path))
+            dst.execute(
+                """
+                CREATE TABLE kv_store (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL,
+                    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+                )
+                """
+            )
+            dst.execute(
+                """
+                CREATE TABLE audit_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ts TEXT NOT NULL,
+                    actor_id INTEGER,
+                    action TEXT NOT NULL,
+                    source TEXT,
+                    success INTEGER NOT NULL DEFAULT 1,
+                    detail TEXT
+                )
+                """
+            )
+            dst.execute("CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_log(ts DESC)")
+            dst.execute(
+                """
+                CREATE TABLE meta (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                )
+                """
+            )
+
+            def _rows(sql: str):
+                cur = src.execute(sql)
+                return cur.fetchall() if cur is not None else []
+
+            for row in _rows("SELECT key, value, updated_at FROM kv_store"):
+                try:
+                    k, v, u = row[0], row[1], row[2] if len(row) > 2 else None
+                except Exception:
+                    k, v, u = row["key"], row["value"], row["updated_at"] if "updated_at" in row.keys() else None
+                dst.execute(
+                    "INSERT OR REPLACE INTO kv_store (key, value, updated_at) VALUES (?, ?, ?)",
+                    (k, v, u or datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
+                )
+
+            for row in _rows(
+                "SELECT ts, actor_id, action, source, success, detail FROM audit_log ORDER BY id"
+            ):
+                try:
+                    vals = (row[0], row[1], row[2], row[3], row[4], row[5])
+                except Exception:
+                    vals = (
+                        row["ts"],
+                        row["actor_id"],
+                        row["action"],
+                        row["source"],
+                        row["success"],
+                        row["detail"],
+                    )
+                dst.execute(
+                    """
+                    INSERT INTO audit_log (ts, actor_id, action, source, success, detail)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    vals,
+                )
+
+            try:
+                for row in _rows("SELECT key, value FROM meta"):
+                    try:
+                        k, v = row[0], row[1]
+                    except Exception:
+                        k, v = row["key"], row["value"]
+                    dst.execute(
+                        "INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)",
+                        (k, v),
+                    )
+            except Exception:
+                logger.debug("meta export skipped", exc_info=True)
+
+            dst.commit()
+            dst.close()
+
+            valid, kv, audit, reason = self._sqlite_file_status(temp_path)
+            if not valid:
+                raise RuntimeError(f"exported snapshot invalid: {reason}")
+            return temp_path.read_bytes(), kv, audit, "turso"
+        finally:
+            try:
+                temp_path.unlink()
+            except OSError:
+                pass
+
+    def _export_snapshot_bytes(self) -> tuple[bytes, int, int, str]:
+        """
+        Build a portable SQLite snapshot for Discord (safety copy).
+
+        - Local mode: read data/bovary.db
+        - Turso mode: dump kv_store + audit_log + meta into a temp .db
+        Returns (data, kv_count, audit_count, mode_label)
+        """
+        _bootstrap()
+        src = sqldb.get_connection()
+
+        if not sqldb.is_remote():
+            try:
+                src.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                src.commit()
+            except Exception:
+                logger.debug("WAL checkpoint failed", exc_info=True)
+            path = sqldb._db_path()
+            valid, kv, audit, reason = self._sqlite_file_status(path)
+            if not valid:
+                raise RuntimeError(f"local DB invalid: {reason}")
+            return path.read_bytes(), kv, audit, "local"
+
+        # --- Turso → temp SQLite file ---
+        fd, temp_name = tempfile.mkstemp(prefix="bovary-turso-export-", suffix=".db")
+        os.close(fd)
+        temp_path = Path(temp_name)
+        try:
+            dst = sqlite3.connect(str(temp_path))
+            dst.execute(
+                """
+                CREATE TABLE kv_store (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL,
+                    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+                )
+                """
+            )
+            dst.execute(
+                """
+                CREATE TABLE audit_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ts TEXT NOT NULL,
+                    actor_id INTEGER,
+                    action TEXT NOT NULL,
+                    source TEXT,
+                    success INTEGER NOT NULL DEFAULT 1,
+                    detail TEXT
+                )
+                """
+            )
+            dst.execute("CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_log(ts DESC)")
+            dst.execute(
+                """
+                CREATE TABLE meta (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                )
+                """
+            )
+
+            def _rows(sql: str):
+                cur = src.execute(sql)
+                return cur.fetchall() if cur is not None else []
+
+            for row in _rows("SELECT key, value, updated_at FROM kv_store"):
+                try:
+                    k, v, u = row[0], row[1], (row[2] if len(row) > 2 else None)
+                except Exception:
+                    k = row["key"]
+                    v = row["value"]
+                    try:
+                        u = row["updated_at"]
+                    except Exception:
+                        u = None
+                dst.execute(
+                    "INSERT OR REPLACE INTO kv_store (key, value, updated_at) VALUES (?, ?, ?)",
+                    (k, v, u or datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
+                )
+
+            for row in _rows(
+                "SELECT ts, actor_id, action, source, success, detail FROM audit_log ORDER BY id"
+            ):
+                try:
+                    vals = (row[0], row[1], row[2], row[3], row[4], row[5])
+                except Exception:
+                    vals = (
+                        row["ts"],
+                        row["actor_id"],
+                        row["action"],
+                        row["source"],
+                        row["success"],
+                        row["detail"],
+                    )
+                dst.execute(
+                    """
+                    INSERT INTO audit_log (ts, actor_id, action, source, success, detail)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    vals,
+                )
+
+            try:
+                for row in _rows("SELECT key, value FROM meta"):
+                    try:
+                        k, v = row[0], row[1]
+                    except Exception:
+                        k, v = row["key"], row["value"]
+                    dst.execute(
+                        "INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)",
+                        (k, v),
+                    )
+            except Exception:
+                logger.debug("meta export skipped", exc_info=True)
+
+            dst.commit()
+            dst.close()
+
+            valid, kv, audit, reason = self._sqlite_file_status(temp_path)
+            if not valid:
+                raise RuntimeError(f"exported snapshot invalid: {reason}")
+            return temp_path.read_bytes(), kv, audit, "turso"
+        finally:
+            try:
+                temp_path.unlink()
+            except OSError:
+                pass
+
+    async def _send_db_backup(self, channel: discord.abc.GuildChannel, *, reason: str = "manual") -> bool:
+        """
+        Post a SQLite snapshot to the home-server backup channel.
+
+        Primary data lives in Turso when configured. Discord is only an extra
+        safety copy (not used for automatic restore in Turso mode).
+        """
+        try:
+            data, kv, audit, mode = self._export_snapshot_bytes()
+        except Exception as e:
+            logger.exception("Could not build backup snapshot")
+            try:
+                await channel.send(f"⚠️ Backup failed while building snapshot: `{e}`")
+            except Exception:
+                pass
             return False
 
-        data = path.read_bytes()
         size = len(data)
         if size > MAX_DISCORD_FILE_SIZE:
             await channel.send(
-                f"⚠️ Auto-backup skipped: `bovary.db` is {size:,} bytes (over Discord limit)."
+                f"⚠️ Auto-backup skipped: snapshot is {size:,} bytes (over Discord limit)."
             )
             return False
 
         ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         filename = f"{BACKUP_PREFIX}{ts}{BACKUP_SUFFIX}"
+        mode_note = (
+            "Primary storage: **Turso** · this file is an extra safety copy only."
+            if mode == "turso"
+            else "Primary storage: **local file** · used for automatic restore on fresh deploy."
+        )
         embed = discord.Embed(
-            title="📦 SQLite auto-backup",
+            title="📦 SQLite safety backup",
             description=(
                 f"**Reason:** {reason}\n"
+                f"**Mode:** `{mode}`\n"
                 f"**Size:** {size:,} bytes\n"
                 f"**KV docs:** {kv}\n"
                 f"**Audit rows:** {audit}\n"
                 f"**UTC:** `{ts}`\n\n"
-                "_This backup is used automatically after a fresh Render deploy._"
+                f"_{mode_note}_"
             ),
             color=discord.Color.from_rgb(180, 80, 255),
             timestamp=datetime.now(timezone.utc),
         )
-        embed.set_footer(text="Bova's Bot · Auto Backup")
+        embed.set_footer(text="Bova's Bot · Safety Backup · Home server")
         await channel.send(
             embed=embed,
             file=discord.File(io.BytesIO(data), filename=filename),
         )
         self._last_auto = ts
         self._last_size = size
-        logger.info("Auto-backup sent to #%s (%s bytes, %s reason)", channel.id, size, reason)
+        logger.info(
+            "Safety backup sent to #%s (%s bytes, mode=%s, reason=%s)",
+            channel.id, size, mode, reason,
+        )
         return True
 
     @tasks.loop(hours=24)
