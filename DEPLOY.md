@@ -43,9 +43,9 @@ If using `keep_alive.py`: `GET /health` returns JSON `{ status, uptime_seconds }
 2. Upload contents of `web/` to repo root
 3. Settings → Pages → branch `main` / root
 4. Set `PANEL_URL` in bot `.env`
-5. Staff: `/panel` → link + key
+5. Staff: `/panel` → link; enter the key privately on the web panel
 
-**Access key:** change `ACCESS_KEY` in `web/js/app.js` and `PANEL_ACCESS_KEY` in `.env` together.
+**Panel access:** set `PANEL_ACCESS_KEY` only as a private Render environment variable; the key is never stored in the static frontend or displayed by `/panel`.
 
 **Roles / channels** for dropdowns: edit `web/js/config.js`.
 
@@ -64,7 +64,7 @@ If using `keep_alive.py`: `GET /health` returns JSON `{ status, uptime_seconds }
 ## 4. Common workflows
 **Auto-role:** `/autorole_add` (repeat for each role) → `/autorole_panel`  
 **Meet:** `/meet` with date_time `DD/MM/YYYY HH:MM` (São Paulo)  
-**Tickets:** `/ticket_config` → `/ticket_panel`  
+**Tickets:** `/ticket_setup` → `/ticket_panel`  
 **Auto-feed:** `/autofeed_add` (interval or `fixed_hour` + optional `use_embed:True`)  
 **Logs toggles:** `/weblogs_config`
 

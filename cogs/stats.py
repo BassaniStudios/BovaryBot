@@ -232,8 +232,8 @@ class Stats(commands.Cog):
         Narrative AI summary was removed on purpose.
         """
         await interaction.response.defer(ephemeral=True)
-        top_msg = self._top("messages", 8)
-        top_react = self._top("reactions_given", 5)
+        top_msg = self._topk("messages", 8)
+        top_react = self._topk("reactions_given", 5)
         media_top = self._top_media()
         joins = self.data.get("joins", 0)
         leaves = self.data.get("leaves", 0)

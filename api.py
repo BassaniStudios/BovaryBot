@@ -2,7 +2,7 @@
 HTTP API for the web panel — runs in the same process as the bot.
 
 Security:
-  - Header X-API-Key must match PANEL_ACCESS_KEY (strong fixed key)
+  - Header X-API-Key must match PANEL_ACCESS_KEY from the environment
   - Header X-Discord-User-Id must be a member with STAFF_API_ROLE_ID (or admin)
   - CORS restricted to PANEL / CORS_ORIGIN
   - Simple per-IP rate limit
@@ -35,8 +35,6 @@ _rate: Dict[str, list] = defaultdict(list)
 RATE_LIMIT = 30  # requests
 RATE_WINDOW = 60  # seconds
 
-# Strong fixed default — override in production via env PANEL_ACCESS_KEY
-DEFAULT_PANEL_KEY = "BovaClub#CoreAccess-2026!"
 
 
 def init_api(bot) -> None:
@@ -72,8 +70,8 @@ def start_api(bot, host: str = "0.0.0.0", port: Optional[int] = None) -> None:
 
 def _api_key() -> str:
     if _bot:
-        return _bot.config.get("PANEL_ACCESS_KEY") or os.getenv("PANEL_ACCESS_KEY", DEFAULT_PANEL_KEY)
-    return os.getenv("PANEL_ACCESS_KEY", DEFAULT_PANEL_KEY)
+        return _bot.config.get("PANEL_ACCESS_KEY") or os.getenv("PANEL_ACCESS_KEY", "")
+    return os.getenv("PANEL_ACCESS_KEY", "")
 
 
 def _staff_role_id() -> Optional[int]:
@@ -183,6 +181,13 @@ def home():
         "status": "online",
         "docs": "Private API — staff role required",
     })
+
+
+@app.get("/api/auth/check")
+@require_auth
+def api_auth_check():
+    """Validate the panel key + Discord staff identity without exposing the key."""
+    return jsonify({"ok": True})
 
 
 @app.route("/health")
@@ -503,6 +508,202 @@ def api_audit():
     entries = sqldb.audit_recent(50)
     return jsonify({"entries": entries, "storage": "sqlite"})
 
+
+
+
+@app.get("/api/commands")
+@require_auth
+def api_commands():
+    """Return the actual slash commands loaded from the bot cogs."""
+    rows = []
+    seen = set()
+    if _bot:
+        for cog in _bot.cogs.values():
+            for cmd in getattr(cog, "__cog_app_commands__", []) or []:
+                name = getattr(cmd, "name", None)
+                if not name or name in seen:
+                    continue
+                seen.add(name)
+                rows.append({
+                    "name": name,
+                    "description": getattr(cmd, "description", "") or "",
+                })
+    rows.sort(key=lambda x: x["name"])
+    return jsonify({"commands": rows, "count": len(rows)})
+
+
+@app.get("/api/overview")
+@require_auth
+def api_overview():
+    """Compact live overview used by the upgraded web dashboard."""
+    from utils import db as sqldb
+    from utils.storage import _bootstrap
+    _bootstrap()
+    ts_cog = _bot.get_cog("TimestampReminders") if _bot else None
+    dm_cog = _bot.get_cog("DMInbox") if _bot else None
+    backup_cog = _bot.get_cog("Backup") if _bot else None
+    try:
+        command_count = len(list(_bot.tree.walk_commands())) if _bot else 0
+    except Exception:
+        command_count = 0
+    db = sqldb.db_stats()
+    conversations = (dm_cog.data.get("conversations", {}) if dm_cog else {})
+    dm_messages = sum(len(v) for v in conversations.values() if isinstance(v, list))
+    return jsonify({
+        "bot_ready": bool(_bot and _bot.is_ready()),
+        "uptime_seconds": int((datetime.now(timezone.utc) - _started_at).total_seconds()),
+        "command_count": command_count,
+        "timestamp_reminder": ts_cog.get_config() if ts_cog else {"enabled": False, "minutes": 30, "pending": 0},
+        "dm_inbox": {
+            "users": len(conversations),
+            "messages": dm_messages,
+            "auto_response_enabled": bool(dm_cog and dm_cog.data.get("auto_response_enabled")),
+        },
+        "database": db,
+        "backup": {
+            "interval_hours": backup_cog._interval_hours() if backup_cog else None,
+            "last_auto": backup_cog._last_auto if backup_cog else None,
+            "channel_id": _bot.config.get("BACKUP_CHANNEL_ID") if _bot else None,
+        },
+    })
+
+
+@app.get("/api/timestamp-reminder")
+@require_auth
+def api_timestamp_reminder_get():
+    cog = _bot.get_cog("TimestampReminders") if _bot else None
+    if not cog:
+        return jsonify({"enabled": False, "minutes": 30, "text": "", "pending": 0})
+    return jsonify(cog.get_config())
+
+
+@app.post("/api/timestamp-reminder")
+@require_auth
+def api_timestamp_reminder_set():
+    data = request.get_json(force=True, silent=True) or {}
+    cog = _bot.get_cog("TimestampReminders") if _bot else None
+    if not cog:
+        return jsonify({"error": "TimestampReminders cog not loaded"}), 503
+    enabled = data.get("enabled")
+    minutes = data.get("minutes")
+    text = data.get("text")
+    if enabled is not None and not isinstance(enabled, bool):
+        return jsonify({"error": "enabled must be boolean"}), 400
+    if minutes is not None:
+        try:
+            minutes = int(minutes)
+        except (TypeError, ValueError):
+            return jsonify({"error": "minutes must be an integer"}), 400
+        if not 1 <= minutes <= 1440:
+            return jsonify({"error": "minutes must be between 1 and 1440"}), 400
+    if text is not None:
+        text = str(text).strip()[:1800]
+        if not text:
+            return jsonify({"error": "text cannot be empty"}), 400
+    try:
+        result = cog.configure(enabled=enabled, minutes=minutes, text=text)
+        return jsonify({"ok": True, **result})
+    except Exception as exc:
+        logger.exception("api_timestamp_reminder")
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.get("/api/dm/inbox")
+@require_auth
+def api_dm_inbox():
+    cog = _bot.get_cog("DMInbox") if _bot else None
+    if not cog:
+        return jsonify({"conversations": []})
+    rows = []
+    for uid, msgs in cog.data.get("conversations", {}).items():
+        if not msgs:
+            continue
+        last = msgs[-1]
+        rows.append({
+            "user_id": str(uid),
+            "message_count": len(msgs),
+            "last_direction": last.get("direction"),
+            "last_content": (last.get("content") or "").strip()[:240],
+            "last_timestamp": last.get("timestamp"),
+        })
+    rows.sort(key=lambda x: x.get("last_timestamp") or "", reverse=True)
+    return jsonify({
+        "conversations": rows[:50],
+        "auto_response_enabled": bool(cog.data.get("auto_response_enabled")),
+        "auto_response_text": cog.data.get("auto_response_text") or "",
+    })
+
+
+@app.get("/api/dm/history/<int:user_id>")
+@require_auth
+def api_dm_history(user_id: int):
+    cog = _bot.get_cog("DMInbox") if _bot else None
+    if not cog:
+        return jsonify({"messages": []})
+    msgs = cog.data.get("conversations", {}).get(str(user_id), [])
+    return jsonify({"user_id": str(user_id), "messages": msgs[-50:]})
+
+
+@app.post("/api/dm/reply")
+@require_auth
+def api_dm_reply():
+    data = request.get_json(force=True, silent=True) or {}
+    try:
+        user_id = int(data.get("user_id"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "valid user_id required"}), 400
+    text = str(data.get("message") or "").strip()[:2000]
+    if not text:
+        return jsonify({"error": "message required"}), 400
+    actor = getattr(request, "bova_actor_id", None)
+
+    async def _send():
+        cog = _bot.get_cog("DMInbox")
+        if not cog:
+            raise RuntimeError("DMInbox cog not loaded")
+        user = _bot.get_user(user_id)
+        if user is None:
+            user = await _bot.fetch_user(user_id)
+        await user.send(text)
+        convo = cog._conversation(user)
+        convo.append({
+            "direction": "out",
+            "content": text,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "automatic": False,
+            "staff_id": actor,
+        })
+        del convo[:-200]
+        from utils.storage import save_json
+        save_json("dm_inbox.json", cog.data)
+        return {"ok": True, "user_id": str(user_id)}
+
+    try:
+        return jsonify(_run(_send()))
+    except Exception as exc:
+        logger.exception("api_dm_reply")
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.post("/api/dm/auto")
+@require_auth
+def api_dm_auto():
+    data = request.get_json(force=True, silent=True) or {}
+    enabled = data.get("enabled")
+    if not isinstance(enabled, bool):
+        return jsonify({"error": "enabled must be boolean"}), 400
+    text = data.get("text")
+    if text is not None:
+        text = str(text).strip()[:2000]
+    cog = _bot.get_cog("DMInbox") if _bot else None
+    if not cog:
+        return jsonify({"error": "DMInbox cog not loaded"}), 503
+    cog.data["auto_response_enabled"] = enabled
+    if text is not None:
+        cog.data["auto_response_text"] = text
+    from utils.storage import save_json
+    save_json("dm_inbox.json", cog.data)
+    return jsonify({"ok": True, "enabled": enabled, "text": cog.data.get("auto_response_text") or ""})
 
 
 @app.get("/api/server/summary")

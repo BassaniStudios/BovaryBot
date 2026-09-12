@@ -99,7 +99,17 @@ class MainPanelView(discord.ui.View):
         )
         await interaction.response.edit_message(embed=embed, view=BackOnly(self.bot))
 
-    @discord.ui.button(label="◈ MEETS", style=discord.ButtonStyle.secondary, row=1)
+    @discord.ui.button(label="◈ REMINDERS", style=discord.ButtonStyle.secondary, row=1)
+    async def reminders_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = cyber_embed(
+            title="◈ TIMESTAMP REMINDERS",
+            description="Detects `<t:UNIX:R>` in messages and embeds and reminds the same channel before the event.",
+            color=CYBER_CYAN,
+        )
+        embed.add_field(name="▸ Commands", value="`/timestamp_reminder_config` `/timestamp_reminder_status`", inline=False)
+        await interaction.response.edit_message(embed=embed, view=BackOnly(self.bot))
+
+    @discord.ui.button(label="◈ MEETS", style=discord.ButtonStyle.secondary, row=2)
     async def meet_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         embed = cyber_embed(
             title="◈ CAR MEETS",
@@ -109,7 +119,7 @@ class MainPanelView(discord.ui.View):
         embed.add_field(name="▸ Commands", value="`/meet`", inline=False)
         await interaction.response.edit_message(embed=embed, view=BackOnly(self.bot))
 
-    @discord.ui.button(label="◈ STATS", style=discord.ButtonStyle.secondary, row=1)
+    @discord.ui.button(label="◈ STATS", style=discord.ButtonStyle.secondary, row=2)
     async def stats_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         embed = cyber_embed(
             title="◈ STATISTICS",
@@ -119,7 +129,7 @@ class MainPanelView(discord.ui.View):
         embed.add_field(name="▸ Commands", value="`/stats` `/topmedia`", inline=False)
         await interaction.response.edit_message(embed=embed, view=BackOnly(self.bot))
 
-    @discord.ui.button(label="◈ TICKETS", style=discord.ButtonStyle.secondary, row=2)
+    @discord.ui.button(label="◈ TICKETS", style=discord.ButtonStyle.secondary, row=3)
     async def tickets_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         embed = cyber_embed(
             title="◈ TICKETS",
@@ -128,15 +138,12 @@ class MainPanelView(discord.ui.View):
         )
         embed.add_field(
             name="▸ Commands",
-            value=(
-                "`/ticket_panel` `/ticket_config` `/ticket_close`\n"
-                "`/ticket_add` `/ticket_remove` `/ticket_rename` `/ticket_transcript`"
-            ),
+            value="`/ticket_panel` `/ticket_setup` `/ticket_list`",
             inline=False,
         )
         await interaction.response.edit_message(embed=embed, view=BackOnly(self.bot))
 
-    @discord.ui.button(label="◈ AUTO FEEDS", style=discord.ButtonStyle.secondary, row=2)
+    @discord.ui.button(label="◈ AUTO FEEDS", style=discord.ButtonStyle.secondary, row=3)
     async def af_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         embed = cyber_embed(
             title="◈ AUTO FEEDS",
@@ -150,7 +157,7 @@ class MainPanelView(discord.ui.View):
         )
         await interaction.response.edit_message(embed=embed, view=BackOnly(self.bot))
 
-    @discord.ui.button(label="◈ BOOST", style=discord.ButtonStyle.secondary, row=2)
+    @discord.ui.button(label="◈ BOOST", style=discord.ButtonStyle.secondary, row=4)
     async def boost_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         embed = cyber_embed(
             title="◈ BOOST",
@@ -160,7 +167,7 @@ class MainPanelView(discord.ui.View):
         embed.add_field(name="▸ Commands", value="`/boost_config`", inline=False)
         await interaction.response.edit_message(embed=embed, view=BackOnly(self.bot))
 
-    @discord.ui.button(label="◈ WEBLOGS", style=discord.ButtonStyle.secondary, row=3)
+    @discord.ui.button(label="◈ WEBLOGS", style=discord.ButtonStyle.secondary, row=4)
     async def wl_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         embed = cyber_embed(
             title="◈ WEBLOGS",
@@ -175,11 +182,11 @@ class MainPanelView(discord.ui.View):
         embed.add_field(name="▸ Commands", value="`/weblogs_config`", inline=False)
         await interaction.response.edit_message(embed=embed, view=BackOnly(self.bot))
 
-    @discord.ui.button(label="◈ WEB PANEL", style=discord.ButtonStyle.secondary, row=3)
+    @discord.ui.button(label="◈ WEB PANEL", style=discord.ButtonStyle.secondary, row=4)
     async def web_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         embed = cyber_embed(
             title="◈ WEB PANEL",
-            description="Full external dashboard. Use `/panel` (staff role required) to get the link + access key.",
+            description="Full external dashboard. Use `/panel` (staff role required) to get the panel link. The access key is entered privately on the web panel.",
             color=CYBER_PINK,
         )
         await interaction.response.edit_message(embed=embed, view=BackOnly(self.bot))
@@ -321,7 +328,6 @@ class Utilities(commands.Cog):
     async def panel(self, interaction: discord.Interaction):
         role_id = self.bot.config.get("PANEL_ACCESS_ROLE_ID")
         panel_url = self.bot.config.get("PANEL_URL") or "https://bovaryclub.github.io/BovaryBot-Panel/"
-        access_key = self.bot.config.get("PANEL_ACCESS_KEY") or "BovaClub#CoreAccess-2026!"
         if not role_id:
             await interaction.response.send_message(
                 "❌ Panel access role not configured (`PANEL_ACCESS_ROLE_ID`).",
@@ -348,7 +354,7 @@ class Utilities(commands.Cog):
             title="◈ WEB PANEL — ACCESS GRANTED",
             description=(
                 f"**Link:** {panel_url}\n\n"
-                f"**Access key:** `{access_key}`\n\n"
+                "▸ Enter the panel access key on the panel login screen. It is intentionally not displayed here.\n"
                 "▸ Sidebar modules: Dashboard · Auto-Role · Embed · Meets · Timestamp\n"
                 "▸ Auto Feeds · Tickets · Boost · WebLogs · Stats · Commands\n"
                 "▸ Keep link and key private\n"

@@ -12,7 +12,7 @@ Private bot for **Bovary Club Society**. Developed by **Bassani**.
 ## Quick deploy
 1. Push to bot GitHub repo
 2. Render: `pip install -r requirements.txt` → `python bot.py`
-3. Env minimum: `TOKEN`, `GUILD_ID`, `PANEL_ACCESS_KEY=BovaClub#CoreAccess-2026!`, `STAFF_API_ROLE_ID`, `CORS_ORIGIN`
+3. Env minimum: `TOKEN`, `GUILD_ID`, `PANEL_ACCESS_KEY=CHANGE_ME_IN_RENDER`, `STAFF_API_ROLE_ID`, `CORS_ORIGIN`
 4. Optional: `GROQ_API_KEY`, `LASTFM_API_KEY`, `DATABASE_PATH`
 5. Panel: upload `web/`, set `BOVA_API.baseUrl`
 

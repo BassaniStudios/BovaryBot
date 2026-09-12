@@ -1,6 +1,6 @@
 """
 Bova's Bot — Official private bot of Bovary Club Society.
-Version: 2.7.8
+Version: 2.7.13
 """
 from __future__ import annotations
 
@@ -71,6 +71,17 @@ class BovaryBot(commands.Bot):
             "BACKUP_INTERVAL_HOURS": load_int_env("BACKUP_INTERVAL_HOURS", 24) or 24,
             "IGNORE_CHANNEL_ID": load_int_env("IGNORE_CHANNEL_ID", 1384173137985540233),
             "STAFF_LOG_CHANNEL": load_int_env("STAFF_LOG_CHANNEL", 1444186478157500508),
+            # DM inbox/support channel. Defaults to the existing staff log channel.
+            "DM_INBOX_CHANNEL_ID": load_int_env("DM_INBOX_CHANNEL_ID", 1444186478157500508),
+            "DM_AUTO_RESPONSE_ENABLED": os.getenv("DM_AUTO_RESPONSE_ENABLED", "false").lower() in ("1", "true", "yes"),
+            # Automatic reminders for any <t:UNIX:R> timestamp found in guild messages/embeds.
+            "TIMESTAMP_REMINDER_ENABLED": os.getenv("TIMESTAMP_REMINDER_ENABLED", "true").lower() in ("1", "true", "yes"),
+            "TIMESTAMP_REMINDER_MINUTES": load_int_env("TIMESTAMP_REMINDER_MINUTES", 30) or 30,
+            "TIMESTAMP_REMINDER_TEXT": os.getenv("TIMESTAMP_REMINDER_TEXT", ""),
+            "DM_AUTO_RESPONSE_TEXT": os.getenv(
+                "DM_AUTO_RESPONSE_TEXT",
+                "Olá! Sua mensagem foi recebida. Nossa equipe foi notificada e responderá assim que possível.",
+            ),
             "CREW_LEADER_ROLE_ID": load_int_env("CREW_LEADER_ROLE_ID", 1384173136177791048),
             "REQUIRED_INVITE_CHANNEL": load_int_env("REQUIRED_INVITE_CHANNEL", 1444094610157600859),
             "BOOST_CHANNEL_ID": load_int_env("BOOST_CHANNEL_ID", 1384173136638906407),
@@ -84,7 +95,8 @@ class BovaryBot(commands.Bot):
             # Role allowed to call the HTTP API from the web panel
             "STAFF_API_ROLE_ID": load_int_env("STAFF_API_ROLE_ID", 1547647694997037137),
             "PANEL_URL": os.getenv("PANEL_URL", "https://bovaryclub.github.io/BovaryBot-Panel/"),
-            "PANEL_ACCESS_KEY": os.getenv("PANEL_ACCESS_KEY", "BovaClub#CoreAccess-2026!"),
+            # Panel secret is read only from the environment; never expose or default it in code.
+            "PANEL_ACCESS_KEY": os.getenv("PANEL_ACCESS_KEY", ""),
             "PUBLIC_API_URL": os.getenv("PUBLIC_API_URL", ""),
         }
         return cfg
@@ -157,7 +169,7 @@ class BovaryBot(commands.Bot):
     async def on_ready(self):
         if not rotate_status.is_running():
             rotate_status.start()
-        logger.info("✅ %s está online! (v2.7.8)", self.user)
+        logger.info("✅ %s está online! (v2.7.13)", self.user)
         if APPLY_BOT_PROFILE and not self._profile_applied:
             self._profile_applied = True
             await self._apply_profile()
