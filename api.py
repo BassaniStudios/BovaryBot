@@ -54,10 +54,21 @@ def init_api(bot) -> None:
                 origins.append(f"{p.scheme}://{p.netloc}")
         except Exception:
             pass
-    if not origins:
-        origins = ["*"]
-    CORS(app, origins=origins, supports_credentials=False, allow_headers=["Content-Type", "X-API-Key", "X-Discord-User-Id"])
-    logger.info("API CORS origins: %s", origins)
+    # The panel authenticates with explicit headers (X-API-Key / X-Discord-User-Id)
+    # and does not use browser credentials/cookies. Allowing cross-origin requests is
+    # therefore safe at the transport layer; the API itself remains protected by
+    # require_auth on all private endpoints. Explicit CORS_ORIGIN / PANEL_URL values
+    # are still logged for visibility.
+    cors_origins = origins or ["*"]
+    CORS(
+        app,
+        origins=cors_origins,
+        supports_credentials=False,
+        allow_headers=["Content-Type", "X-API-Key", "X-Discord-User-Id", "Authorization"],
+        methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        expose_headers=["Content-Type"],
+    )
+    logger.info("API CORS origins: %s", cors_origins)
 
 
 def start_api(bot, host: str = "0.0.0.0", port: Optional[int] = None) -> None:
