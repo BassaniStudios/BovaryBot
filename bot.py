@@ -1,6 +1,6 @@
 """
 Bova's Bot — Official private bot of Bovary Club Society.
-Version: 2.7.16
+Version: 2.7.17
 """
 from __future__ import annotations
 
