@@ -1,6 +1,6 @@
 """
 Bova's Bot — Official private bot of Bovary Club Society.
-Version: 2.2-api
+Version: 2.7.4
 """
 from __future__ import annotations
 
@@ -110,18 +110,43 @@ class BovaryBot(commands.Bot):
 
         guild_id = self.config.get("GUILD_ID")
         if guild_id:
+            # Development/private-server mode: keep slash commands GUILD-ONLY.
+            #
+            # IMPORTANT: do not leave the same commands registered both globally
+            # and in the guild. Discord treats global and guild commands as
+            # separate command records, so users can see every command twice.
+            # This also cleans up global commands left by older versions that
+            # previously used copy_global_to(guild=...).
             guild = discord.Object(id=guild_id)
+
+            # Copy the currently loaded commands into the target guild and sync
+            # them immediately. Guild commands are the recommended choice for
+            # development/testing because they update instantly.
             self.tree.copy_global_to(guild=guild)
             synced = await self.tree.sync(guild=guild)
-            logger.info("Comandos sincronizados no guild %s (%d comandos)", guild_id, len(synced))
+
+            # Remove every global command owned by this application. This is
+            # intentionally done only when GUILD_ID is configured, because this
+            # bot is deployed for a private Bovary Club server.
+            self.tree.clear_commands(guild=None)
+            global_synced = await self.tree.sync()
+
+            logger.info(
+                "Comandos sincronizados somente no guild %s (%d comandos); "
+                "comandos globais removidos (%d)",
+                guild_id,
+                len(synced),
+                len(global_synced),
+            )
         else:
+            # No GUILD_ID: publish the currently loaded commands globally.
             synced = await self.tree.sync()
             logger.info("Comandos sincronizados globalmente (%d comandos)", len(synced))
 
     async def on_ready(self):
         if not rotate_status.is_running():
             rotate_status.start()
-        logger.info("✅ %s está online! (v2.7)", self.user)
+        logger.info("✅ %s está online! (v2.7.4)", self.user)
         if APPLY_BOT_PROFILE and not self._profile_applied:
             self._profile_applied = True
             await self._apply_profile()
