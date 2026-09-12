@@ -70,7 +70,7 @@ class BovaryBot(commands.Bot):
             return val
 
         cfg = {
-            "GUILD_ID": load_int_env("GUILD_ID"),
+            "GUILD_ID": load_int_env("GUILD_ID", 1384173136085258292),  # main Bovary server (commands live here)
             "LOG_CHANNEL_ID": _chan("LOG_CHANNEL_ID", 1441663299065217114),
             "MESSAGE_LOG_CHANNEL_ID": _chan("MESSAGE_LOG_CHANNEL_ID", 1432715549116207248),
             # General WebLogs channel (channel/admin events). Message edit/delete logs stay separate.
@@ -78,7 +78,7 @@ class BovaryBot(commands.Bot):
             "BOT_ROOM_CHANNEL_ID": _chan("BOT_ROOM_CHANNEL_ID", 1424436722984423529),
             # Auto backup of SQLite to a Discord channel (Render free mitigation)
             "BACKUP_CHANNEL_ID": _chan("BACKUP_CHANNEL_ID", 1548438716391890994),  # home server backup room
-            "BACKUP_GUILD_ID": load_int_env("BACKUP_GUILD_ID", 1426594245510430903),  # home / casa server
+            "BACKUP_GUILD_ID": load_int_env("BACKUP_GUILD_ID", 1426594245510430903),  # casa = backup only (NO commands)
 
             "BACKUP_INTERVAL_HOURS": load_int_env("BACKUP_INTERVAL_HOURS", 24) or 24,
             "IGNORE_CHANNEL_ID": _chan("IGNORE_CHANNEL_ID", 1384173137985540233),
@@ -166,34 +166,30 @@ class BovaryBot(commands.Bot):
             self.tree.copy_global_to(guild=guild)
             synced = await self.tree.sync(guild=guild)
 
-            # Also sync to home/casa server so staff commands work there too
-            home_id = self.config.get("BACKUP_GUILD_ID")
-            home_synced = 0
-            if home_id and int(home_id) != int(guild_id):
-                try:
-                    home = discord.Object(id=int(home_id))
-                    self.tree.copy_global_to(guild=home)
-                    home_cmds = await self.tree.sync(guild=home)
-                    home_synced = len(home_cmds)
-                    logger.info(
-                        "Comandos também sincronizados no servidor casa %s (%d)",
-                        home_id, home_synced,
-                    )
-                except Exception:
-                    logger.exception("Falha ao sincronizar comandos no servidor casa %s", home_id)
-
-            # Remove every global command owned by this application. This is
-            # intentionally done only when GUILD_ID is configured, because this
-            # bot is deployed for a private Bovary Club server.
+            # Remove every global command owned by this application.
             self.tree.clear_commands(guild=None)
             global_synced = await self.tree.sync()
 
+            # Home/casa server is backup-only: strip any slash commands left there
+            # from older deploys so they do not appear or fire on that guild.
+            home_id = self.config.get("BACKUP_GUILD_ID")
+            if home_id and int(home_id) != int(guild_id):
+                try:
+                    home = discord.Object(id=int(home_id))
+                    self.tree.clear_commands(guild=home)
+                    cleared_home = await self.tree.sync(guild=home)
+                    logger.info(
+                        "Servidor casa %s é só backup — comandos removidos (%d residual)",
+                        home_id, len(cleared_home),
+                    )
+                except Exception:
+                    logger.exception("Falha ao limpar comandos do servidor casa %s", home_id)
+
             logger.info(
-                "Comandos sincronizados no guild %s (%d) + casa (%d); "
-                "comandos globais removidos (%d)",
+                "Comandos sincronizados SOMENTE no servidor principal %s (%d); "
+                "globais removidos (%d). Casa = backup only.",
                 guild_id,
                 len(synced),
-                home_synced,
                 len(global_synced),
             )
         else:
