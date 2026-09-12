@@ -1,4 +1,9 @@
-"""JSON storage helpers — atomic writes, backups and safe defaults."""
+"""
+Storage helpers — SQLite primary (utils.db), with optional JSON mirror.
+
+API remains load_json / save_json so all existing cogs keep working.
+On first use, legacy data/*.json files are migrated into bovary.db.
+"""
 from __future__ import annotations
 
 import json
@@ -8,10 +13,31 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict
 
+from utils import db as sqldb
+
 logger = logging.getLogger("bovary_bot.storage")
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+DATA_DIR = sqldb.DATA_DIR
 DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+# When true, also write a .json mirror next to the DB (useful for manual inspection)
+MIRROR_JSON = os.getenv("STORAGE_MIRROR_JSON", "false").lower() in ("1", "true", "yes")
+
+_bootstrapped = False
+
+
+def _bootstrap() -> None:
+    global _bootstrapped
+    if _bootstrapped:
+        return
+    try:
+        sqldb.get_connection()
+        n = sqldb.migrate_json_to_sql()
+        if n:
+            logger.info("Migrated %d JSON document(s) into SQLite", n)
+    except Exception:
+        logger.exception("Storage bootstrap failed")
+    _bootstrapped = True
 
 
 def _path(name: str) -> Path:
@@ -19,12 +45,29 @@ def _path(name: str) -> Path:
 
 
 def load_json(name: str, default: Any = None) -> Any:
-    path = _path(name)
+    """Load document from SQLite (key = name without .json). Falls back to file if needed."""
+    _bootstrap()
+    try:
+        data = sqldb.kv_get(name, None)
+        if data is not None:
+            return data
+    except Exception:
+        logger.exception("SQLite load failed for %s — trying file", name)
+
+    # Fallback: legacy file
+    path = _path(name if name.endswith(".json") else f"{name}.json")
+    if not path.exists():
+        path = _path(name)
     if not path.exists():
         return default if default is not None else {}
     try:
         with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+        try:
+            sqldb.kv_set(name, data)
+        except Exception:
+            pass
+        return data
     except (json.JSONDecodeError, OSError) as e:
         logger.warning("Failed to load %s: %s — trying .bak", name, e)
         bak = path.with_suffix(path.suffix + ".bak")
@@ -38,20 +81,30 @@ def load_json(name: str, default: Any = None) -> Any:
 
 
 def save_json(name: str, data: Any) -> None:
-    """Atomic write: temp file → replace, plus .bak of previous version."""
-    path = _path(name)
+    """Persist document to SQLite. Optionally mirror to JSON file."""
+    _bootstrap()
     try:
-        # Backup existing file
+        sqldb.kv_set(name, data)
+    except Exception:
+        logger.exception("SQLite save failed for %s — falling back to file", name)
+        _save_file(name, data)
+        return
+
+    if MIRROR_JSON:
+        _save_file(name, data)
+
+
+def _save_file(name: str, data: Any) -> None:
+    path = _path(name if name.endswith(".json") else f"{name}.json")
+    try:
         if path.exists():
             bak = path.with_suffix(path.suffix + ".bak")
             try:
                 os.replace(path, bak)
             except OSError:
                 pass
-
-        # Write to temp then atomic replace
         fd, tmp_name = tempfile.mkstemp(
-            dir=str(DATA_DIR), prefix=f".{name}.", suffix=".tmp"
+            dir=str(DATA_DIR), prefix=f".{path.name}.", suffix=".tmp"
         )
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
@@ -66,7 +119,7 @@ def save_json(name: str, data: Any) -> None:
                 pass
             raise
     except OSError as e:
-        logger.error("Failed to save %s: %s", name, e)
+        logger.error("Failed to write JSON %s: %s", name, e)
 
 
 def default_autorole() -> Dict:

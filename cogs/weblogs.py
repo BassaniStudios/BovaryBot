@@ -20,8 +20,9 @@ class WebLogs(commands.Cog):
     """
     Logs estruturados (única fonte — sem duplicar com events.py):
     - Joins / leaves  → LOG_CHANNEL_ID (Info)
-    - Admin / channels → BOT_ROOM_CHANNEL_ID (bot-room)
-    - Message delete/edit → MESSAGE_LOG_CHANNEL_ID
+    - Nick / name history alerts → BOT_ROOM_CHANNEL_ID (namehistory cog)
+    - Other weblogs (msg edit/delete, channel create/delete, admin)
+      → WEBLOGS_CHANNEL_ID (default 1548153354675556412)
     """
 
     def __init__(self, bot: commands.Bot):
@@ -41,13 +42,20 @@ class WebLogs(commands.Cog):
         save_json(FILE, self.config)
 
     def _info_channel(self) -> Optional[discord.abc.GuildChannel]:
+        """Joins / leaves only."""
         return safe_get_channel(self.bot, self.bot.config.get("LOG_CHANNEL_ID"))
 
     def _bot_room(self) -> Optional[discord.abc.GuildChannel]:
         return safe_get_channel(self.bot, self.bot.config.get("BOT_ROOM_CHANNEL_ID"))
 
+    def _weblogs_channel(self) -> Optional[discord.abc.GuildChannel]:
+        """Other weblogs: message edit/delete, channel create/delete, admin actions."""
+        cid = self.bot.config.get("WEBLOGS_CHANNEL_ID") or self.bot.config.get("MESSAGE_LOG_CHANNEL_ID")
+        return safe_get_channel(self.bot, cid)
+
     def _msg_log(self) -> Optional[discord.abc.GuildChannel]:
-        return safe_get_channel(self.bot, self.bot.config.get("MESSAGE_LOG_CHANNEL_ID"))
+        # Prefer dedicated weblogs channel for message logs
+        return self._weblogs_channel()
 
     def _ignore_id(self) -> Optional[int]:
         return self.bot.config.get("IGNORE_CHANNEL_ID")
@@ -62,7 +70,7 @@ class WebLogs(commands.Cog):
 
     async def log_admin(self, title: str, description: str, color: Optional[discord.Color] = None):
         embed = make_embed(title=title, description=description, color=color or discord.Color.orange())
-        await self._send_embed(self._bot_room(), embed)
+        await self._send_embed(self._weblogs_channel(), embed)
 
     async def log_message(self, title: str, description: str, color: Optional[discord.Color] = None):
         embed = make_embed(title=title, description=description, color=color or discord.Color.red())
@@ -100,8 +108,8 @@ class WebLogs(commands.Cog):
         member_leave="Log member leaves to Info channel",
         message_delete="Log message deletes",
         message_edit="Log message edits",
-        channel_create="Log channel creation (bot-room)",
-        channel_delete="Log channel deletion (bot-room)",
+        channel_create="Log channel creation (weblogs channel)",
+        channel_delete="Log channel deletion (weblogs channel)",
     )
     @app_commands.checks.has_permissions(manage_guild=True)
     async def weblogs_config(
@@ -136,18 +144,25 @@ class WebLogs(commands.Cog):
     async def on_member_join(self, member: discord.Member):
         if not self.config.get("member_join"):
             return
+        created = member.created_at
         embed = discord.Embed(
             title="🟢 Member Join",
-            description=(
-                f"**User:** {member.mention}\n"
-                f"**ID:** `{member.id}`\n"
-                f"**Account:** {discord.utils.format_dt(member.created_at, 'R')}"
-            ),
-            color=discord.Color.green(),
+            description=f"Welcome {member.mention}",
+            color=discord.Color.from_rgb(80, 220, 120),
             timestamp=datetime.now(timezone.utc),
         )
+        embed.add_field(name="👤 User", value=f"{member.mention}\n`{member}`", inline=True)
+        embed.add_field(name="🆔 ID", value=f"`{member.id}`", inline=True)
+        embed.add_field(
+            name="📅 Account created",
+            value=f"{discord.utils.format_dt(created, 'F')}\n({discord.utils.format_dt(created, 'R')})",
+            inline=False,
+        )
+        if member.guild:
+            embed.add_field(name="📊 Member count", value=str(member.guild.member_count), inline=True)
         if member.display_avatar:
             embed.set_thumbnail(url=member.display_avatar.url)
+            embed.set_author(name=str(member), icon_url=member.display_avatar.url)
         embed.set_footer(text="Bova's Bot · Member Log")
         await self._send_embed(self._info_channel(), embed)
 
@@ -155,14 +170,27 @@ class WebLogs(commands.Cog):
     async def on_member_remove(self, member: discord.Member):
         if not self.config.get("member_leave"):
             return
+        roles = [r.mention for r in getattr(member, "roles", []) if r.name != "@everyone"][:10]
         embed = discord.Embed(
             title="🔴 Member Leave",
-            description=f"**User:** `{member}`\n**ID:** `{member.id}`",
-            color=discord.Color.red(),
+            color=discord.Color.from_rgb(220, 60, 80),
             timestamp=datetime.now(timezone.utc),
         )
+        embed.add_field(name="👤 User", value=f"`{member}`", inline=True)
+        embed.add_field(name="🆔 ID", value=f"`{member.id}`", inline=True)
+        if getattr(member, "joined_at", None):
+            embed.add_field(
+                name="📥 Joined",
+                value=discord.utils.format_dt(member.joined_at, "R"),
+                inline=True,
+            )
+        if roles:
+            embed.add_field(name="🏷️ Roles", value=" ".join(roles)[:500], inline=False)
+        if member.guild:
+            embed.add_field(name="📊 Members now", value=str(member.guild.member_count), inline=True)
         if member.display_avatar:
             embed.set_thumbnail(url=member.display_avatar.url)
+            embed.set_author(name=str(member), icon_url=member.display_avatar.url)
         embed.set_footer(text="Bova's Bot · Member Log")
         await self._send_embed(self._info_channel(), embed)
 
@@ -276,7 +304,7 @@ class WebLogs(commands.Cog):
             timestamp=datetime.now(timezone.utc),
         )
         embed.set_footer(text="Bova's Bot · Admin Log")
-        await self._send_embed(self._bot_room(), embed)
+        await self._send_embed(self._weblogs_channel(), embed)
 
     @commands.Cog.listener()
     async def on_guild_channel_delete(self, channel: discord.abc.GuildChannel):
@@ -289,7 +317,7 @@ class WebLogs(commands.Cog):
             timestamp=datetime.now(timezone.utc),
         )
         embed.set_footer(text="Bova's Bot · Admin Log")
-        await self._send_embed(self._bot_room(), embed)
+        await self._send_embed(self._weblogs_channel(), embed)
 
 
 async def setup(bot: commands.Bot):

@@ -2,10 +2,11 @@
 HTTP API for the web panel — runs in the same process as the bot.
 
 Security:
-  - Header X-API-Key must match PANEL_ACCESS_KEY
+  - Header X-API-Key must match PANEL_ACCESS_KEY (strong fixed key)
   - Header X-Discord-User-Id must be a member with STAFF_API_ROLE_ID (or admin)
   - CORS restricted to PANEL / CORS_ORIGIN
   - Simple per-IP rate limit
+  - Every authenticated action is written to audit log (who / what / when)
 """
 from __future__ import annotations
 
@@ -22,6 +23,8 @@ from typing import Any, Callable, Dict, Optional
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
+from utils.audit import log_action
+
 logger = logging.getLogger("bovary_bot.api")
 
 app = Flask("bovary_api")
@@ -31,6 +34,9 @@ _rate: Dict[str, list] = defaultdict(list)
 
 RATE_LIMIT = 30  # requests
 RATE_WINDOW = 60  # seconds
+
+# Strong fixed default — override in production via env PANEL_ACCESS_KEY
+DEFAULT_PANEL_KEY = "BovaClub#CoreAccess-2026!"
 
 
 def init_api(bot) -> None:
@@ -66,8 +72,8 @@ def start_api(bot, host: str = "0.0.0.0", port: Optional[int] = None) -> None:
 
 def _api_key() -> str:
     if _bot:
-        return _bot.config.get("PANEL_ACCESS_KEY") or os.getenv("PANEL_ACCESS_KEY", "BOVA-CORE-2026")
-    return os.getenv("PANEL_ACCESS_KEY", "BOVA-CORE-2026")
+        return _bot.config.get("PANEL_ACCESS_KEY") or os.getenv("PANEL_ACCESS_KEY", DEFAULT_PANEL_KEY)
+    return os.getenv("PANEL_ACCESS_KEY", DEFAULT_PANEL_KEY)
 
 
 def _staff_role_id() -> Optional[int]:
@@ -133,25 +139,40 @@ def require_auth(fn: Callable):
     @wraps(fn)
     def wrapper(*args, **kwargs):
         if not _check_rate():
+            log_action(actor_id=None, action="rate_limited", detail={"path": request.path}, success=False)
             return jsonify({"error": "rate_limited"}), 429
         key = request.headers.get("X-API-Key") or request.headers.get("Authorization", "").replace("Bearer ", "")
         if key != _api_key():
+            log_action(actor_id=None, action="auth_fail_key", detail={"path": request.path}, success=False)
             return jsonify({"error": "unauthorized", "detail": "invalid api key"}), 401
         uid_raw = request.headers.get("X-Discord-User-Id") or (request.json or {}).get("discord_user_id")
         if not uid_raw:
+            log_action(actor_id=None, action="auth_fail_no_uid", detail={"path": request.path}, success=False)
             return jsonify({"error": "unauthorized", "detail": "missing X-Discord-User-Id"}), 401
         try:
             uid = int(uid_raw)
         except (TypeError, ValueError):
+            log_action(actor_id=None, action="auth_fail_bad_uid", detail={"path": request.path}, success=False)
             return jsonify({"error": "unauthorized", "detail": "bad user id"}), 401
         try:
             allowed = _run(_user_allowed(uid))
         except Exception as e:
             logger.exception("auth check failed")
+            log_action(actor_id=uid, action="auth_check_failed", detail={"error": str(e)}, success=False)
             return jsonify({"error": "auth_check_failed", "detail": str(e)}), 503
         if not allowed:
+            log_action(actor_id=uid, action="auth_forbidden", detail={"path": request.path}, success=False)
             return jsonify({"error": "forbidden", "detail": "missing staff role"}), 403
-        return fn(*args, **kwargs)
+        # Stash actor for handlers
+        request.bova_actor_id = uid  # type: ignore
+        result = fn(*args, **kwargs)
+        # Log successful call (handlers can log more detail themselves)
+        try:
+            action_name = request.path.strip("/").replace("/", "_") or "root"
+            log_action(actor_id=uid, action=action_name, detail={"method": request.method}, success=True)
+        except Exception:
+            pass
+        return result
     return wrapper
 
 
@@ -429,6 +450,111 @@ def api_namehistory():
     if not cog:
         return jsonify({"members": {}})
     return jsonify(cog.data)
+
+
+
+@app.post("/api/poll")
+@require_auth
+def api_poll():
+    """Create a poll from the web panel (Sesh-style fields)."""
+    data = request.get_json(force=True, silent=True) or {}
+    actor = getattr(request, "bova_actor_id", None)
+
+    async def _create():
+        cog = _bot.get_cog("Polls")
+        if not cog:
+            raise RuntimeError("Polls cog not loaded")
+        channel_id = int(data["channel_id"])
+        ch = _bot.get_channel(channel_id)
+        if not ch:
+            ch = await _bot.fetch_channel(channel_id)
+        options = data.get("options") or []
+        if isinstance(options, str):
+            options = [o.strip() for o in options.replace("\n", ",").split(",") if o.strip()]
+        poll = await cog.create_poll(
+            channel=ch,
+            title=data.get("title") or "Poll",
+            options=options,
+            description=data.get("description") or "",
+            single=bool(data.get("single_vote") or data.get("single")),
+            hours=float(data["hours"]) if data.get("hours") else None,
+            color=data.get("color") or "#B450FF",
+            author_id=actor,
+        )
+        return {"ok": True, "id": poll["id"], "message_id": poll["message_id"]}
+
+    try:
+        result = _run(_create())
+        log_action(actor_id=actor, action="api_poll", detail={"title": data.get("title"), "channel_id": data.get("channel_id")}, success=True)
+        return jsonify(result)
+    except Exception as e:
+        logger.exception("api_poll")
+        log_action(actor_id=actor, action="api_poll", detail={"error": str(e)}, success=False)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.get("/api/audit")
+@require_auth
+def api_audit():
+    """Recent audit log entries (staff only) — from SQLite audit_log."""
+    from utils import db as sqldb
+    from utils.storage import _bootstrap
+    _bootstrap()
+    entries = sqldb.audit_recent(50)
+    return jsonify({"entries": entries, "storage": "sqlite"})
+
+
+
+@app.get("/api/server/summary")
+@require_auth
+def api_server_summary():
+    """Server analytics for the web panel."""
+    async def _sum():
+        gid = _guild_id()
+        if not gid:
+            return {"error": "no guild"}
+        g = _bot.get_guild(gid)
+        if not g:
+            g = await _bot.fetch_guild(gid)
+            await g.chunk() if hasattr(g, "chunk") else None
+        humans = sum(1 for m in g.members if not m.bot)
+        bots = sum(1 for m in g.members if m.bot)
+        roles = [
+            {"id": str(r.id), "name": r.name, "members": len(r.members), "color": str(r.color)}
+            for r in sorted(g.roles, key=lambda x: len(x.members), reverse=True)
+            if r.name != "@everyone"
+        ][:25]
+        return {
+            "id": str(g.id),
+            "name": g.name,
+            "member_count": g.member_count,
+            "humans": humans,
+            "bots": bots,
+            "roles_count": len(g.roles),
+            "roles": roles,
+            "text_channels": len(g.text_channels),
+            "voice_channels": len(g.voice_channels),
+            "boost_tier": g.premium_tier,
+            "boosts": g.premium_subscription_count or 0,
+            "created_at": g.created_at.isoformat() if g.created_at else None,
+            "icon": str(g.icon.url) if g.icon else None,
+        }
+    try:
+        return jsonify(_run(_sum()))
+    except Exception as e:
+        logger.exception("server summary")
+        return jsonify({"error": str(e)}), 500
+
+
+
+@app.get("/api/tickets")
+@require_auth
+def api_tickets():
+    """Recent ticket/suggestion/report submissions for the web panel."""
+    cog = _bot.get_cog("Tickets") if _bot else None
+    if not cog:
+        return jsonify({"entries": []})
+    return jsonify({"entries": cog.get_entries_for_api(80)})
 
 
 # Backward-compatible names used by old keep_alive imports

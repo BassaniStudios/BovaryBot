@@ -321,7 +321,7 @@ class Utilities(commands.Cog):
     async def panel(self, interaction: discord.Interaction):
         role_id = self.bot.config.get("PANEL_ACCESS_ROLE_ID")
         panel_url = self.bot.config.get("PANEL_URL") or "https://bovaryclub.github.io/BovaryBot-Panel/"
-        access_key = self.bot.config.get("PANEL_ACCESS_KEY") or "BOVA-CORE-2026"
+        access_key = self.bot.config.get("PANEL_ACCESS_KEY") or "BovaClub#CoreAccess-2026!"
         if not role_id:
             await interaction.response.send_message(
                 "❌ Panel access role not configured (`PANEL_ACCESS_ROLE_ID`).",
@@ -357,6 +357,141 @@ class Utilities(commands.Cog):
             color=CYBER_GREEN,
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="avatar", description="Show user avatar")
+    @app_commands.describe(user="User (optional)")
+    async def avatar(self, interaction: discord.Interaction, user: Optional[discord.Member] = None):
+        u = user or interaction.user
+        embed = cyber_embed(title=f"Avatar — {u.display_name}", color=CYBER_CYAN)
+        embed.set_image(url=u.display_avatar.url)
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="servericon", description="Show server icon")
+    async def servericon(self, interaction: discord.Interaction):
+        g = interaction.guild
+        if not g or not g.icon:
+            await interaction.response.send_message("No server icon.", ephemeral=True)
+            return
+        embed = cyber_embed(title=f"Icon — {g.name}", color=CYBER_CYAN)
+        embed.set_image(url=g.icon.url)
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="membercount", description="Server member count")
+    async def membercount(self, interaction: discord.Interaction):
+        g = interaction.guild
+        if not g:
+            await interaction.response.send_message("Guild only.", ephemeral=True)
+            return
+        humans = sum(1 for m in g.members if not m.bot)
+        bots = sum(1 for m in g.members if m.bot)
+        embed = cyber_embed(
+            title="◈ MEMBER COUNT",
+            description=f"**Total:** {g.member_count}\n**Humans:** {humans}\n**Bots:** {bots}",
+            color=CYBER_GREEN,
+        )
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="userinfo", description="Detailed user info")
+    @app_commands.describe(user="User (optional)")
+    async def userinfo(self, interaction: discord.Interaction, user: Optional[discord.Member] = None):
+        m = user or interaction.user
+        if not isinstance(m, discord.Member):
+            await interaction.response.send_message("Guild only.", ephemeral=True)
+            return
+        roles = [r.mention for r in m.roles[1:]][:15]
+        embed = cyber_embed(title=f"User — {m}", color=CYBER_PURPLE)
+        embed.set_thumbnail(url=m.display_avatar.url)
+        embed.add_field(name="ID", value=f"`{m.id}`", inline=True)
+        embed.add_field(name="Joined", value=f"<t:{int(m.joined_at.timestamp())}:R>" if m.joined_at else "?", inline=True)
+        embed.add_field(name="Created", value=f"<t:{int(m.created_at.timestamp())}:R>", inline=True)
+        embed.add_field(name="Roles", value=" ".join(roles) if roles else "—", inline=False)
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="serverinfo", description="Server information")
+    async def serverinfo(self, interaction: discord.Interaction):
+        g = interaction.guild
+        if not g:
+            await interaction.response.send_message("Guild only.", ephemeral=True)
+            return
+        await interaction.response.defer()
+        humans = sum(1 for m in g.members if not m.bot)
+        bots = sum(1 for m in g.members if m.bot)
+        text_c = len(g.text_channels)
+        voice_c = len(g.voice_channels)
+        cats = len(g.categories)
+        boosts = g.premium_subscription_count or 0
+        tier = g.premium_tier
+        # Role breakdown (top by member count, skip @everyone)
+        role_lines = []
+        roles_sorted = sorted(
+            [r for r in g.roles if r.name != "@everyone"],
+            key=lambda r: len(r.members),
+            reverse=True,
+        )
+        for r in roles_sorted[:15]:
+            role_lines.append(f"• {r.mention} — **{len(r.members)}**")
+        embed = cyber_embed(title=f"◈ SERVER — {g.name}", color=CYBER_CYAN)
+        if g.icon:
+            embed.set_thumbnail(url=g.icon.url)
+        if g.banner:
+            embed.set_image(url=g.banner.url)
+        embed.add_field(name="🆔 ID", value=f"`{g.id}`", inline=True)
+        embed.add_field(name="👑 Owner", value=g.owner.mention if g.owner else "?", inline=True)
+        embed.add_field(
+            name="📅 Created",
+            value=f"<t:{int(g.created_at.timestamp())}:F>\n(<t:{int(g.created_at.timestamp())}:R>)",
+            inline=False,
+        )
+        embed.add_field(
+            name="👥 Members",
+            value=f"**{g.member_count}** total\n👤 {humans} humans · 🤖 {bots} bots",
+            inline=True,
+        )
+        embed.add_field(
+            name="📂 Channels",
+            value=f"💬 {text_c} text · 🔊 {voice_c} voice\n📁 {cats} categories · Σ {len(g.channels)}",
+            inline=True,
+        )
+        embed.add_field(
+            name="🏷️ Roles",
+            value=f"**{len(g.roles)}** roles (incl. @everyone)",
+            inline=True,
+        )
+        embed.add_field(
+            name="💎 Boosts",
+            value=f"Level **{tier}** · **{boosts}** boosts",
+            inline=True,
+        )
+        embed.add_field(
+            name="😀 Emojis / Stickers",
+            value=f"{len(g.emojis)} emojis · {len(g.stickers)} stickers",
+            inline=True,
+        )
+        if role_lines:
+            embed.add_field(
+                name="📊 Top roles by members",
+                value="\n".join(role_lines)[:1020],
+                inline=False,
+            )
+        embed.set_footer(text="Bova's Bot · Server analytics")
+        await interaction.followup.send(embed=embed)
+
+    @app_commands.command(name="say", description="[STAFF] Make the bot say something")
+    @app_commands.describe(message="Message to send", channel="Channel (optional)")
+    @app_commands.checks.has_permissions(manage_messages=True)
+    async def say(
+        self,
+        interaction: discord.Interaction,
+        message: str,
+        channel: Optional[discord.TextChannel] = None,
+    ):
+        ch = channel or interaction.channel
+        if not isinstance(ch, discord.TextChannel):
+            await interaction.response.send_message("Invalid channel.", ephemeral=True)
+            return
+        await ch.send(message[:2000])
+        await interaction.response.send_message("✅ Sent.", ephemeral=True)
+
 
 
 async def setup(bot: commands.Bot):

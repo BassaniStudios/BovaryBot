@@ -31,6 +31,7 @@ intents.message_content = True
 intents.members = True
 intents.guilds = True
 intents.reactions = True
+intents.voice_states = True
 
 # Profile auto-apply is OFF by default so Developer Portal banner/avatar stick.
 # Set APPLY_BOT_PROFILE=true only if you want the bot to push ImageKit assets on boot.
@@ -62,7 +63,12 @@ class BovaryBot(commands.Bot):
             "GUILD_ID": load_int_env("GUILD_ID"),
             "LOG_CHANNEL_ID": load_int_env("LOG_CHANNEL_ID", 1441663299065217114),
             "MESSAGE_LOG_CHANNEL_ID": load_int_env("MESSAGE_LOG_CHANNEL_ID", 1432715549116207248),
+            # Other weblogs (msg edit/delete, channel create/delete, admin actions)
+            "WEBLOGS_CHANNEL_ID": load_int_env("WEBLOGS_CHANNEL_ID", 1548153354675556412),
             "BOT_ROOM_CHANNEL_ID": load_int_env("BOT_ROOM_CHANNEL_ID", 1424436722984423529),
+            # Auto backup of SQLite to a Discord channel (Render free mitigation)
+            "BACKUP_CHANNEL_ID": load_int_env("BACKUP_CHANNEL_ID", 1548188378623778847),
+            "BACKUP_INTERVAL_HOURS": load_int_env("BACKUP_INTERVAL_HOURS", 168) or 168,
             "IGNORE_CHANNEL_ID": load_int_env("IGNORE_CHANNEL_ID", 1384173137985540233),
             "STAFF_LOG_CHANNEL": load_int_env("STAFF_LOG_CHANNEL", 1444186478157500508),
             "CREW_LEADER_ROLE_ID": load_int_env("CREW_LEADER_ROLE_ID", 1384173136177791048),
@@ -78,12 +84,19 @@ class BovaryBot(commands.Bot):
             # Role allowed to call the HTTP API from the web panel
             "STAFF_API_ROLE_ID": load_int_env("STAFF_API_ROLE_ID", 1547647694997037137),
             "PANEL_URL": os.getenv("PANEL_URL", "https://bovaryclub.github.io/BovaryBot-Panel/"),
-            "PANEL_ACCESS_KEY": os.getenv("PANEL_ACCESS_KEY", "BOVA-CORE-2026"),
+            "PANEL_ACCESS_KEY": os.getenv("PANEL_ACCESS_KEY", "BovaClub#CoreAccess-2026!"),
             "PUBLIC_API_URL": os.getenv("PUBLIC_API_URL", ""),
         }
         return cfg
 
     async def setup_hook(self) -> None:
+        # SQLite bootstrap + one-time JSON migration
+        try:
+            from utils.storage import _bootstrap
+            _bootstrap()
+        except Exception:
+            logger.exception("SQLite bootstrap failed")
+
         cogs_dir = Path(__file__).parent / "cogs"
         for file in cogs_dir.glob("*.py"):
             if file.name.startswith("_"):
@@ -108,7 +121,7 @@ class BovaryBot(commands.Bot):
     async def on_ready(self):
         if not rotate_status.is_running():
             rotate_status.start()
-        logger.info("✅ %s está online! (v2.2-api)", self.user)
+        logger.info("✅ %s está online! (v2.7)", self.user)
         if APPLY_BOT_PROFILE and not self._profile_applied:
             self._profile_applied = True
             await self._apply_profile()

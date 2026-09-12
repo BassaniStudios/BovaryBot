@@ -1,324 +1,250 @@
-"""Ticket / support system — improved with auto-transcript, logs and robustness."""
+"""
+Tickets / Suggestions / Report — easy panel with modals.
+Public panel channel ≠ private logging channel.
+"""
 from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
 import discord
 from discord import app_commands
 from discord.ext import commands
 
-from utils.helpers import make_embed
-from utils.storage import load_json, save_json, DATA_DIR
+from utils.helpers import make_embed, safe_get_channel
+from utils.storage import load_json, save_json
 
 logger = logging.getLogger("bovary_bot.tickets")
 CONFIG_FILE = "tickets.json"
-TRANSCRIPTS_DIR = DATA_DIR / "transcripts"
-TRANSCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
+
+# Defaults for Bovary Club Society
+DEFAULT_PANEL_CHANNEL = 1548175948036186172  # 📚┃tickets-suggestions
+DEFAULT_LOG_CHANNEL = 1548176739946074112    # 📚┃ticket-logging
+
+TYPES = {
+    "ticket": {"label": "Ticket", "emoji": "🎫", "color": 0xB450FF, "title": "🎫 Support Ticket"},
+    "suggestion": {"label": "Suggestions", "emoji": "💡", "color": 0x00DCAF, "title": "💡 Suggestion"},
+    "report": {"label": "Report", "emoji": "🚩", "color": 0xFF4060, "title": "🚩 Report"},
+}
 
 
-class TicketPanelView(discord.ui.View):
-    def __init__(self, bot: commands.Bot):
+class SubmissionModal(discord.ui.Modal):
+    def __init__(self, cog: "Tickets", kind: str):
+        meta = TYPES[kind]
+        super().__init__(title=meta["label"][:45])
+        self.cog = cog
+        self.kind = kind
+        self.subject = discord.ui.TextInput(
+            label="Subject / Assunto",
+            placeholder="Short title…",
+            max_length=120,
+            required=True,
+        )
+        self.body = discord.ui.TextInput(
+            label="Details / Detalhes",
+            style=discord.TextStyle.paragraph,
+            placeholder="Write everything here. Only staff will see this.",
+            max_length=1800,
+            required=True,
+        )
+        self.add_item(self.subject)
+        self.add_item(self.body)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await self.cog.submit_entry(
+            interaction,
+            kind=self.kind,
+            subject=str(self.subject.value).strip(),
+            body=str(self.body.value).strip(),
+        )
+
+
+class EasyTicketPanel(discord.ui.View):
+    def __init__(self, cog: "Tickets"):
         super().__init__(timeout=None)
-        self.bot = bot
+        self.cog = cog
 
-    @discord.ui.button(label="Open Ticket", style=discord.ButtonStyle.primary, custom_id="ticket_open_btn", emoji="🎫")
-    async def open_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
-        cog: Tickets = self.bot.get_cog("Tickets")
-        if cog:
-            await cog.create_ticket(interaction)
+    @discord.ui.button(label="Ticket", style=discord.ButtonStyle.primary, emoji="🎫", custom_id="easy_ticket", row=0)
+    async def ticket_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(SubmissionModal(self.cog, "ticket"))
 
+    @discord.ui.button(label="Suggestions", style=discord.ButtonStyle.success, emoji="💡", custom_id="easy_suggestion", row=0)
+    async def suggestion_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(SubmissionModal(self.cog, "suggestion"))
 
-class TicketControls(discord.ui.View):
-    def __init__(self, bot: commands.Bot):
-        super().__init__(timeout=None)
-        self.bot = bot
-
-    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, custom_id="ticket_close_btn")
-    async def close_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        cog: Tickets = self.bot.get_cog("Tickets")
-        if cog:
-            await cog.close_ticket(interaction)
-
-    @discord.ui.button(label="Claim", style=discord.ButtonStyle.secondary, custom_id="ticket_claim_btn")
-    async def claim_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        cog: Tickets = self.bot.get_cog("Tickets")
-        if cog:
-            await cog.claim_ticket(interaction)
+    @discord.ui.button(label="Report", style=discord.ButtonStyle.danger, emoji="🚩", custom_id="easy_report", row=0)
+    async def report_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(SubmissionModal(self.cog, "report"))
 
 
 class Tickets(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.config: Dict[str, Any] = load_json(CONFIG_FILE, {
-            "category_id": None,
-            "staff_role_id": None,
-            "log_channel_id": None,
-            "panel_title": "Support Tickets",
-            "panel_description": "Click the button below to open a support ticket.",
-            "open_message": "Thanks for opening a ticket. Staff will help you soon.",
-            "tickets": {},
+            "panel_channel_id": DEFAULT_PANEL_CHANNEL,
+            "log_channel_id": DEFAULT_LOG_CHANNEL,
+            "panel_title": "Support · Suggestions · Reports",
+            "panel_description": (
+                "Choose a button below. A private form will open — "
+                "**other members will not see** what you write.\n"
+                "Staff reads submissions in the logging channel."
+            ),
+            "entries": [],  # registry for web panel
         })
+        # migrate old keys if needed
+        if "entries" not in self.config:
+            self.config["entries"] = []
+        if not self.config.get("log_channel_id"):
+            self.config["log_channel_id"] = DEFAULT_LOG_CHANNEL
+        if not self.config.get("panel_channel_id"):
+            self.config["panel_channel_id"] = DEFAULT_PANEL_CHANNEL
         try:
-            self.bot.add_view(TicketPanelView(bot))
-            self.bot.add_view(TicketControls(bot))
+            self.bot.add_view(EasyTicketPanel(self))
         except Exception:
-            logger.exception("Failed to register ticket views")
+            pass
 
     def _save(self):
+        # keep last 500 entries
+        entries = self.config.get("entries") or []
+        if len(entries) > 500:
+            self.config["entries"] = entries[-500:]
         save_json(CONFIG_FILE, self.config)
 
     def _log_channel(self) -> Optional[discord.abc.GuildChannel]:
-        cid = self.config.get("log_channel_id") or self.bot.config.get("BOT_ROOM_CHANNEL_ID")
-        return self.bot.get_channel(cid) if cid else None
+        cid = self.config.get("log_channel_id") or DEFAULT_LOG_CHANNEL
+        return safe_get_channel(self.bot, int(cid)) if cid else None
 
-    async def _build_transcript(self, channel: discord.TextChannel) -> Path:
-        lines = []
-        async for msg in channel.history(limit=1500, oldest_first=True):
-            ts = msg.created_at.strftime("%Y-%m-%d %H:%M:%S")
-            content = msg.content or ""
-            if msg.attachments:
-                content += " " + " ".join(a.url for a in msg.attachments)
-            lines.append(f"[{ts}] {msg.author} ({msg.author.id}): {content}")
-        text = "\n".join(lines) or "(empty ticket)"
-        path = TRANSCRIPTS_DIR / f"transcript-{channel.id}.txt"
-        path.write_text(text, encoding="utf-8")
-        return path
-
-    async def create_ticket(self, interaction: discord.Interaction):
-        guild = interaction.guild
-        if not guild:
-            return
-
-        # Prevent duplicates
-        for tid, data in list(self.config.get("tickets", {}).items()):
-            if data.get("user_id") == interaction.user.id and data.get("status") == "open":
-                ch = guild.get_channel(int(tid))
-                if ch:
-                    await interaction.response.send_message(
-                        f"You already have an open ticket: {ch.mention}", ephemeral=True
-                    )
-                    return
-                # Stale entry
-                data["status"] = "closed"
-
-        category = None
-        cat_id = self.config.get("category_id")
-        if cat_id:
-            category = guild.get_channel(cat_id)
-
-        staff_role_id = self.config.get("staff_role_id")
-        overwrites = {
-            guild.default_role: discord.PermissionOverwrite(view_channel=False),
-            interaction.user: discord.PermissionOverwrite(
-                view_channel=True, send_messages=True, attach_files=True, read_message_history=True
-            ),
-            guild.me: discord.PermissionOverwrite(
-                view_channel=True, send_messages=True, manage_channels=True, manage_messages=True
-            ),
-        }
-        if staff_role_id:
-            role = guild.get_role(staff_role_id)
-            if role:
-                overwrites[role] = discord.PermissionOverwrite(
-                    view_channel=True, send_messages=True, read_message_history=True
-                )
-
-        name = f"ticket-{interaction.user.name}"[:90]
-        try:
-            channel = await guild.create_text_channel(
-                name=name,
-                category=category if isinstance(category, discord.CategoryChannel) else None,
-                overwrites=overwrites,
-                reason=f"Ticket by {interaction.user}",
-            )
-        except discord.Forbidden:
-            await interaction.response.send_message(
-                "I cannot create channels. Check my permissions (Manage Channels).",
-                ephemeral=True,
-            )
-            return
-        except Exception as e:
-            logger.exception("Ticket create failed")
-            await interaction.response.send_message(f"❌ Failed to create ticket: `{e}`", ephemeral=True)
-            return
-
-        self.config.setdefault("tickets", {})[str(channel.id)] = {
-            "user_id": interaction.user.id,
-            "status": "open",
-            "claimed_by": None,
-            "created": datetime.now(timezone.utc).isoformat(),
-        }
-        self._save()
-
-        embed = make_embed(
-            title="🎫 Ticket opened",
-            description=self.config.get("open_message", "Staff will help you soon."),
-            color=discord.Color.blurple(),
-        )
-        embed.add_field(name="User", value=interaction.user.mention)
-        mention = f"<@&{staff_role_id}>" if staff_role_id else ""
-        await channel.send(
-            content=f"{interaction.user.mention} {mention}",
-            embed=embed,
-            view=TicketControls(self.bot),
-        )
-        await interaction.response.send_message(
-            f"✅ Ticket created: {channel.mention}", ephemeral=True
-        )
-
-        log_ch = self._log_channel()
-        if log_ch:
-            try:
-                await log_ch.send(
-                    embed=make_embed(
-                        title="🎫 Ticket opened",
-                        description=(
-                            f"**User:** {interaction.user.mention}\n"
-                            f"**Channel:** {channel.mention}"
-                        ),
-                        color=discord.Color.green(),
-                    )
-                )
-            except Exception:
-                pass
-
-    async def close_ticket(self, interaction: discord.Interaction):
-        channel = interaction.channel
-        if not isinstance(channel, discord.TextChannel):
-            await interaction.response.send_message("Not a text channel.", ephemeral=True)
-            return
-
-        data = self.config.get("tickets", {}).get(str(channel.id))
-        if not data:
-            await interaction.response.send_message("This is not a ticket channel.", ephemeral=True)
-            return
-
-        await interaction.response.defer()
-
-        # Transcript
-        transcript_path = None
-        try:
-            transcript_path = await self._build_transcript(channel)
-        except Exception:
-            logger.exception("Transcript build failed")
-
-        data["status"] = "closed"
-        data["closed_by"] = interaction.user.id
-        data["closed_at"] = datetime.now(timezone.utc).isoformat()
-        self._save()
-
-        log_ch = self._log_channel()
-        if log_ch:
-            try:
-                embed = make_embed(
-                    title="🔒 Ticket closed",
-                    description=(
-                        f"**Channel:** `{channel.name}`\n"
-                        f"**Closed by:** {interaction.user.mention}\n"
-                        f"**Opener:** <@{data.get('user_id')}>"
-                    ),
-                    color=discord.Color.red(),
-                )
-                files = []
-                if transcript_path and transcript_path.exists():
-                    files.append(discord.File(transcript_path, filename=transcript_path.name))
-                await log_ch.send(embed=embed, files=files or None)
-            except Exception:
-                logger.exception("Ticket close log failed")
-
-        try:
-            await channel.send("🔒 Ticket closed. Channel will be deleted in a few seconds.")
-            await channel.delete(reason=f"Closed by {interaction.user}")
-        except Exception:
-            logger.exception("Ticket close/delete failed")
-            try:
-                await interaction.followup.send("Ticket closed but channel could not be deleted.", ephemeral=True)
-            except Exception:
-                pass
-
-    async def claim_ticket(self, interaction: discord.Interaction):
-        channel = interaction.channel
-        data = self.config.get("tickets", {}).get(str(channel.id))
-        if not data:
-            await interaction.response.send_message("Not a ticket.", ephemeral=True)
-            return
-        data["claimed_by"] = interaction.user.id
-        self._save()
-        await interaction.response.send_message(f"✋ Ticket claimed by {interaction.user.mention}")
-
-    @app_commands.command(name="ticket_panel", description="Post the ticket panel")
-    @app_commands.checks.has_permissions(manage_guild=True)
-    async def ticket_panel(self, interaction: discord.Interaction):
-        embed = make_embed(
-            title=self.config.get("panel_title", "Support Tickets"),
-            description=self.config.get("panel_description", "Click to open a ticket."),
-            color=discord.Color.blurple(),
-        )
-        await interaction.channel.send(embed=embed, view=TicketPanelView(self.bot))
-        await interaction.response.send_message("✅ Panel posted.", ephemeral=True)
-
-    @app_commands.command(name="ticket_config", description="Configure ticket system")
-    @app_commands.describe(
-        category="Category for new tickets",
-        staff_role="Staff role that can see tickets",
-        log_channel="Log channel for open/close + transcripts",
-    )
-    @app_commands.checks.has_permissions(manage_guild=True)
-    async def ticket_config(
+    async def submit_entry(
         self,
         interaction: discord.Interaction,
-        category: Optional[discord.CategoryChannel] = None,
-        staff_role: Optional[discord.Role] = None,
-        log_channel: Optional[discord.TextChannel] = None,
+        *,
+        kind: str,
+        subject: str,
+        body: str,
     ):
-        if category:
-            self.config["category_id"] = category.id
-        if staff_role:
-            self.config["staff_role_id"] = staff_role.id
-        if log_channel:
-            self.config["log_channel_id"] = log_channel.id
+        meta = TYPES.get(kind) or TYPES["ticket"]
+        entry = {
+            "id": int(datetime.now(timezone.utc).timestamp() * 1000) % 10_000_000_000,
+            "kind": kind,
+            "subject": subject,
+            "body": body,
+            "user_id": interaction.user.id,
+            "user_tag": str(interaction.user),
+            "channel_id": interaction.channel_id,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "status": "open",
+        }
+        self.config.setdefault("entries", []).append(entry)
         self._save()
-        await interaction.response.send_message("✅ Ticket config saved.", ephemeral=True)
 
-    @app_commands.command(name="ticket_close", description="Close the current ticket")
-    async def ticket_close_cmd(self, interaction: discord.Interaction):
-        await self.close_ticket(interaction)
-
-    @app_commands.command(name="ticket_add", description="Add a user to this ticket")
-    @app_commands.checks.has_permissions(manage_channels=True)
-    async def ticket_add(self, interaction: discord.Interaction, member: discord.Member):
-        await interaction.channel.set_permissions(
-            member, view_channel=True, send_messages=True, read_message_history=True
+        log_ch = self._log_channel()
+        embed = discord.Embed(
+            title=meta["title"],
+            description=body[:4000],
+            color=meta["color"],
+            timestamp=datetime.now(timezone.utc),
         )
-        await interaction.response.send_message(f"Added {member.mention} to the ticket.")
+        embed.add_field(name="Subject", value=subject[:256], inline=False)
+        embed.add_field(name="Type", value=meta["label"], inline=True)
+        embed.add_field(name="From", value=f"{interaction.user.mention}\n`{interaction.user.id}`", inline=True)
+        embed.add_field(name="Entry ID", value=f"`{entry['id']}`", inline=True)
+        if interaction.user.display_avatar:
+            embed.set_thumbnail(url=interaction.user.display_avatar.url)
+        embed.set_footer(text="Bova's Bot · Private submission · members cannot see this channel content from the panel")
 
-    @app_commands.command(name="ticket_remove", description="Remove a user from this ticket")
-    @app_commands.checks.has_permissions(manage_channels=True)
-    async def ticket_remove(self, interaction: discord.Interaction, member: discord.Member):
-        await interaction.channel.set_permissions(member, overwrite=None)
-        await interaction.response.send_message(f"Removed {member.mention} from the ticket.")
-
-    @app_commands.command(name="ticket_rename", description="Rename this ticket channel")
-    @app_commands.checks.has_permissions(manage_channels=True)
-    async def ticket_rename(self, interaction: discord.Interaction, name: str):
-        await interaction.channel.edit(name=name[:90])
-        await interaction.response.send_message(f"Renamed to `{name[:90]}`.", ephemeral=True)
-
-    @app_commands.command(name="ticket_transcript", description="Export last messages as a transcript file")
-    @app_commands.checks.has_permissions(manage_messages=True)
-    async def ticket_transcript(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
-        try:
-            path = await self._build_transcript(interaction.channel)
-            await interaction.followup.send(
-                file=discord.File(path, filename=path.name),
+        if log_ch and isinstance(log_ch, discord.TextChannel):
+            try:
+                msg = await log_ch.send(embed=embed)
+                entry["log_message_id"] = msg.id
+                self._save()
+            except Exception:
+                logger.exception("Failed to post to ticket log channel")
+                await interaction.response.send_message(
+                    "❌ Could not reach the staff log channel. Tell an admin.",
+                    ephemeral=True,
+                )
+                return
+        else:
+            await interaction.response.send_message(
+                "❌ Log channel not found. Admin must set `/ticket_setup`.",
                 ephemeral=True,
             )
-        except Exception as e:
-            await interaction.followup.send(f"❌ Failed: `{e}`", ephemeral=True)
+            return
+
+        await interaction.response.send_message(
+            f"✅ Your **{meta['label']}** was sent to staff privately.\n"
+            f"Entry ID: `{entry['id']}` — they will follow up if needed.",
+            ephemeral=True,
+        )
+
+    @app_commands.command(name="ticket_panel", description="Post the easy Ticket / Suggestions / Report panel")
+    @app_commands.checks.has_permissions(manage_messages=True)
+    async def ticket_panel(self, interaction: discord.Interaction, channel: Optional[discord.TextChannel] = None):
+        ch = channel or interaction.channel
+        if not isinstance(ch, discord.TextChannel):
+            await interaction.response.send_message("Text channel only.", ephemeral=True)
+            return
+        embed = discord.Embed(
+            title=f"📚 {self.config.get('panel_title', 'Support')}",
+            description=self.config.get("panel_description"),
+            color=discord.Color.from_rgb(180, 80, 255),
+            timestamp=datetime.now(timezone.utc),
+        )
+        embed.add_field(
+            name="How it works",
+            value=(
+                "🎫 **Ticket** — help / support\n"
+                "💡 **Suggestions** — ideas for the club\n"
+                "🚩 **Report** — report an issue or member\n\n"
+                "A form opens in Discord. **Only staff** see the content in the logging channel."
+            ),
+            inline=False,
+        )
+        embed.set_footer(text="Bova's Bot · Easy panel")
+        await ch.send(embed=embed, view=EasyTicketPanel(self))
+        self.config["panel_channel_id"] = ch.id
+        self._save()
+        await interaction.response.send_message(f"✅ Panel posted in {ch.mention}", ephemeral=True)
+
+    @app_commands.command(name="ticket_setup", description="Set panel/log channels for easy tickets")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def ticket_setup(
+        self,
+        interaction: discord.Interaction,
+        panel_channel: Optional[discord.TextChannel] = None,
+        log_channel: Optional[discord.TextChannel] = None,
+    ):
+        if panel_channel:
+            self.config["panel_channel_id"] = panel_channel.id
+        if log_channel:
+            self.config["log_channel_id"] = log_channel.id
+        # ensure defaults
+        self.config.setdefault("panel_channel_id", DEFAULT_PANEL_CHANNEL)
+        self.config.setdefault("log_channel_id", DEFAULT_LOG_CHANNEL)
+        self._save()
+        await interaction.response.send_message(
+            f"✅ Panel ch: `{self.config.get('panel_channel_id')}` · "
+            f"Log ch: `{self.config.get('log_channel_id')}`",
+            ephemeral=True,
+        )
+
+    @app_commands.command(name="ticket_list", description="[STAFF] List recent submissions")
+    @app_commands.checks.has_permissions(manage_messages=True)
+    async def ticket_list(self, interaction: discord.Interaction, limit: app_commands.Range[int, 1, 30] = 15):
+        entries = list(reversed(self.config.get("entries") or []))[:limit]
+        if not entries:
+            await interaction.response.send_message("No submissions yet.", ephemeral=True)
+            return
+        lines = []
+        for e in entries:
+            lines.append(
+                f"`{e.get('id')}` · **{e.get('kind')}** · {e.get('subject', '')[:40]} · <@{e.get('user_id')}>"
+            )
+        await interaction.response.send_message("\n".join(lines), ephemeral=True)
+
+    def get_entries_for_api(self, limit: int = 50) -> List[Dict]:
+        return list(reversed(self.config.get("entries") or []))[:limit]
 
 
 async def setup(bot: commands.Bot):

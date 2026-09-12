@@ -1,7 +1,6 @@
-"""Server activity stats, weekly top media, and chart images."""
+"""Server activity stats and weekly top media (numbers only, no charts)."""
 from __future__ import annotations
 
-import io
 import logging
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List, Tuple
@@ -15,32 +14,6 @@ from utils.storage import load_json, save_json, default_stats
 
 logger = logging.getLogger("bovary_bot.stats")
 STATS_FILE = "stats.json"
-
-
-def _make_bar_chart(title: str, labels: List[str], values: List[float], color: str = "#B450FF") -> Optional[io.BytesIO]:
-    try:
-        import matplotlib
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-    except ImportError:
-        logger.warning("matplotlib not installed — skip charts")
-        return None
-
-    fig, ax = plt.subplots(figsize=(8, 4), facecolor="#0a0a12")
-    ax.set_facecolor("#12121e")
-    bars = ax.bar(labels, values, color=color, edgecolor="#2a2a45")
-    ax.set_title(title, color="#e8e8f0", fontsize=12, pad=10)
-    ax.tick_params(colors="#8888a8", labelsize=8)
-    for spine in ax.spines.values():
-        spine.set_color("#2a2a45")
-    ax.yaxis.label.set_color("#8888a8")
-    ax.xaxis.label.set_color("#8888a8")
-    fig.tight_layout()
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=120, facecolor=fig.get_facecolor())
-    plt.close(fig)
-    buf.seek(0)
-    return buf
 
 
 class Stats(commands.Cog):
@@ -216,26 +189,7 @@ class Stats(commands.Cog):
                 inline=False,
             )
 
-        files = []
-        if hourly and any(hourly.values()):
-            labels = [f"{h}" for h in range(24)]
-            values = [float(hourly.get(str(h), 0)) for h in range(24)]
-            buf = _make_bar_chart("Activity by hour (São Paulo)", labels, values, "#00E5FF")
-            if buf:
-                files.append(discord.File(buf, filename="hourly.png"))
-                embed.set_image(url="attachment://hourly.png")
-
-        if weekday and any(weekday.values()):
-            labels = names
-            values = [float(weekday.get(str(i), 0)) for i in range(7)]
-            buf = _make_bar_chart("Activity by weekday", labels, values, "#B450FF")
-            if buf:
-                files.append(discord.File(buf, filename="weekday.png"))
-
-        if files:
-            await interaction.followup.send(embed=embed, files=files)
-        else:
-            await interaction.followup.send(embed=embed)
+        await interaction.followup.send(embed=embed)
 
     @app_commands.command(
         name="topmedia",
@@ -264,6 +218,65 @@ class Stats(commands.Cog):
             await interaction.response.send_message(embed=embed)
         else:
             await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+    @app_commands.command(
+        name="week_summary",
+        description="Activity snapshot for the tracked period (not full chat reading)",
+    )
+    @app_commands.checks.has_permissions(manage_messages=True)
+    async def week_summary(self, interaction: discord.Interaction):
+        """
+        Discord does not give a full 'read all chats' API without scanning every channel.
+        This command summarizes what the bot already tracks: messages, media, joins/leaves.
+        Narrative AI summary was removed on purpose.
+        """
+        await interaction.response.defer(ephemeral=True)
+        top_msg = self._top("messages", 8)
+        top_react = self._top("reactions_given", 5)
+        media_top = self._top_media()
+        joins = self.data.get("joins", 0)
+        leaves = self.data.get("leaves", 0)
+        hourly = self.data.get("hourly") or {}
+        peak_h = max(hourly.items(), key=lambda x: x[1])[0] if hourly else "?"
+        days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        weekday = self.data.get("weekday") or {}
+        peak_d = max(weekday.items(), key=lambda x: x[1])[0] if weekday else "?"
+        try:
+            peak_d_name = days[int(peak_d)]
+        except Exception:
+            peak_d_name = str(peak_d)
+
+        def fmt_users(pairs):
+            if not pairs:
+                return "_none_"
+            return "\n".join(f"• <@{uid}> — **{n}**" for uid, n in pairs)
+
+        embed = make_embed(
+            title="📋 Activity summary (tracked data)",
+            description=(
+                "Based on **bot counters** (not a full transcript of every message).\n"
+                "For narrative summaries you would need an AI provider — currently disabled."
+            ),
+            color=discord.Color.from_rgb(180, 80, 255),
+        )
+        embed.add_field(name="Joins / Leaves (since counters started)", value=f"**{joins}** in · **{leaves}** out", inline=False)
+        embed.add_field(name="Peak hour (São Paulo)", value=f"**{peak_h}h**", inline=True)
+        embed.add_field(name="Peak weekday", value=f"**{peak_d_name}**", inline=True)
+        embed.add_field(name="Top chatters", value=fmt_users(top_msg), inline=False)
+        embed.add_field(name="Top reactors", value=fmt_users(top_react), inline=False)
+        if media_top:
+            embed.add_field(
+                name="Top media",
+                value=(
+                    f"Score **{media_top.get('score', 0)}** · "
+                    f"author <@{media_top.get('author_id')}>\n"
+                    f"[Jump]({media_top.get('jump_url', '#')})"
+                ),
+                inline=False,
+            )
+        embed.set_footer(text="Bova's Bot · week_summary")
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
 
 async def setup(bot: commands.Bot):

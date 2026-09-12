@@ -1,48 +1,37 @@
 """
-Gerenciador de cooldown persistente em JSON.
+Gerenciador de cooldown persistente — SQLite via storage.
 """
 from __future__ import annotations
 
-import json
 import logging
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Dict, Optional
+
+from utils.storage import load_json, save_json
 
 logger = logging.getLogger("bovary_bot.cooldown")
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
-COOLDOWN_FILE = DATA_DIR / "cooldowns.json"
+COOLDOWN_KEY = "cooldowns.json"
 
 
 class CooldownManager:
-    """Armazena e recupera cooldowns de usuários em arquivo JSON."""
+    """Armazena e recupera cooldowns de usuários."""
 
-    def __init__(self, filepath: Path = COOLDOWN_FILE):
-        self.filepath = filepath
-        self._data: Dict[str, str] = {}  # user_id -> ISO timestamp
-        self._ensure_dir()
+    def __init__(self, filepath=None):
+        self._data: Dict[str, str] = {}
         self.load()
 
-    def _ensure_dir(self) -> None:
-        self.filepath.parent.mkdir(parents=True, exist_ok=True)
-
     def load(self) -> None:
-        if not self.filepath.exists():
-            self._data = {}
-            return
-        try:
-            with open(self.filepath, "r", encoding="utf-8") as f:
-                self._data = json.load(f)
-        except (json.JSONDecodeError, OSError) as e:
-            logger.warning("Falha ao carregar cooldowns: %s. Iniciando vazio.", e)
+        raw = load_json(COOLDOWN_KEY, {})
+        if isinstance(raw, dict):
+            self._data = raw
+        else:
             self._data = {}
 
     def save(self) -> None:
         try:
-            with open(self.filepath, "w", encoding="utf-8") as f:
-                json.dump(self._data, f, indent=2, ensure_ascii=False)
-        except OSError as e:
+            save_json(COOLDOWN_KEY, self._data)
+        except Exception as e:
             logger.error("Falha ao salvar cooldowns: %s", e)
 
     def get_last(self, user_id: int) -> Optional[datetime]:
