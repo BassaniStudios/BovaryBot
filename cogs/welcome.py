@@ -55,10 +55,14 @@ class Welcome(commands.Cog):
         except Exception:
             return template
 
-    @commands.Cog.listener()
-    async def on_member_join(self, member: discord.Member):
-        if member.bot or not self.config.get("dm_enabled"):
-            return
+    async def _send_welcome_dm(self, member: discord.Member):
+        """Send the welcome DM and return (success, human-readable reason)."""
+        if member.bot:
+            return False, "Bots do not receive welcome DMs."
+
+        if not self.config.get("dm_enabled"):
+            return False, "Welcome DMs are disabled in the bot configuration."
+
         title = self.config.get("dm_title") or "Welcome"
         body = self._render(
             self.config.get("dm_body") or "Welcome {user}!",
@@ -78,12 +82,35 @@ class Welcome(commands.Cog):
         if img:
             embed.set_image(url=img)
         embed.set_footer(text="Bova's Bot · Bovary Club Society")
+
         try:
             await member.send(embed=embed)
+            logger.info("Welcome DM sent successfully to %s", member.id)
+            return True, "DM sent successfully."
         except discord.Forbidden:
-            logger.info("Could not DM welcome to %s (DMs closed)", member.id)
+            logger.info("Discord rejected welcome DM to %s (Forbidden)", member.id)
+            return False, (
+                "Discord rejected the DM (403 Forbidden). "
+                "Check your server DM/privacy settings, Message Requests/Spam, "
+                "and make sure the bot is not blocked."
+            )
+        except discord.HTTPException as exc:
+            logger.warning(
+                "Welcome DM failed for %s: HTTP %s",
+                member.id,
+                getattr(exc, "status", "unknown"),
+            )
+            return False, (
+                f"Discord returned an HTTP error ({getattr(exc, 'status', 'unknown')}). "
+                "Try again in a moment."
+            )
         except Exception:
             logger.exception("Welcome DM failed")
+            return False, "An unexpected error occurred while sending the DM."
+
+    @commands.Cog.listener()
+    async def on_member_join(self, member: discord.Member):
+        await self._send_welcome_dm(member)
 
     @commands.Cog.listener()
     async def on_voice_state_update(
@@ -195,10 +222,21 @@ class Welcome(commands.Cog):
             await interaction.followup.send("Guild only.", ephemeral=True)
             return
         try:
-            await self.on_member_join(member)
-            await interaction.followup.send("✅ Test DM sent (if your DMs are open).", ephemeral=True)
+            success, reason = await self._send_welcome_dm(member)
+            if success:
+                await interaction.followup.send(
+                    "✅ **DM enviada com sucesso!**\n"
+                    "Confira suas mensagens privadas (incluindo Solicitações de mensagens/Spam).",
+                    ephemeral=True,
+                )
+            else:
+                await interaction.followup.send(
+                    f"❌ **DM não enviada.**\n{reason}",
+                    ephemeral=True,
+                )
         except Exception as e:
-            await interaction.followup.send(f"❌ {e}", ephemeral=True)
+            logger.exception("Welcome test failed")
+            await interaction.followup.send(f"❌ Falha no teste: {e}", ephemeral=True)
 
 
 async def setup(bot: commands.Bot):
