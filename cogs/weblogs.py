@@ -10,12 +10,24 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+import os
+
 from utils.helpers import make_embed, safe_get_channel
 from utils.storage import load_json, save_json
 
 logger = logging.getLogger("bovary_bot.weblogs")
 FILE = "weblogs.json"
-MESSAGE_CACHE_SIZE = 8000
+
+def _message_cache_size() -> int:
+    """Configurable message cache size (env MESSAGE_CACHE_SIZE, default 12000)."""
+    try:
+        raw = os.getenv("MESSAGE_CACHE_SIZE", "12000").strip()
+        size = int(raw) if raw else 12000
+        return max(1000, min(size, 50_000))  # hard bounds
+    except (TypeError, ValueError):
+        return 12000
+
+MESSAGE_CACHE_SIZE = _message_cache_size()
 
 
 class WebLogs(commands.Cog):

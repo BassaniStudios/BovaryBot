@@ -59,17 +59,29 @@ class BovaryBot(commands.Bot):
             "1424586421599076473,1425669117750284318,"
             "1384173137071177752,1425230894641451059,1542185824173424650,1425297078816473109"
         )
+        # Hardcoded defaults are the production Bovary IDs. Prefer setting them
+        # explicitly in the environment so other deployments do not accidentally
+        # use production channels.
+        _hardcoded_defaults_used = []
+        def _chan(key, default):
+            val = load_int_env(key, default)
+            if os.getenv(key) is None or str(os.getenv(key, "")).strip() == "":
+                _hardcoded_defaults_used.append(key)
+            return val
+
         cfg = {
             "GUILD_ID": load_int_env("GUILD_ID"),
-            "LOG_CHANNEL_ID": load_int_env("LOG_CHANNEL_ID", 1441663299065217114),
-            "MESSAGE_LOG_CHANNEL_ID": load_int_env("MESSAGE_LOG_CHANNEL_ID", 1432715549116207248),
+            "LOG_CHANNEL_ID": _chan("LOG_CHANNEL_ID", 1441663299065217114),
+            "MESSAGE_LOG_CHANNEL_ID": _chan("MESSAGE_LOG_CHANNEL_ID", 1432715549116207248),
             # General WebLogs channel (channel/admin events). Message edit/delete logs stay separate.
-            "WEBLOGS_CHANNEL_ID": load_int_env("WEBLOGS_CHANNEL_ID", 1548153354675556412),
-            "BOT_ROOM_CHANNEL_ID": load_int_env("BOT_ROOM_CHANNEL_ID", 1424436722984423529),
+            "WEBLOGS_CHANNEL_ID": _chan("WEBLOGS_CHANNEL_ID", 1548153354675556412),
+            "BOT_ROOM_CHANNEL_ID": _chan("BOT_ROOM_CHANNEL_ID", 1424436722984423529),
             # Auto backup of SQLite to a Discord channel (Render free mitigation)
-            "BACKUP_CHANNEL_ID": load_int_env("BACKUP_CHANNEL_ID", 1548188378623778847),
+            "BACKUP_CHANNEL_ID": _chan("BACKUP_CHANNEL_ID", 1548438716391890994),  # home server backup room
+            "BACKUP_GUILD_ID": load_int_env("BACKUP_GUILD_ID", 1426594245510430903),  # home / casa server
+
             "BACKUP_INTERVAL_HOURS": load_int_env("BACKUP_INTERVAL_HOURS", 24) or 24,
-            "IGNORE_CHANNEL_ID": load_int_env("IGNORE_CHANNEL_ID", 1384173137985540233),
+            "IGNORE_CHANNEL_ID": _chan("IGNORE_CHANNEL_ID", 1384173137985540233),
             "STAFF_LOG_CHANNEL": load_int_env("STAFF_LOG_CHANNEL", 1444186478157500508),
             # DM inbox/support channel. Defaults to the existing staff log channel.
             "DM_INBOX_CHANNEL_ID": load_int_env("DM_INBOX_CHANNEL_ID", 1444186478157500508),
@@ -99,6 +111,12 @@ class BovaryBot(commands.Bot):
             "PANEL_ACCESS_KEY": os.getenv("PANEL_ACCESS_KEY", ""),
             "PUBLIC_API_URL": os.getenv("PUBLIC_API_URL", ""),
         }
+        if _hardcoded_defaults_used:
+            logger.warning(
+                "Using hardcoded production channel defaults for: %s — "
+                "set these explicitly in the environment for safety.",
+                ", ".join(_hardcoded_defaults_used),
+            )
         return cfg
 
     async def setup_hook(self) -> None:
@@ -169,7 +187,32 @@ class BovaryBot(commands.Bot):
     async def on_ready(self):
         if not rotate_status.is_running():
             rotate_status.start()
-        logger.info("✅ %s está online! (v2.7.16)", self.user)
+
+        version = "2.7.18"
+        try:
+            version_path = Path(__file__).parent / "VERSION"
+            if version_path.exists():
+                version = version_path.read_text(encoding="utf-8").strip() or version
+        except Exception:
+            pass
+
+        logger.info("✅ %s está online! (v%s)", self.user, version)
+
+        # Validate critical privileged intents (Message Content + Members)
+        try:
+            if not self.intents.message_content:
+                logger.warning(
+                    "INTENT WARNING: message_content is disabled. "
+                    "Message Log, sticky, timestamp reminders and auto-reactions will be limited."
+                )
+            if not self.intents.members:
+                logger.warning(
+                    "INTENT WARNING: members is disabled. "
+                    "Join/leave logs, namehistory, welcome and staff role checks may fail."
+                )
+        except Exception:
+            logger.exception("Could not validate intents")
+
         if APPLY_BOT_PROFILE and not self._profile_applied:
             self._profile_applied = True
             await self._apply_profile()

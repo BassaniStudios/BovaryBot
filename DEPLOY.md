@@ -71,3 +71,24 @@ If using `keep_alive.py`: `GET /health` returns JSON `{ status, uptime_seconds }
 ---
 
 **Summary:** Bot = `python bot.py` + `.env`. Panel = static GitHub Pages. Link with `PANEL_URL`.
+
+---
+
+## Turso (remote SQLite) — recommended on Render free
+
+1. Create a database at https://turso.tech (free tier is enough).
+2. Copy the URL and create a token:
+   ```bash
+   turso db show --url <db-name>
+   turso db tokens create <db-name>
+   ```
+3. On Render → Environment:
+   ```
+   TURSO_DATABASE_URL=libsql://....turso.io
+   TURSO_AUTH_TOKEN=...
+   ```
+4. Redeploy. The bot will use Turso instead of the local `data/bovary.db`.
+5. Discord auto-backup remains as an optional extra export; file restore is skipped in remote mode.
+
+To migrate existing local data once: run the bot once with local DB (no Turso vars), then set Turso vars and use a one-shot export/import, or keep the JSON migration path on first Turso connect if `data/*.json` still exist.
+

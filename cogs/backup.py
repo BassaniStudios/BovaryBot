@@ -70,25 +70,35 @@ class Backup(commands.Cog):
             return 24.0
 
     def _backup_channel(self) -> Optional[discord.abc.GuildChannel]:
-        cid = self.bot.config.get("BACKUP_CHANNEL_ID") or self.bot.config.get("WEBLOGS_CHANNEL_ID")
+        """Backup goes ONLY to BACKUP_CHANNEL_ID (home/casa server), never to weblogs."""
+        cid = self.bot.config.get("BACKUP_CHANNEL_ID")
         if not cid:
             return None
         return self.bot.get_channel(cid)
 
     async def _get_backup_channel(self) -> Optional[discord.abc.Messageable]:
-        """Resolve the backup channel even during setup_hook, before cache is warm."""
+        """
+        Resolve the backup channel even during setup_hook, before cache is warm.
+        Target is the dedicated home-server channel (cross-guild is fine as long as
+        the bot is a member of that guild and can see the channel).
+        """
         channel = self._backup_channel()
         if channel is not None:
             return channel
-        cid = self.bot.config.get("BACKUP_CHANNEL_ID") or self.bot.config.get("WEBLOGS_CHANNEL_ID")
+        cid = self.bot.config.get("BACKUP_CHANNEL_ID")
         if not cid:
             return None
         try:
-            channel = await self.bot.fetch_channel(cid)
-            if hasattr(channel, "history"):
+            channel = await self.bot.fetch_channel(int(cid))
+            if hasattr(channel, "history") and hasattr(channel, "send"):
                 return channel
+            logger.warning("BACKUP_CHANNEL_ID %s is not a text channel", cid)
         except Exception:
-            logger.exception("Could not fetch backup channel %s", cid)
+            logger.exception(
+                "Could not fetch backup channel %s — is the bot in the home guild "
+                "and does it have View Channel + Send Messages + Attach Files?",
+                cid,
+            )
         return None
 
     @staticmethod
@@ -163,10 +173,27 @@ class Backup(commands.Cog):
                 if attachment.size and attachment.size > MAX_DISCORD_FILE_SIZE:
                     logger.warning("Skipping oversized backup %s (%s bytes)", attachment.filename, attachment.size)
                     continue
-                try:
-                    data = await attachment.read()
-                except Exception:
-                    logger.exception("Could not download backup attachment %s", attachment.filename)
+                data = None
+                last_err = None
+                for attempt in range(1, 4):  # up to 3 attempts
+                    try:
+                        data = await attachment.read()
+                        break
+                    except Exception as e:
+                        last_err = e
+                        logger.warning(
+                            "Download attempt %s/3 failed for %s: %s",
+                            attempt, attachment.filename, e,
+                        )
+                        if attempt < 3:
+                            import asyncio
+                            await asyncio.sleep(1.5 * attempt)
+                if data is None:
+                    logger.exception(
+                        "Could not download backup attachment %s after retries",
+                        attachment.filename,
+                        exc_info=last_err,
+                    )
                     continue
 
                 valid, kv, audit, reason = await self._validate_backup_bytes(data)
@@ -204,9 +231,17 @@ class Backup(commands.Cog):
 
     async def restore_latest_backup_if_needed(self) -> bool:
         """
-        Restore the newest valid Discord backup only when the local DB is absent,
-        empty, or unusable. Existing populated data is never overwritten.
+        Restore when local DB is absent/empty/unusable.
+
+        - Turso remote mode: no file restore needed (data lives in the cloud).
+        - Local mode: try Discord backup channel.
+        Existing populated data is never overwritten.
         """
+        # Remote Turso: persistence is already in the cloud — skip file restore.
+        if sqldb.is_remote():
+            logger.info("Automatic file restore skipped: Turso remote mode is active")
+            return False
+
         path = sqldb._db_path()
 
         # IMPORTANT: do this before _bootstrap()/get_connection() so a fresh

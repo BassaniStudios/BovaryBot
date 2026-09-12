@@ -109,12 +109,21 @@ def _check_rate() -> bool:
     return True
 
 
-def _run(coro):
-    """Schedule coroutine on the bot loop and wait for result."""
-    if not _bot or not _bot.loop:
+def _run(coro, timeout: float = 45.0):
+    """Schedule coroutine on the bot loop and wait for result.
+
+    Increased default timeout (45s). Raises clearer errors for the panel.
+    """
+    if not _bot or not getattr(_bot, "loop", None):
         raise RuntimeError("Bot not ready")
+    if not _bot.is_ready():
+        raise RuntimeError("Bot is still starting")
     fut = asyncio.run_coroutine_threadsafe(coro, _bot.loop)
-    return fut.result(timeout=30)
+    try:
+        return fut.result(timeout=timeout)
+    except TimeoutError:
+        # concurrent.futures.TimeoutError
+        raise TimeoutError(f"Bot coroutine timed out after {timeout}s") from None
 
 
 async def _user_allowed(user_id: int) -> bool:
@@ -204,10 +213,56 @@ def api_auth_check():
 @app.route("/health")
 def health():
     ready = bool(_bot and _bot.is_ready())
+    extra = {}
+    try:
+        from utils import db as sqldb
+        from utils.storage import _bootstrap
+        _bootstrap()
+        extra["database"] = sqldb.db_stats()
+    except Exception as e:
+        extra["database"] = {"error": str(e)}
+
+    # Message log cache size (if cog loaded)
+    try:
+        wl = _bot.get_cog("WebLogs") if _bot else None
+        if wl is not None:
+            extra["message_cache"] = {
+                "size": len(getattr(wl, "_msg_cache", {})),
+                "delete_logged": len(getattr(wl, "_delete_logged", {})),
+                "limit": getattr(wl, "_msg_cache", None) and getattr(
+                    __import__("cogs.weblogs", fromlist=["MESSAGE_CACHE_SIZE"]),
+                    "MESSAGE_CACHE_SIZE",
+                    None,
+                ),
+            }
+    except Exception:
+        pass
+
+    # Simple loop status for key background tasks
+    loops = {}
+    try:
+        if _bot:
+            for name in ("Backup", "AutoFeeds", "TimestampReminders", "Meets"):
+                cog = _bot.get_cog(name)
+                if not cog:
+                    continue
+                for attr in dir(cog):
+                    obj = getattr(cog, attr, None)
+                    if hasattr(obj, "is_running") and callable(getattr(obj, "is_running", None)):
+                        try:
+                            loops[f"{name}.{attr}"] = bool(obj.is_running())
+                        except Exception:
+                            loops[f"{name}.{attr}"] = "error"
+    except Exception:
+        pass
+    if loops:
+        extra["background_loops"] = loops
+
     return jsonify({
         "status": "ok" if ready else "starting",
         "bot_ready": ready,
         "uptime_seconds": int((datetime.now(timezone.utc) - _started_at).total_seconds()),
+        **extra,
     })
 
 
