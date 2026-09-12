@@ -581,7 +581,9 @@ class Backup(commands.Cog):
         safety copy (not used for automatic restore in Turso mode).
         """
         try:
-            data, kv, audit, mode = self._export_snapshot_bytes()
+            # Export can do network I/O (Turso) — never block the discord.py event loop
+            import asyncio
+            data, kv, audit, mode = await asyncio.to_thread(self._export_snapshot_bytes)
         except Exception as e:
             logger.exception("Could not build backup snapshot")
             try:

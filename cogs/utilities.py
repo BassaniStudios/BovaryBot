@@ -400,18 +400,40 @@ class Utilities(commands.Cog):
     @app_commands.command(name="userinfo", description="Detailed user info")
     @app_commands.describe(user="User (optional)")
     async def userinfo(self, interaction: discord.Interaction, user: Optional[discord.Member] = None):
-        m = user or interaction.user
-        if not isinstance(m, discord.Member):
-            await interaction.response.send_message("Guild only.", ephemeral=True)
-            return
-        roles = [r.mention for r in m.roles[1:]][:15]
-        embed = cyber_embed(title=f"User — {m}", color=CYBER_PURPLE)
-        embed.set_thumbnail(url=m.display_avatar.url)
-        embed.add_field(name="ID", value=f"`{m.id}`", inline=True)
-        embed.add_field(name="Joined", value=f"<t:{int(m.joined_at.timestamp())}:R>" if m.joined_at else "?", inline=True)
-        embed.add_field(name="Created", value=f"<t:{int(m.created_at.timestamp())}:R>", inline=True)
-        embed.add_field(name="Roles", value=" ".join(roles) if roles else "—", inline=False)
-        await interaction.response.send_message(embed=embed)
+        # Defer immediately so Discord never shows "application did not respond"
+        await interaction.response.defer()
+        try:
+            m = user or interaction.user
+            if interaction.guild and not isinstance(m, discord.Member):
+                try:
+                    m = await interaction.guild.fetch_member(m.id)
+                except Exception:
+                    m = None
+            if not isinstance(m, discord.Member):
+                await interaction.followup.send("Guild only / member not found.", ephemeral=True)
+                return
+            roles = [r.mention for r in m.roles[1:]][:15]
+            embed = cyber_embed(title=f"User — {m}", color=CYBER_PURPLE)
+            embed.set_thumbnail(url=m.display_avatar.url)
+            embed.add_field(name="ID", value=f"`{m.id}`", inline=True)
+            embed.add_field(
+                name="Joined",
+                value=f"<t:{int(m.joined_at.timestamp())}:R>" if m.joined_at else "?",
+                inline=True,
+            )
+            embed.add_field(
+                name="Created",
+                value=f"<t:{int(m.created_at.timestamp())}:R>",
+                inline=True,
+            )
+            embed.add_field(name="Roles", value=" ".join(roles) if roles else "—", inline=False)
+            await interaction.followup.send(embed=embed)
+        except Exception as e:
+            logger.exception("userinfo failed")
+            try:
+                await interaction.followup.send(f"❌ Error: `{e}`", ephemeral=True)
+            except Exception:
+                pass
 
     @app_commands.command(name="serverinfo", description="Server information")
     async def serverinfo(self, interaction: discord.Interaction):

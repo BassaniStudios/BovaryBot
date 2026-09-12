@@ -166,6 +166,22 @@ class BovaryBot(commands.Bot):
             self.tree.copy_global_to(guild=guild)
             synced = await self.tree.sync(guild=guild)
 
+            # Also sync to home/casa server so staff commands work there too
+            home_id = self.config.get("BACKUP_GUILD_ID")
+            home_synced = 0
+            if home_id and int(home_id) != int(guild_id):
+                try:
+                    home = discord.Object(id=int(home_id))
+                    self.tree.copy_global_to(guild=home)
+                    home_cmds = await self.tree.sync(guild=home)
+                    home_synced = len(home_cmds)
+                    logger.info(
+                        "Comandos também sincronizados no servidor casa %s (%d)",
+                        home_id, home_synced,
+                    )
+                except Exception:
+                    logger.exception("Falha ao sincronizar comandos no servidor casa %s", home_id)
+
             # Remove every global command owned by this application. This is
             # intentionally done only when GUILD_ID is configured, because this
             # bot is deployed for a private Bovary Club server.
@@ -173,10 +189,11 @@ class BovaryBot(commands.Bot):
             global_synced = await self.tree.sync()
 
             logger.info(
-                "Comandos sincronizados somente no guild %s (%d comandos); "
+                "Comandos sincronizados no guild %s (%d) + casa (%d); "
                 "comandos globais removidos (%d)",
                 guild_id,
                 len(synced),
+                home_synced,
                 len(global_synced),
             )
         else:
@@ -258,8 +275,11 @@ class BovaryBot(commands.Bot):
                 await interaction.followup.send(message, ephemeral=True)
             else:
                 await interaction.response.send_message(message, ephemeral=True)
-        except Exception:
+        except discord.NotFound:
+            # Interaction token expired (>15 min) or unknown — nothing to do
             pass
+        except Exception:
+            logger.exception("Failed to send app command error message")
 
 
 STATUS_INTERVAL_SECONDS = 2 * 60 * 60
