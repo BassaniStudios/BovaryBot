@@ -67,6 +67,7 @@ def _zodiac_from_md(month: int, day: int) -> str:
     return "—"
 
 
+
 class BirthdayPanel(discord.ui.View):
     def __init__(self, cog: "Birthdays"):
         super().__init__(timeout=None)
@@ -78,11 +79,7 @@ class BirthdayPanel(discord.ui.View):
 
     @discord.ui.button(label="📝 Register", style=discord.ButtonStyle.success, custom_id="bday_reg", row=0)
     async def reg_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message(
-            "Select **month**, **day** and optional **year** below.",
-            view=RegisterView(self.cog, interaction.user.id, mode="register"),
-            ephemeral=True,
-        )
+        await interaction.response.send_modal(BirthdayModal(self.cog, interaction.user.id, mode="register"))
 
     @discord.ui.button(label="✏️ Edit mine", style=discord.ButtonStyle.secondary, custom_id="bday_edit", row=0)
     async def edit_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -93,13 +90,7 @@ class BirthdayPanel(discord.ui.View):
                 ephemeral=True,
             )
             return
-        await interaction.response.send_message(
-            f"Current: **{entry.get('month')}/{entry.get('day')}**"
-            + (f"/{entry.get('year')}" if entry.get("year") else "")
-            + f" · Sign: {entry.get('sign') or '—'}\nPick new values:",
-            view=RegisterView(self.cog, interaction.user.id, mode="edit"),
-            ephemeral=True,
-        )
+        await interaction.response.send_modal(BirthdayModal(self.cog, interaction.user.id, mode="edit", entry=entry))
 
     @discord.ui.button(label="♈ Zodiac sign", style=discord.ButtonStyle.secondary, custom_id="bday_sign", row=1)
     async def sign_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -110,87 +101,89 @@ class BirthdayPanel(discord.ui.View):
         )
 
 
-class MonthSelect(discord.ui.Select):
-    def __init__(self, parent: "RegisterView"):
-        self.parent_view = parent
-        options = [discord.SelectOption(label=name, value=val) for val, name in MONTHS]
-        super().__init__(placeholder="Month", min_values=1, max_values=1, options=options, row=0)
+class BirthdayModal(discord.ui.Modal, title="🎂 Register birthday"):
+    """Private Discord modal for an exact birthday: English month + day only."""
 
-    async def callback(self, interaction: discord.Interaction):
-        self.parent_view.month = int(self.values[0])
-        await interaction.response.defer()
+    month = discord.ui.TextInput(
+        label="Month",
+        placeholder="e.g. September",
+        required=True,
+        max_length=12,
+    )
+    day = discord.ui.TextInput(
+        label="Day",
+        placeholder="e.g. 12",
+        required=True,
+        min_length=1,
+        max_length=2,
+    )
 
-
-class DaySelect(discord.ui.Select):
-    def __init__(self, parent: "RegisterView"):
-        self.parent_view = parent
-        options = [discord.SelectOption(label=str(i), value=str(i)) for i in range(1, 32)]
-        super().__init__(placeholder="Day", min_values=1, max_values=1, options=options, row=1)
-
-    async def callback(self, interaction: discord.Interaction):
-        self.parent_view.day = int(self.values[0])
-        await interaction.response.defer()
-
-
-class YearSelect(discord.ui.Select):
-    def __init__(self, parent: "RegisterView"):
-        self.parent_view = parent
-        year_now = datetime.now(SERVER_TZ).year
-        years = list(range(year_now - 13, year_now - 70, -1))  # common adult range
-        options = [discord.SelectOption(label="Prefer not to say", value="0")]
-        options += [discord.SelectOption(label=str(y), value=str(y)) for y in years[:24]]
-        super().__init__(placeholder="Year (optional)", min_values=1, max_values=1, options=options, row=2)
-
-    async def callback(self, interaction: discord.Interaction):
-        v = int(self.values[0])
-        self.parent_view.year = v if v > 0 else None
-        await interaction.response.defer()
-
-
-class RegisterView(discord.ui.View):
-    def __init__(self, cog: "Birthdays", user_id: int, mode: str = "register"):
-        super().__init__(timeout=300)
+    def __init__(self, cog: "Birthdays", user_id: int, mode: str = "register", entry: Optional[Dict] = None):
+        super().__init__()
         self.cog = cog
         self.user_id = user_id
         self.mode = mode
-        self.month: Optional[int] = None
-        self.day: Optional[int] = None
-        self.year: Optional[int] = None
-        self.add_item(MonthSelect(self))
-        self.add_item(DaySelect(self))
-        self.add_item(YearSelect(self))
+        self.entry = entry or {}
 
-    @discord.ui.button(label="✅ Save", style=discord.ButtonStyle.success, row=3)
-    async def save(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.entry:
+            month = int(self.entry.get("month", 1))
+            day = int(self.entry.get("day", 1))
+            self.month.default = MONTHS[month - 1][1]
+            self.day.default = str(day)
+
+    async def on_submit(self, interaction: discord.Interaction):
         if interaction.user.id != self.user_id:
             await interaction.response.send_message("This form is not yours.", ephemeral=True)
             return
-        if not self.month or not self.day:
-            await interaction.response.send_message("Select **month** and **day** first.", ephemeral=True)
-            return
-        # basic validation
+
+        month_text = self.month.value.strip().lower()
+        month_map = {name.lower(): int(value) for value, name in MONTHS}
+        # Also accept common English abbreviations, while showing full names in the UI.
+        aliases = {
+            "jan": "january", "feb": "february", "mar": "march", "apr": "april",
+            "may": "may", "jun": "june", "jul": "july", "aug": "august",
+            "sep": "september", "sept": "september", "oct": "october",
+            "nov": "november", "dec": "december",
+        }
+        month_text = aliases.get(month_text, month_text)
+        month = month_map.get(month_text)
+
         try:
-            if self.year:
-                date(self.year, self.month, self.day)
-            else:
-                date(2000, self.month, self.day)  # leap-safe check for day
+            day = int(self.day.value.strip())
         except ValueError:
-            await interaction.response.send_message("Invalid date (e.g. 31 February).", ephemeral=True)
+            day = 0
+
+        if month is None:
+            await interaction.response.send_message(
+                "❌ Invalid month. Please use an English month name, e.g. **September**.",
+                ephemeral=True,
+            )
             return
-        sign = _zodiac_from_md(self.month, self.day)
+
+        try:
+            # 2000 makes February 29 a valid birthday while we only store month/day.
+            date(2000, month, day)
+        except ValueError:
+            await interaction.response.send_message(
+                "❌ Invalid day for that month. Please enter a real date, e.g. **September 12**.",
+                ephemeral=True,
+            )
+            return
+
+        sign = _zodiac_from_md(month, day)
         self.cog.set_user(
             self.user_id,
-            month=self.month,
-            day=self.day,
-            year=self.year,
+            month=month,
+            day=day,
+            year=None,
             sign=sign,
         )
-        y = f"/{self.year}" if self.year else ""
+
+        month_name = MONTHS[month - 1][1]
         await interaction.response.send_message(
-            f"✅ Saved: **{self.month:02d}/{self.day:02d}{y}** · {sign}",
+            f"✅ Birthday saved: **{month_name} {day}** · {sign}",
             ephemeral=True,
         )
-        self.stop()
 
 
 class SignSelect(discord.ui.Select):
@@ -328,7 +321,7 @@ class Birthdays(commands.Cog):
             description=(
                 "**No slash typing needed.**\n\n"
                 "🎂 **Birthdays** — list registered dates\n"
-                "📝 **Register** — pick month / day / year from menus\n"
+                "📝 **Register** — enter your exact birthday (English month + day)\n"
                 "✏️ **Edit mine** — change only your date\n"
                 "♈ **Zodiac sign** — set or override your sign\n"
             ),
