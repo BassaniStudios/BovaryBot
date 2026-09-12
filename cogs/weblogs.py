@@ -21,7 +21,8 @@ class WebLogs(commands.Cog):
     Logs estruturados (única fonte — sem duplicar com events.py):
     - Joins / leaves  → LOG_CHANNEL_ID (Info)
     - Nick / name history alerts → BOT_ROOM_CHANNEL_ID (namehistory cog)
-    - Other weblogs (msg edit/delete, channel create/delete, admin)
+    - Message edit/delete → MESSAGE_LOG_CHANNEL_ID (dedicated message log)
+    - Other weblogs (channel create/delete, admin)
       → WEBLOGS_CHANNEL_ID (default 1548153354675556412)
     """
 
@@ -49,13 +50,21 @@ class WebLogs(commands.Cog):
         return safe_get_channel(self.bot, self.bot.config.get("BOT_ROOM_CHANNEL_ID"))
 
     def _weblogs_channel(self) -> Optional[discord.abc.GuildChannel]:
-        """Other weblogs: message edit/delete, channel create/delete, admin actions."""
-        cid = self.bot.config.get("WEBLOGS_CHANNEL_ID") or self.bot.config.get("MESSAGE_LOG_CHANNEL_ID")
-        return safe_get_channel(self.bot, cid)
+        """General WebLogs: channel/admin events only.
+
+        Message edit/delete logging is intentionally kept separate in
+        MESSAGE_LOG_CHANNEL_ID. This prevents the detailed message logger
+        from being mixed into the general WebLogs stream.
+        """
+        return safe_get_channel(self.bot, self.bot.config.get("WEBLOGS_CHANNEL_ID"))
 
     def _msg_log(self) -> Optional[discord.abc.GuildChannel]:
-        # Prefer dedicated weblogs channel for message logs
-        return self._weblogs_channel()
+        """Dedicated detailed message log channel.
+
+        Default: 🗑️┃msg-log-only-leaders (1432715549116207248).
+        This service is independent from the general WebLogs channel.
+        """
+        return safe_get_channel(self.bot, self.bot.config.get("MESSAGE_LOG_CHANNEL_ID"))
 
     def _ignore_id(self) -> Optional[int]:
         return self.bot.config.get("IGNORE_CHANNEL_ID")
@@ -85,7 +94,14 @@ class WebLogs(commands.Cog):
                     kind = "image"
                 elif a.content_type.startswith("video/"):
                     kind = "video"
-            lines.append(f"• [{kind}] [{a.filename}]({a.url})")
+            size = getattr(a, "size", 0) or 0
+            if size >= 1024 * 1024:
+                size_text = f"{size / (1024 * 1024):.1f} MB"
+            elif size >= 1024:
+                size_text = f"{size / 1024:.1f} KB"
+            else:
+                size_text = f"{size} B"
+            lines.append(f"• [{kind}] [{a.filename}]({a.url}) — `{size_text}` — `{a.content_type or 'unknown'}`")
         return lines
 
     def _first_image_url(self, message: discord.Message) -> Optional[str]:
@@ -279,11 +295,23 @@ class WebLogs(commands.Cog):
         embed.add_field(name="Before", value=before_c, inline=False)
         embed.add_field(name="After", value=after_c, inline=False)
 
-        atts = self._attachment_lines(before)
-        if atts:
-            embed.add_field(name="Attachments (before)", value="\n".join(atts)[:800], inline=False)
+        before_atts = self._attachment_lines(before)
+        after_atts = self._attachment_lines(after)
+        if before_atts:
+            embed.add_field(name="Attachments (before)", value="\n".join(before_atts)[:1000], inline=False)
+        if after_atts:
+            embed.add_field(name="Attachments (after)", value="\n".join(after_atts)[:1000], inline=False)
 
-        img = self._first_image_url(before) or self._first_image_url(after)
+        before_ids = {getattr(a, "id", None) for a in before.attachments}
+        after_ids = {getattr(a, "id", None) for a in after.attachments}
+        added = [a.filename for a in after.attachments if getattr(a, "id", None) not in before_ids]
+        removed = [a.filename for a in before.attachments if getattr(a, "id", None) not in after_ids]
+        if added:
+            embed.add_field(name="Added files", value="\n".join(f"• `{name}`" for name in added)[:1000], inline=True)
+        if removed:
+            embed.add_field(name="Removed files", value="\n".join(f"• `{name}`" for name in removed)[:1000], inline=True)
+
+        img = self._first_image_url(after) or self._first_image_url(before)
         if img:
             embed.set_image(url=img)
 

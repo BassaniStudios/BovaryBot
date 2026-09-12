@@ -1,6 +1,6 @@
 """
 Bova's Bot — Official private bot of Bovary Club Society.
-Version: 2.7.13
+Version: 2.7.16
 """
 from __future__ import annotations
 
@@ -63,7 +63,7 @@ class BovaryBot(commands.Bot):
             "GUILD_ID": load_int_env("GUILD_ID"),
             "LOG_CHANNEL_ID": load_int_env("LOG_CHANNEL_ID", 1441663299065217114),
             "MESSAGE_LOG_CHANNEL_ID": load_int_env("MESSAGE_LOG_CHANNEL_ID", 1432715549116207248),
-            # Other weblogs (msg edit/delete, channel create/delete, admin actions)
+            # General WebLogs channel (channel/admin events). Message edit/delete logs stay separate.
             "WEBLOGS_CHANNEL_ID": load_int_env("WEBLOGS_CHANNEL_ID", 1548153354675556412),
             "BOT_ROOM_CHANNEL_ID": load_int_env("BOT_ROOM_CHANNEL_ID", 1424436722984423529),
             # Auto backup of SQLite to a Discord channel (Render free mitigation)
@@ -169,7 +169,7 @@ class BovaryBot(commands.Bot):
     async def on_ready(self):
         if not rotate_status.is_running():
             rotate_status.start()
-        logger.info("✅ %s está online! (v2.7.13)", self.user)
+        logger.info("✅ %s está online! (v2.7.16)", self.user)
         if APPLY_BOT_PROFILE and not self._profile_applied:
             self._profile_applied = True
             await self._apply_profile()
