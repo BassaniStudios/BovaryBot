@@ -1,6 +1,6 @@
 """
 Bova's Bot — Official private bot of Bovary Club Society.
-Version: 2.7.4
+Version: 2.7.8
 """
 from __future__ import annotations
 
@@ -68,7 +68,7 @@ class BovaryBot(commands.Bot):
             "BOT_ROOM_CHANNEL_ID": load_int_env("BOT_ROOM_CHANNEL_ID", 1424436722984423529),
             # Auto backup of SQLite to a Discord channel (Render free mitigation)
             "BACKUP_CHANNEL_ID": load_int_env("BACKUP_CHANNEL_ID", 1548188378623778847),
-            "BACKUP_INTERVAL_HOURS": load_int_env("BACKUP_INTERVAL_HOURS", 168) or 168,
+            "BACKUP_INTERVAL_HOURS": load_int_env("BACKUP_INTERVAL_HOURS", 24) or 24,
             "IGNORE_CHANNEL_ID": load_int_env("IGNORE_CHANNEL_ID", 1384173137985540233),
             "STAFF_LOG_CHANNEL": load_int_env("STAFF_LOG_CHANNEL", 1444186478157500508),
             "CREW_LEADER_ROLE_ID": load_int_env("CREW_LEADER_ROLE_ID", 1384173136177791048),
@@ -90,6 +90,17 @@ class BovaryBot(commands.Bot):
         return cfg
 
     async def setup_hook(self) -> None:
+        # SQLite persistence: on a fresh/ephemeral deploy, recover the most
+        # recent non-empty database backup from the configured Discord channel
+        # before loading cogs that may read/write stored data.
+        try:
+            from cogs.backup import Backup
+            restorer = Backup.__new__(Backup)
+            restorer.bot = self
+            await restorer.restore_latest_backup_if_needed()
+        except Exception:
+            logger.exception("Automatic SQLite restore check failed")
+
         # SQLite bootstrap + one-time JSON migration
         try:
             from utils.storage import _bootstrap
@@ -146,7 +157,7 @@ class BovaryBot(commands.Bot):
     async def on_ready(self):
         if not rotate_status.is_running():
             rotate_status.start()
-        logger.info("✅ %s está online! (v2.7.4)", self.user)
+        logger.info("✅ %s está online! (v2.7.8)", self.user)
         if APPLY_BOT_PROFILE and not self._profile_applied:
             self._profile_applied = True
             await self._apply_profile()
