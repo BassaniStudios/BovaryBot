@@ -93,8 +93,8 @@ class BovaryBot(commands.Bot):
             "BACKUP_INTERVAL_HOURS": load_int_env("BACKUP_INTERVAL_HOURS", 24) or 24,
             "IGNORE_CHANNEL_ID": _chan("IGNORE_CHANNEL_ID", 1384173137985540233),
             "STAFF_LOG_CHANNEL": load_int_env("STAFF_LOG_CHANNEL", 1444186478157500508),
-            # DM inbox/support channel. Defaults to the existing staff log channel.
-            "DM_INBOX_CHANNEL_ID": load_int_env("DM_INBOX_CHANNEL_ID", 1444186478157500508),
+            # DM inbox/support channel → bot-chat
+            "DM_INBOX_CHANNEL_ID": load_int_env("DM_INBOX_CHANNEL_ID", 1548188378623778847),
             "DM_AUTO_RESPONSE_ENABLED": os.getenv("DM_AUTO_RESPONSE_ENABLED", "false").lower() in ("1", "true", "yes"),
             # Automatic reminders for any <t:UNIX:R> timestamp found in guild messages/embeds.
             "TIMESTAMP_REMINDER_ENABLED": os.getenv("TIMESTAMP_REMINDER_ENABLED", "true").lower() in ("1", "true", "yes"),
