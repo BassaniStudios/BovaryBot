@@ -432,6 +432,11 @@ class WebLogs(commands.Cog):
             return
         if message.channel and message.channel.id == self._ignore_id():
             return
+        # Mark FIRST so concurrent on_raw_message_delete skips (avoids double embed)
+        if message.id in self._delete_logged:
+            return
+        self._mark_delete_logged(message.id)
+        self._msg_cache.pop(message.id, None)
 
         content = (message.content or "").strip() or "*No text content*"
         author = message.author
@@ -456,8 +461,6 @@ class WebLogs(commands.Cog):
             img=img,
             avatar=avatar,
         )
-        self._mark_delete_logged(message.id)
-        self._msg_cache.pop(message.id, None)
 
     @commands.Cog.listener()
     async def on_raw_message_delete(self, payload: discord.RawMessageDeleteEvent):
@@ -466,8 +469,10 @@ class WebLogs(commands.Cog):
             return
         if payload.channel_id == self._ignore_id():
             return
+        # Already handled by on_message_delete (or a previous raw) → skip
         if payload.message_id in self._delete_logged:
             return
+        self._mark_delete_logged(payload.message_id)
 
         snap = self._msg_cache.pop(payload.message_id, None)
         if snap and snap.get("author_bot"):
@@ -498,7 +503,7 @@ class WebLogs(commands.Cog):
             img=img,
             avatar=avatar,
         )
-        self._mark_delete_logged(payload.message_id)
+
 
     @commands.Cog.listener()
     async def on_message_edit(self, before: discord.Message, after: discord.Message):
