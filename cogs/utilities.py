@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 import discord
@@ -523,6 +524,17 @@ class Utilities(commands.Cog):
         await ch.send(message[:2000])
         await interaction.response.send_message("✅ Sent.", ephemeral=True)
 
+    def _bova_gif_file(self) -> Optional[discord.File]:
+        """Load the small chat GIF from assets (250x250)."""
+        candidates = [
+            Path(__file__).resolve().parent.parent / "assets" / "bova_chat.gif",
+            Path("assets/bova_chat.gif"),
+        ]
+        for p in candidates:
+            if p.is_file():
+                return discord.File(p, filename="bova.gif")
+        return None
+
     @app_commands.command(name="bova", description="[STAFF] Post the official Bova's Bot GIF")
     @app_commands.describe(channel="Channel (optional)")
     @app_commands.checks.has_permissions(manage_messages=True)
@@ -536,10 +548,14 @@ class Utilities(commands.Cog):
             await interaction.response.send_message("Canal inválido.", ephemeral=True)
             return
 
-        embed = discord.Embed(color=CYBER_CYAN)
-        embed.set_image(url=BOVA_GIF_URL)
-        embed.set_footer(text="Bova's Bot")
-        await ch.send(embed=embed)
+        gif = self._bova_gif_file()
+        if gif is None:
+            # Fallback to hosted URL as plain link if local file missing
+            await ch.send(BOVA_GIF_URL)
+            await interaction.response.send_message("✅ GIF enviado (link).", ephemeral=True)
+            return
+
+        await ch.send(file=gif)
         await interaction.response.send_message("✅ GIF enviado.", ephemeral=True)
 
     @app_commands.command(name="bovasay", description="[STAFF] Post text + official Bova's Bot GIF")
@@ -559,13 +575,14 @@ class Utilities(commands.Cog):
             await interaction.response.send_message("Canal inválido.", ephemeral=True)
             return
 
-        embed = discord.Embed(
-            description=message[:4096],
-            color=CYBER_CYAN,
-        )
-        embed.set_image(url=BOVA_GIF_URL)
-        embed.set_footer(text="Bova's Bot")
-        await ch.send(embed=embed)
+        gif = self._bova_gif_file()
+        content = message[:2000]
+        if gif is None:
+            await ch.send(f"{content}\n{BOVA_GIF_URL}")
+            await interaction.response.send_message("✅ Mensagem + GIF enviados (link).", ephemeral=True)
+            return
+
+        await ch.send(content=content, file=gif)
         await interaction.response.send_message("✅ Mensagem + GIF enviados.", ephemeral=True)
 
 
