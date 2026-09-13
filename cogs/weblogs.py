@@ -1,13 +1,19 @@
 """WebLogs — structured event logging with dedicated channels.
 
-Message Log (delete/edit) is intentionally simple and independent of Turso/SQLite:
+Message Log (delete/edit) — style inspired by v2.2 that "worked perfectly":
 - Always on (no toggle dependency for reliability)
 - Fixed channel via MESSAGE_LOG_CHANNEL_ID
-- In-memory cache + raw delete fallback
+- Pure in-memory OrderedDict cache (NO SQL / NO disk for message snapshots)
+- History backfill on ready → recovers messages sent while bot was offline
+- on_message_delete when discord.py has the message (full object)
+- on_raw_message_delete only when OUR cache has a snapshot (never log empty/uncached)
 - fetch_channel fallback when get_channel returns None
+- Rich media logging: images/videos get explicit flags + size/dims/spoiler even
+  when Discord CDN already expired the preview link
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections import OrderedDict
 from datetime import datetime, timezone
@@ -38,7 +44,18 @@ def _message_cache_size() -> int:
         return 12000
 
 
+def _backfill_per_channel() -> int:
+    """How many recent messages to pull per text channel on startup."""
+    try:
+        raw = os.getenv("MESSAGE_CACHE_BACKFILL", "200").strip()
+        n = int(raw) if raw else 200
+        return max(0, min(n, 500))  # 0 = disable backfill
+    except (TypeError, ValueError):
+        return 200
+
+
 MESSAGE_CACHE_SIZE = _message_cache_size()
+BACKFILL_PER_CHANNEL = _backfill_per_channel()
 
 
 class WebLogs(commands.Cog):
@@ -62,9 +79,13 @@ class WebLogs(commands.Cog):
             "role_updates": False,
             "boosts": True,
         })
+        # Pure in-memory cache — intentionally NO SQLite / NO disk.
+        # Survives restarts only via history backfill on_ready.
         self._msg_cache: OrderedDict[int, Dict[str, Any]] = OrderedDict()
         self._delete_logged: OrderedDict[int, bool] = OrderedDict()
         self._msg_log_channel: Optional[discord.abc.GuildChannel] = None  # cached resolved channel
+        self._backfill_done = False
+        self._backfill_task: Optional[asyncio.Task] = None
 
     def _save(self):
         save_json(FILE, self.config)
@@ -148,55 +169,77 @@ class WebLogs(commands.Cog):
 
     # ── attachment / snapshot helpers ─────────────────────────────────────────
 
+    @staticmethod
+    def _fmt_size(size: int) -> str:
+        size = size or 0
+        if size >= 1024 * 1024:
+            return f"{size / (1024 * 1024):.1f} MB"
+        if size >= 1024:
+            return f"{size / 1024:.1f} KB"
+        return f"{size} B"
+
+    @staticmethod
+    def _is_image_att(filename: str, content_type: Optional[str]) -> bool:
+        ct = (content_type or "").lower()
+        if ct.startswith("image/"):
+            return True
+        name = (filename or "").lower()
+        return name.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tiff"))
+
+    @staticmethod
+    def _is_video_att(filename: str, content_type: Optional[str]) -> bool:
+        ct = (content_type or "").lower()
+        if ct.startswith("video/"):
+            return True
+        name = (filename or "").lower()
+        return name.endswith((".mp4", ".mov", ".webm", ".mkv", ".avi"))
+
+    def _attachment_dict(self, a: discord.Attachment) -> Dict[str, Any]:
+        """Rich snapshot of a single attachment (no external storage)."""
+        return {
+            "id": getattr(a, "id", None),
+            "filename": a.filename,
+            "url": a.url,
+            "proxy_url": getattr(a, "proxy_url", None) or a.url,
+            "size": getattr(a, "size", 0) or 0,
+            "content_type": a.content_type,
+            "width": getattr(a, "width", None),
+            "height": getattr(a, "height", None),
+            "spoiler": bool(getattr(a, "is_spoiler", False)),
+            "description": getattr(a, "description", None),
+        }
+
+    def _attachment_line(self, a: Dict[str, Any]) -> str:
+        filename = a.get("filename") or "file"
+        ct = a.get("content_type") or ""
+        if self._is_image_att(filename, ct):
+            kind = "📷 image"
+        elif self._is_video_att(filename, ct):
+            kind = "🎬 video"
+        else:
+            kind = "📎 file"
+
+        size_text = self._fmt_size(a.get("size") or 0)
+        url = a.get("proxy_url") or a.get("url") or ""
+        dims = ""
+        w, h = a.get("width"), a.get("height")
+        if w and h:
+            dims = f" — `{w}×{h}`"
+        spoiler = " 🔒spoiler" if a.get("spoiler") else ""
+        link = f"[{filename}]({url})" if url else f"`{filename}`"
+        return f"• [{kind}] {link} — `{size_text}`{dims}{spoiler} — `{ct or 'unknown'}`"
+
     def _attachment_lines(self, message: discord.Message) -> List[str]:
-        lines = []
-        for a in message.attachments:
-            kind = "file"
-            if a.content_type:
-                if a.content_type.startswith("image/"):
-                    kind = "image"
-                elif a.content_type.startswith("video/"):
-                    kind = "video"
-            size = getattr(a, "size", 0) or 0
-            if size >= 1024 * 1024:
-                size_text = f"{size / (1024 * 1024):.1f} MB"
-            elif size >= 1024:
-                size_text = f"{size / 1024:.1f} KB"
-            else:
-                size_text = f"{size} B"
-            lines.append(
-                f"• [{kind}] [{a.filename}]({a.url}) — `{size_text}` — `{a.content_type or 'unknown'}`"
-            )
-        return lines
+        return [self._attachment_line(self._attachment_dict(a)) for a in message.attachments]
 
     def _attachment_lines_from_snap(self, atts: List[Dict[str, Any]]) -> List[str]:
-        lines = []
-        for a in atts:
-            kind = "file"
-            ct = a.get("content_type") or ""
-            if ct.startswith("image/"):
-                kind = "image"
-            elif ct.startswith("video/"):
-                kind = "video"
-            size = a.get("size") or 0
-            if size >= 1024 * 1024:
-                size_text = f"{size / (1024 * 1024):.1f} MB"
-            elif size >= 1024:
-                size_text = f"{size / 1024:.1f} KB"
-            else:
-                size_text = f"{size} B"
-            filename = a.get("filename") or "file"
-            url = a.get("url") or ""
-            lines.append(f"• [{kind}] [{filename}]({url}) — `{size_text}` — `{ct or 'unknown'}`")
-        return lines
+        return [self._attachment_line(a) for a in (atts or [])]
 
     def _first_image_url(self, message: discord.Message) -> Optional[str]:
+        """Prefer proxy_url (slightly more resilient) then original url."""
         for a in message.attachments:
-            if a.content_type and a.content_type.startswith("image/"):
-                return a.url
-            name = (a.filename or "").lower()
-            if name.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp")):
-                return a.url
+            if self._is_image_att(a.filename or "", a.content_type):
+                return getattr(a, "proxy_url", None) or a.url
         for e in message.embeds:
             if e.image and e.image.url:
                 return e.image.url
@@ -204,16 +247,28 @@ class WebLogs(commands.Cog):
                 return e.thumbnail.url
         return None
 
+    def _first_image_url_from_snap(self, snap: Dict[str, Any]) -> Optional[str]:
+        for a in snap.get("attachments") or []:
+            if self._is_image_att(a.get("filename") or "", a.get("content_type")):
+                return a.get("proxy_url") or a.get("url")
+        return snap.get("image_url")
+
+    def _has_image_attachment(self, atts: List[Dict[str, Any]]) -> bool:
+        for a in atts or []:
+            if self._is_image_att(a.get("filename") or "", a.get("content_type")):
+                return True
+        return False
+
     def _snapshot(self, message: discord.Message) -> Dict[str, Any]:
         author = message.author
-        atts = []
-        for a in message.attachments:
-            atts.append({
-                "id": getattr(a, "id", None),
-                "filename": a.filename,
-                "url": a.url,
-                "size": getattr(a, "size", 0) or 0,
-                "content_type": a.content_type,
+        atts = [self._attachment_dict(a) for a in message.attachments]
+        stickers = []
+        for s in getattr(message, "stickers", []) or []:
+            stickers.append({
+                "id": getattr(s, "id", None),
+                "name": getattr(s, "name", None),
+                "url": getattr(s, "url", None),
+                "format": str(getattr(s, "format", "")),
             })
         return {
             "id": message.id,
@@ -229,7 +284,14 @@ class WebLogs(commands.Cog):
                 else None
             ),
             "attachments": atts,
+            "stickers": stickers,
             "image_url": self._first_image_url(message),
+            "has_image": any(
+                self._is_image_att(a.filename or "", a.content_type) for a in message.attachments
+            ),
+            "has_video": any(
+                self._is_video_att(a.filename or "", a.content_type) for a in message.attachments
+            ),
         }
 
     def _cache_put(self, message: discord.Message) -> None:
@@ -247,6 +309,118 @@ class WebLogs(commands.Cog):
         self._delete_logged.move_to_end(message_id)
         while len(self._delete_logged) > MESSAGE_CACHE_SIZE:
             self._delete_logged.popitem(last=False)
+
+    # ── history backfill (no SQL — pure memory recovery after restart) ────────
+
+    def _backfill_channel_ids(self) -> List[int]:
+        """Optional whitelist via MESSAGE_CACHE_CHANNELS=id1,id2,... Otherwise all text channels."""
+        raw = (os.getenv("MESSAGE_CACHE_CHANNELS") or "").strip()
+        if not raw:
+            return []
+        ids: List[int] = []
+        for part in raw.split(","):
+            part = part.strip()
+            if part.isdigit():
+                ids.append(int(part))
+        return ids
+
+    async def _backfill_history(self) -> None:
+        """
+        After restart: pull recent messages from text channels into the in-memory cache.
+        This recovers content for messages that were sent while the bot was offline
+        (as long as they still exist when we start). No SQL, no disk.
+        """
+        if BACKFILL_PER_CHANNEL <= 0:
+            logger.info("Message cache backfill disabled (MESSAGE_CACHE_BACKFILL=0)")
+            self._backfill_done = True
+            return
+
+        await self.bot.wait_until_ready()
+        # small delay so other cogs finish setup
+        await asyncio.sleep(3)
+
+        guild_id = self.bot.config.get("GUILD_ID")
+        guild = self.bot.get_guild(guild_id) if guild_id else None
+        if not guild and self.bot.guilds:
+            guild = self.bot.guilds[0]
+        if not guild:
+            logger.warning("Backfill skipped: no guild available")
+            self._backfill_done = True
+            return
+
+        ignore = self._ignore_id()
+        whitelist = set(self._backfill_channel_ids())
+        channels: List[discord.TextChannel] = []
+        for ch in guild.text_channels:
+            if ignore and ch.id == ignore:
+                continue
+            if whitelist and ch.id not in whitelist:
+                continue
+            # skip channels the bot cannot read
+            me = guild.me
+            if me is None:
+                continue
+            perms = ch.permissions_for(me)
+            if not (perms.view_channel and perms.read_message_history):
+                continue
+            channels.append(ch)
+
+        # Prefer more active channels first (rough heuristic: position / category order is fine)
+        total_cached = 0
+        errors = 0
+        logger.info(
+            "Message cache backfill starting: %d channels × up to %d msgs (cache limit %d)",
+            len(channels),
+            BACKFILL_PER_CHANNEL,
+            MESSAGE_CACHE_SIZE,
+        )
+
+        for ch in channels:
+            if len(self._msg_cache) >= MESSAGE_CACHE_SIZE:
+                logger.info("Backfill stopped early — cache full (%d)", len(self._msg_cache))
+                break
+            try:
+                count = 0
+                async for msg in ch.history(limit=BACKFILL_PER_CHANNEL):
+                    if msg.author and msg.author.bot:
+                        continue
+                    if msg.id not in self._msg_cache:
+                        self._cache_put(msg)
+                        count += 1
+                        total_cached += 1
+                    if len(self._msg_cache) >= MESSAGE_CACHE_SIZE:
+                        break
+                if count:
+                    logger.debug("Backfill %s: +%d messages", ch.name, count)
+            except discord.Forbidden:
+                errors += 1
+                logger.debug("Backfill forbidden in #%s", ch.name)
+            except discord.HTTPException as e:
+                errors += 1
+                logger.warning("Backfill HTTP error in #%s: %s", ch.name, e)
+                # gentle backoff on rate limit
+                if getattr(e, "status", None) == 429:
+                    await asyncio.sleep(2)
+            except Exception:
+                errors += 1
+                logger.exception("Backfill failed in #%s", ch.name)
+            # tiny pause between channels to stay under rate limits
+            await asyncio.sleep(0.35)
+
+        self._backfill_done = True
+        logger.info(
+            "Message cache backfill done: +%d msgs | cache size=%d | errors=%d",
+            total_cached,
+            len(self._msg_cache),
+            errors,
+        )
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        # Start backfill once per process lifetime
+        if self._backfill_done or (self._backfill_task and not self._backfill_task.done()):
+            return
+        self._backfill_task = asyncio.create_task(self._backfill_history())
 
     # ── slash config ──────────────────────────────────────────────────────────
 
@@ -312,12 +486,15 @@ class WebLogs(commands.Cog):
             description=(
                 f"Canal: {getattr(ch, 'mention', cid)}\n"
                 f"ID: `{cid}`\n"
-                f"Cache size: `{len(self._msg_cache)}` mensagens"
+                f"Cache size: `{len(self._msg_cache)}` / `{MESSAGE_CACHE_SIZE}`\n"
+                f"Backfill: `{'done' if self._backfill_done else 'running/pending'}` "
+                f"(limit/channel: `{BACKFILL_PER_CHANNEL}`)\n"
+                f"discord.py max_messages: `{getattr(self.bot, 'max_messages', '?')}`"
             ),
             color=discord.Color.green(),
             timestamp=datetime.now(timezone.utc),
         )
-        embed.set_footer(text="Bova's Bot · Message Log Test")
+        embed.set_footer(text="Bova's Bot · Message Log Test · pure in-memory (no SQL)")
         try:
             await ch.send(embed=embed)
             await interaction.followup.send(
@@ -400,9 +577,24 @@ class WebLogs(commands.Cog):
         atts: List[str],
         img: Optional[str],
         avatar: Optional[str],
+        has_image: bool = False,
+        has_video: bool = False,
+        stickers: Optional[List[Dict[str, Any]]] = None,
     ) -> None:
         if len(content) > 900:
             content = content[:897] + "..."
+
+        # Clear signal when the message was media-only
+        if (not content or content == "*No text content*") and (has_image or has_video or atts):
+            media_bits = []
+            if has_image:
+                media_bits.append("📷 image")
+            if has_video:
+                media_bits.append("🎬 video")
+            if not media_bits and atts:
+                media_bits.append("📎 file")
+            content = f"*No text — message contained {' + '.join(media_bits)}*"
+
         embed = discord.Embed(
             title="🗑️ Message Deleted",
             color=discord.Color.from_rgb(255, 70, 90),
@@ -412,13 +604,51 @@ class WebLogs(commands.Cog):
         embed.add_field(name="Author", value=author_value, inline=True)
         embed.add_field(name="Message ID", value=f"`{message_id}`", inline=True)
         embed.add_field(name="Content", value=content or "*No text content*", inline=False)
+
+        if has_image or has_video:
+            flags = []
+            if has_image:
+                flags.append("📷 **Image was attached**")
+            if has_video:
+                flags.append("🎬 **Video was attached**")
+            flags.append(
+                "_Discord CDN links expire after deletion — preview may not load._"
+            )
+            embed.add_field(
+                name="Media",
+                value="\n".join(flags),
+                inline=False,
+            )
+
         if atts:
-            embed.add_field(name="Attachments", value="\n".join(atts)[:1000], inline=False)
+            embed.add_field(
+                name="Attachments (details)",
+                value="\n".join(atts)[:1000],
+                inline=False,
+            )
+
+        if stickers:
+            lines = []
+            for s in stickers[:5]:
+                name = s.get("name") or "sticker"
+                url = s.get("url")
+                if url:
+                    lines.append(f"• [{name}]({url})")
+                else:
+                    lines.append(f"• `{name}`")
+            if lines:
+                embed.add_field(name="Stickers", value="\n".join(lines), inline=False)
+
+        # Try to show the image while the CDN still serves it
         if img:
             embed.set_image(url=img)
         if avatar:
             embed.set_thumbnail(url=avatar)
-        embed.set_footer(text="Bova's Bot · Message Log · Attachments may expire")
+
+        footer = "Bova's Bot · Message Log"
+        if has_image or has_video or atts:
+            footer += " · Media links may stop working after deletion"
+        embed.set_footer(text=footer)
 
         ch = await self._resolve_msg_log()
         await self._send_embed(ch, embed)
@@ -451,6 +681,18 @@ class WebLogs(commands.Cog):
             if author and getattr(author, "display_avatar", None)
             else None
         )
+        has_image = any(
+            self._is_image_att(a.filename or "", a.content_type) for a in message.attachments
+        )
+        has_video = any(
+            self._is_video_att(a.filename or "", a.content_type) for a in message.attachments
+        )
+        stickers = []
+        for s in getattr(message, "stickers", []) or []:
+            stickers.append({
+                "name": getattr(s, "name", None),
+                "url": getattr(s, "url", None),
+            })
 
         await self._send_delete_embed(
             channel_mention=channel_mention,
@@ -460,11 +702,18 @@ class WebLogs(commands.Cog):
             atts=atts,
             img=img,
             avatar=avatar,
+            has_image=has_image,
+            has_video=has_video,
+            stickers=stickers or None,
         )
 
     @commands.Cog.listener()
     async def on_raw_message_delete(self, payload: discord.RawMessageDeleteEvent):
-        """Fallback when message is NOT in discord.py cache (uses our cache)."""
+        """
+        Fallback when message is NOT in discord.py cache.
+        Style v2.2: only log when we have real content (our in-memory snapshot).
+        Never spam "Content not available" embeds — if we don't know the message, stay silent.
+        """
         if not payload.guild_id:
             return
         if payload.channel_id == self._ignore_id():
@@ -472,27 +721,29 @@ class WebLogs(commands.Cog):
         # Already handled by on_message_delete (or a previous raw) → skip
         if payload.message_id in self._delete_logged:
             return
-        self._mark_delete_logged(payload.message_id)
 
         snap = self._msg_cache.pop(payload.message_id, None)
-        if snap and snap.get("author_bot"):
+        if not snap:
+            # Same as old v2.2: no cache → no log (avoids incomplete "uncached" embeds)
             return
+        if snap.get("author_bot"):
+            return
+
+        self._mark_delete_logged(payload.message_id)
 
         channel = self.bot.get_channel(payload.channel_id)
         channel_mention = channel.mention if channel else f"`#{payload.channel_id}`"
-
-        if snap:
-            content = (snap.get("content") or "").strip() or "*No text content*"
-            author_value = f"{snap.get('author_mention', 'Unknown')}\n`{snap.get('author_id', '—')}`"
-            atts = self._attachment_lines_from_snap(snap.get("attachments") or [])
-            img = snap.get("image_url")
-            avatar = snap.get("author_avatar")
-        else:
-            content = "*Content not available (message was not in bot cache)*"
-            author_value = "Unknown (uncached)"
-            atts = []
-            img = None
-            avatar = None
+        content = (snap.get("content") or "").strip() or "*No text content*"
+        author_value = f"{snap.get('author_mention', 'Unknown')}\n`{snap.get('author_id', '—')}`"
+        snap_atts = snap.get("attachments") or []
+        atts = self._attachment_lines_from_snap(snap_atts)
+        img = self._first_image_url_from_snap(snap)
+        avatar = snap.get("author_avatar")
+        has_image = bool(snap.get("has_image")) or self._has_image_attachment(snap_atts)
+        has_video = bool(snap.get("has_video")) or any(
+            self._is_video_att(a.get("filename") or "", a.get("content_type"))
+            for a in snap_atts
+        )
 
         await self._send_delete_embed(
             channel_mention=channel_mention,
@@ -502,6 +753,9 @@ class WebLogs(commands.Cog):
             atts=atts,
             img=img,
             avatar=avatar,
+            has_image=has_image,
+            has_video=has_video,
+            stickers=snap.get("stickers") or None,
         )
 
 

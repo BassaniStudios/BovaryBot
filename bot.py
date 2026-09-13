@@ -1,6 +1,6 @@
 """
 Bova's Bot — Official private bot of Bovary Club Society.
-Version: 2.7.18
+Version: 2.7.19
 """
 from __future__ import annotations
 
@@ -44,10 +44,18 @@ AVATAR_FILE = os.getenv("BOT_AVATAR_FILE", "").strip()
 
 class BovaryBot(commands.Bot):
     def __init__(self):
+        # max_messages: discord.py internal message cache (default 1000 is too small
+        # for delete-log recovery on active servers). Keep in sync with MESSAGE_CACHE_SIZE.
+        try:
+            _max_msg = int(os.getenv("MESSAGE_CACHE_SIZE", "12000").strip() or "12000")
+            _max_msg = max(1000, min(_max_msg, 50_000))
+        except (TypeError, ValueError):
+            _max_msg = 12000
         super().__init__(
             command_prefix="|",
             intents=intents,
             help_command=None,
+            max_messages=_max_msg,
         )
         self.config = self._load_config()
         self.cooldown_manager = CooldownManager()
@@ -203,7 +211,7 @@ class BovaryBot(commands.Bot):
         if not rotate_status.is_running():
             rotate_status.start()
 
-        version = "2.7.18"
+        version = "2.7.19"
         try:
             version_path = Path(__file__).parent / "VERSION"
             if version_path.exists():
