@@ -1,0 +1,17 @@
+CORREÇÃO MESSAGE LOG — 2026-09-13
+=================================
+
+Arquivo alterado: cogs/weblogs.py
+
+- Message delete/edit sempre ativos (não dependem de toggle/Turso)
+- Canal: MESSAGE_LOG_CHANNEL_ID (env) → config → fallback 1432715549116207248
+- Resolução robusta: get_channel → fetch_channel
+- Cache + on_raw_message_delete
+- Novo comando: /msglog_test
+
+Teste após deploy:
+1. /msglog_test
+2. Apagar/editar uma mensagem e conferir #msg-log-only-leaders
+
+Permissões no canal de log: Ver + Enviar + Embed Links
+Developer Portal: Message Content Intent = ON

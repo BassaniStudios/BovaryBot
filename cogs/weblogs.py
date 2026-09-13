@@ -1,4 +1,11 @@
-"""WebLogs — structured event logging with dedicated channels and toggles."""
+"""WebLogs — structured event logging with dedicated channels.
+
+Message Log (delete/edit) is intentionally simple and independent of Turso/SQLite:
+- Always on (no toggle dependency for reliability)
+- Fixed channel via MESSAGE_LOG_CHANNEL_ID
+- In-memory cache + raw delete fallback
+- fetch_channel fallback when get_channel returns None
+"""
 from __future__ import annotations
 
 import logging
@@ -18,33 +25,37 @@ from utils.storage import load_json, save_json
 logger = logging.getLogger("bovary_bot.weblogs")
 FILE = "weblogs.json"
 
+# Hardcoded production default (same as bot.py / .env.example)
+DEFAULT_MSG_LOG_ID = 1432715549116207248
+
+
 def _message_cache_size() -> int:
-    """Configurable message cache size (env MESSAGE_CACHE_SIZE, default 12000)."""
     try:
         raw = os.getenv("MESSAGE_CACHE_SIZE", "12000").strip()
         size = int(raw) if raw else 12000
-        return max(1000, min(size, 50_000))  # hard bounds
+        return max(1000, min(size, 50_000))
     except (TypeError, ValueError):
         return 12000
+
 
 MESSAGE_CACHE_SIZE = _message_cache_size()
 
 
 class WebLogs(commands.Cog):
     """
-    Logs estruturados (única fonte — sem duplicar com events.py):
-    - Joins / leaves  → LOG_CHANNEL_ID (Info)
-    - Message edit/delete → MESSAGE_LOG_CHANNEL_ID ONLY
-      (🗑️┃msg-log-only-leaders — serviço separado, sem filtro de cargos)
-    - Channel create/delete / admin → WEBLOGS_CHANNEL_ID
+    Logs estruturados:
+    - Joins / leaves     → LOG_CHANNEL_ID
+    - Message edit/delete → MESSAGE_LOG_CHANNEL_ID ONLY (sempre ativo, estilo antigo)
+    - Channel create/delete → WEBLOGS_CHANNEL_ID
     """
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        # Toggles only for non-message events (message log is always on)
         self.config = load_json(FILE, {
             "member_join": True,
             "member_leave": True,
-            "message_delete": True,
+            "message_delete": True,   # kept for /weblogs_config display, ignored for actual send
             "message_edit": True,
             "channel_create": True,
             "channel_delete": True,
@@ -53,6 +64,7 @@ class WebLogs(commands.Cog):
         })
         self._msg_cache: OrderedDict[int, Dict[str, Any]] = OrderedDict()
         self._delete_logged: OrderedDict[int, bool] = OrderedDict()
+        self._msg_log_channel: Optional[discord.abc.GuildChannel] = None  # cached resolved channel
 
     def _save(self):
         save_json(FILE, self.config)
@@ -66,19 +78,62 @@ class WebLogs(commands.Cog):
     def _weblogs_channel(self) -> Optional[discord.abc.GuildChannel]:
         return safe_get_channel(self.bot, self.bot.config.get("WEBLOGS_CHANNEL_ID"))
 
-    def _msg_log(self) -> Optional[discord.abc.GuildChannel]:
-        """Dedicated message log ONLY — msg-log-only-leaders (1432715549116207248)."""
-        return safe_get_channel(self.bot, self.bot.config.get("MESSAGE_LOG_CHANNEL_ID"))
+    def _msg_log_id(self) -> int:
+        """Always resolve a concrete channel ID (env → bot config → hardcoded)."""
+        cid = self.bot.config.get("MESSAGE_LOG_CHANNEL_ID")
+        if cid:
+            return int(cid)
+        return DEFAULT_MSG_LOG_ID
 
     def _ignore_id(self) -> Optional[int]:
         return self.bot.config.get("IGNORE_CHANNEL_ID")
 
-    async def _send_embed(self, channel: Optional[discord.abc.GuildChannel], embed: discord.Embed):
+    async def _resolve_msg_log(self) -> Optional[discord.abc.Messageable]:
+        """
+        Resolve the message-log channel robustly.
+        1) cached instance
+        2) bot.get_channel (fast)
+        3) bot.fetch_channel (async, works even if not in cache)
+        """
+        if self._msg_log_channel is not None:
+            return self._msg_log_channel
+
+        cid = self._msg_log_id()
+        ch = self.bot.get_channel(cid)
+        if ch is not None:
+            self._msg_log_channel = ch
+            return ch
+
+        try:
+            ch = await self.bot.fetch_channel(cid)
+            self._msg_log_channel = ch  # type: ignore
+            logger.info("Message log channel resolved via fetch_channel: %s", cid)
+            return ch
+        except discord.NotFound:
+            logger.error(
+                "MESSAGE_LOG_CHANNEL_ID=%s not found. Check the ID and that the bot can see the channel.",
+                cid,
+            )
+        except discord.Forbidden:
+            logger.error(
+                "No permission to fetch MESSAGE_LOG_CHANNEL_ID=%s. Give the bot View Channel there.",
+                cid,
+            )
+        except Exception:
+            logger.exception("Failed to resolve message log channel %s", cid)
+        return None
+
+    async def _send_embed(self, channel: Optional[discord.abc.Messageable], embed: discord.Embed):
         if not channel:
-            logger.warning("WebLog skip: channel is None (check MESSAGE_LOG_CHANNEL_ID / env)")
+            logger.warning("WebLog skip: channel is None")
             return
         try:
             await channel.send(embed=embed)
+        except discord.Forbidden:
+            logger.error(
+                "Forbidden sending to channel %s — need Send Messages + Embed Links",
+                getattr(channel, "id", "?"),
+            )
         except Exception:
             logger.exception("WebLog send failed to %s", getattr(channel, "id", "?"))
 
@@ -88,7 +143,10 @@ class WebLogs(commands.Cog):
 
     async def log_message(self, title: str, description: str, color: Optional[discord.Color] = None):
         embed = make_embed(title=title, description=description, color=color or discord.Color.red())
-        await self._send_embed(self._msg_log(), embed)
+        ch = await self._resolve_msg_log()
+        await self._send_embed(ch, embed)
+
+    # ── attachment / snapshot helpers ─────────────────────────────────────────
 
     def _attachment_lines(self, message: discord.Message) -> List[str]:
         lines = []
@@ -190,12 +248,14 @@ class WebLogs(commands.Cog):
         while len(self._delete_logged) > MESSAGE_CACHE_SIZE:
             self._delete_logged.popitem(last=False)
 
+    # ── slash config ──────────────────────────────────────────────────────────
+
     @app_commands.command(name="weblogs_config", description="Configure WebLogs toggles")
     @app_commands.describe(
         member_join="Log member joins to Info channel",
         member_leave="Log member leaves to Info channel",
-        message_delete="Log message deletes (msg-log channel only)",
-        message_edit="Log message edits (msg-log channel only)",
+        message_delete="(informational — message log is always on)",
+        message_edit="(informational — message log is always on)",
         channel_create="Log channel creation (weblogs channel)",
         channel_delete="Log channel deletion (weblogs channel)",
     )
@@ -224,9 +284,56 @@ class WebLogs(commands.Cog):
         self._save()
         lines = [f"**{k}:** `{v}`" for k, v in self.config.items()]
         await interaction.response.send_message(
-            "✅ WebLogs toggles saved.\n" + "\n".join(lines),
+            "✅ WebLogs toggles saved.\n"
+            "⚠️ Message delete/edit logs are **always active** (independent of toggles).\n"
+            + "\n".join(lines),
             ephemeral=True,
         )
+
+    @app_commands.command(name="msglog_test", description="Test the dedicated message-log channel")
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def msglog_test(self, interaction: discord.Interaction):
+        """Sends a test embed to MESSAGE_LOG_CHANNEL_ID and reports status."""
+        await interaction.response.defer(ephemeral=True)
+        cid = self._msg_log_id()
+        ch = await self._resolve_msg_log()
+        if not ch:
+            await interaction.followup.send(
+                f"❌ Não consegui resolver o canal `{cid}`.\n"
+                "• Confirme MESSAGE_LOG_CHANNEL_ID no env\n"
+                "• O bot precisa ter **Ver canal** nesse canal\n"
+                "• Veja os logs do bot (Render) para o erro exato",
+                ephemeral=True,
+            )
+            return
+
+        embed = discord.Embed(
+            title="✅ Message Log — Teste OK",
+            description=(
+                f"Canal: {getattr(ch, 'mention', cid)}\n"
+                f"ID: `{cid}`\n"
+                f"Cache size: `{len(self._msg_cache)}` mensagens"
+            ),
+            color=discord.Color.green(),
+            timestamp=datetime.now(timezone.utc),
+        )
+        embed.set_footer(text="Bova's Bot · Message Log Test")
+        try:
+            await ch.send(embed=embed)
+            await interaction.followup.send(
+                f"✅ Embed de teste enviado em {getattr(ch, 'mention', cid)}",
+                ephemeral=True,
+            )
+        except discord.Forbidden:
+            await interaction.followup.send(
+                f"❌ Sem permissão para enviar no canal `{cid}`.\n"
+                "Dê ao bot: **Ver canal + Enviar mensagens + Incorporar links**",
+                ephemeral=True,
+            )
+        except Exception as e:
+            await interaction.followup.send(f"❌ Erro ao enviar: `{e}`", ephemeral=True)
+
+    # ── member join / leave ───────────────────────────────────────────────────
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
@@ -250,37 +357,34 @@ class WebLogs(commands.Cog):
             embed.add_field(name="📊 Member count", value=str(member.guild.member_count), inline=True)
         if member.display_avatar:
             embed.set_thumbnail(url=member.display_avatar.url)
-            embed.set_author(name=str(member), icon_url=member.display_avatar.url)
-        embed.set_footer(text="Bova's Bot · Member Log")
+        embed.set_footer(text="Bova's Bot · Info Log")
         await self._send_embed(self._info_channel(), embed)
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
         if not self.config.get("member_leave"):
             return
-        roles = [r.mention for r in getattr(member, "roles", []) if r.name != "@everyone"][:10]
         embed = discord.Embed(
             title="🔴 Member Leave",
-            color=discord.Color.from_rgb(220, 60, 80),
+            description=f"{member} left the server",
+            color=discord.Color.from_rgb(220, 80, 80),
             timestamp=datetime.now(timezone.utc),
         )
-        embed.add_field(name="👤 User", value=f"`{member}`", inline=True)
-        embed.add_field(name="🆔 ID", value=f"`{member.id}`", inline=True)
-        if getattr(member, "joined_at", None):
+        embed.add_field(name="👤 User", value=f"`{member}`\n`{member.id}`", inline=True)
+        if member.joined_at:
             embed.add_field(
-                name="📥 Joined",
-                value=discord.utils.format_dt(member.joined_at, "R"),
+                name="📅 Joined",
+                value=f"{discord.utils.format_dt(member.joined_at, 'R')}",
                 inline=True,
             )
-        if roles:
-            embed.add_field(name="🏷️ Roles", value=" ".join(roles)[:500], inline=False)
         if member.guild:
-            embed.add_field(name="📊 Members now", value=str(member.guild.member_count), inline=True)
+            embed.add_field(name="📊 Member count", value=str(member.guild.member_count), inline=True)
         if member.display_avatar:
             embed.set_thumbnail(url=member.display_avatar.url)
-            embed.set_author(name=str(member), icon_url=member.display_avatar.url)
-        embed.set_footer(text="Bova's Bot · Member Log")
+        embed.set_footer(text="Bova's Bot · Info Log")
         await self._send_embed(self._info_channel(), embed)
+
+    # ── MESSAGE LOG (simple, always on) ───────────────────────────────────────
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -315,12 +419,14 @@ class WebLogs(commands.Cog):
         if avatar:
             embed.set_thumbnail(url=avatar)
         embed.set_footer(text="Bova's Bot · Message Log · Attachments may expire")
-        await self._send_embed(self._msg_log(), embed)
+
+        ch = await self._resolve_msg_log()
+        await self._send_embed(ch, embed)
 
     @commands.Cog.listener()
     async def on_message_delete(self, message: discord.Message):
         """Fires when the message is still in discord.py cache (full content)."""
-        if not self.config.get("message_delete") or not message.guild:
+        if not message.guild:
             return
         if message.author and message.author.bot:
             return
@@ -356,8 +462,6 @@ class WebLogs(commands.Cog):
     @commands.Cog.listener()
     async def on_raw_message_delete(self, payload: discord.RawMessageDeleteEvent):
         """Fallback when message is NOT in discord.py cache (uses our cache)."""
-        if not self.config.get("message_delete"):
-            return
         if not payload.guild_id:
             return
         if payload.channel_id == self._ignore_id():
@@ -398,7 +502,7 @@ class WebLogs(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_edit(self, before: discord.Message, after: discord.Message):
-        if not self.config.get("message_edit") or not before.guild:
+        if not before.guild:
             return
         if before.author and before.author.bot:
             return
@@ -469,8 +573,11 @@ class WebLogs(commands.Cog):
             embed.set_thumbnail(url=before.author.display_avatar.url)
 
         embed.set_footer(text="Bova's Bot · Message Log")
-        await self._send_embed(self._msg_log(), embed)
+        ch = await self._resolve_msg_log()
+        await self._send_embed(ch, embed)
         self._cache_put(after)
+
+    # ── channel create / delete ───────────────────────────────────────────────
 
     @commands.Cog.listener()
     async def on_guild_channel_create(self, channel: discord.abc.GuildChannel):
