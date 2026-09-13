@@ -19,6 +19,9 @@ CYBER_PINK = discord.Color.from_rgb(255, 60, 160)
 CYBER_GREEN = discord.Color.from_rgb(0, 255, 170)
 CYBER_RED = discord.Color.from_rgb(255, 40, 80)
 
+# Official Bova GIF (hosted on ImageKit)
+BOVA_GIF_URL = "https://ik.imagekit.io/BassaniStudios/bova.gif?updatedAt=1789321996082"
+
 
 def cyber_embed(title: str, description: str = "", color: discord.Color = CYBER_PURPLE) -> discord.Embed:
     embed = discord.Embed(
@@ -520,6 +523,50 @@ class Utilities(commands.Cog):
         await ch.send(message[:2000])
         await interaction.response.send_message("✅ Sent.", ephemeral=True)
 
+    @app_commands.command(name="bova", description="[STAFF] Post the official Bova's Bot GIF")
+    @app_commands.describe(channel="Channel (optional)")
+    @app_commands.checks.has_permissions(manage_messages=True)
+    async def bova(
+        self,
+        interaction: discord.Interaction,
+        channel: Optional[discord.TextChannel] = None,
+    ):
+        ch = channel or interaction.channel
+        if not isinstance(ch, discord.TextChannel):
+            await interaction.response.send_message("Canal inválido.", ephemeral=True)
+            return
+
+        embed = discord.Embed(color=CYBER_CYAN)
+        embed.set_image(url=BOVA_GIF_URL)
+        embed.set_footer(text="Bova's Bot")
+        await ch.send(embed=embed)
+        await interaction.response.send_message("✅ GIF enviado.", ephemeral=True)
+
+    @app_commands.command(name="bovasay", description="[STAFF] Post text + official Bova's Bot GIF")
+    @app_commands.describe(
+        message="Text to send with the GIF",
+        channel="Channel (optional)",
+    )
+    @app_commands.checks.has_permissions(manage_messages=True)
+    async def bovasay(
+        self,
+        interaction: discord.Interaction,
+        message: str,
+        channel: Optional[discord.TextChannel] = None,
+    ):
+        ch = channel or interaction.channel
+        if not isinstance(ch, discord.TextChannel):
+            await interaction.response.send_message("Canal inválido.", ephemeral=True)
+            return
+
+        embed = discord.Embed(
+            description=message[:4096],
+            color=CYBER_CYAN,
+        )
+        embed.set_image(url=BOVA_GIF_URL)
+        embed.set_footer(text="Bova's Bot")
+        await ch.send(embed=embed)
+        await interaction.response.send_message("✅ Mensagem + GIF enviados.", ephemeral=True)
 
 
 async def setup(bot: commands.Bot):
