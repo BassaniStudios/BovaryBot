@@ -5,7 +5,21 @@ The bot does **NOT** overwrite profile assets unless `APPLY_BOT_PROFILE=true`.
 
 Set banner and icon in: **Discord Developer Portal → Your App → Bot**.
 
-If the banner still reverts, check Render env is `APPLY_BOT_PROFILE=false` (or unset).
+### Animated avatar (GIF)
+A ready-to-use square GIF focused on the robot is included at:
+
+`assets/bovas_bot_avatar.gif`
+
+To apply it automatically on boot:
+
+```
+APPLY_BOT_PROFILE=true
+BOT_AVATAR_FILE=assets/bovas_bot_avatar.gif
+```
+
+You can also use a hosted URL with `BOT_AVATAR_URL=` instead.
+
+If the banner/avatar still reverts, check Render env is `APPLY_BOT_PROFILE=false` (or unset).
 
 ## Bio (Developer Portal → Application description)
 ```

@@ -38,6 +38,8 @@ intents.voice_states = True
 APPLY_BOT_PROFILE = os.getenv("APPLY_BOT_PROFILE", "false").lower() in ("1", "true", "yes")
 AVATAR_URL = os.getenv("BOT_AVATAR_URL", "")
 BANNER_URL = os.getenv("BOT_BANNER_URL", "")
+# Optional local GIF/PNG for avatar (takes priority over BOT_AVATAR_URL when set)
+AVATAR_FILE = os.getenv("BOT_AVATAR_FILE", "").strip()
 
 
 class BovaryBot(commands.Bot):
@@ -237,8 +239,21 @@ class BovaryBot(commands.Bot):
         try:
             import aiohttp
             kwargs = {}
+
+            # Local file takes priority (useful for the built-in assets/bovas_bot_avatar.gif)
+            if AVATAR_FILE:
+                path = Path(AVATAR_FILE)
+                if not path.is_file():
+                    # also try relative to project root
+                    path = Path(__file__).resolve().parent / AVATAR_FILE
+                if path.is_file():
+                    kwargs["avatar"] = path.read_bytes()
+                    logger.info("Using local avatar file: %s", path)
+                else:
+                    logger.warning("BOT_AVATAR_FILE not found: %s", AVATAR_FILE)
+
             async with aiohttp.ClientSession() as session:
-                if AVATAR_URL:
+                if "avatar" not in kwargs and AVATAR_URL:
                     async with session.get(AVATAR_URL) as resp:
                         if resp.status == 200:
                             kwargs["avatar"] = await resp.read()
