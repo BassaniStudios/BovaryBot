@@ -1,6 +1,6 @@
 """
 Bova's Bot — Official private bot of Bovary Club Society.
-Version: 2.7.19
+Version: 2.8.1
 """
 from __future__ import annotations
 
@@ -67,7 +67,8 @@ class BovaryBot(commands.Bot):
             "1424515636524220516,1384173136853078038,1425870476290428978,"
             "1424434022058033242,1384173137071177753,1424509207172087849,"
             "1424586421599076473,1425669117750284318,"
-            "1384173137071177752,1425230894641451059,1542185824173424650,1425297078816473109"
+            "1384173137071177752,1425230894641451059,1542185824173424650,"
+            "1425297078816473109,1537555862372094112"
         )
         # Hardcoded defaults are the production Bovary IDs. Prefer setting them
         # explicitly in the environment so other deployments do not accidentally
@@ -112,7 +113,7 @@ class BovaryBot(commands.Bot):
                 os.getenv("MEDIA_SCORE_CHANNEL_IDS", media_default)
             ),
             "INVITE_COOLDOWN_SECONDS": load_int_env("INVITE_COOLDOWN_SECONDS", 300) or 300,
-            "AUTO_REACTIONS": ["❤️", "🔥", "💯", "💥", "🎀"],
+            "AUTO_REACTIONS": ["😎", "🔥", "💥"],
             "PANEL_ACCESS_ROLE_ID": load_int_env("PANEL_ACCESS_ROLE_ID", 1542169549833773156),
             # Role allowed to call the HTTP API from the web panel
             "STAFF_API_ROLE_ID": load_int_env("STAFF_API_ROLE_ID", 1547647694997037137),
@@ -221,17 +222,21 @@ class BovaryBot(commands.Bot):
 
         logger.info("✅ %s está online! (v%s)", self.user, version)
 
-        # Validate critical privileged intents (Message Content + Members)
+        # Validate critical privileged intents (Message Content + Members).
+        # Member join/leave logging is driven by Discord's native Guild Members gateway events.
         try:
+            if not self.intents.members:
+                logger.error(
+                    "MEMBERS INTENT DISABLED IN CODE: native join/leave events cannot be received."
+                )
             if not self.intents.message_content:
                 logger.warning(
                     "INTENT WARNING: message_content is disabled. "
                     "Message Log, sticky, timestamp reminders and auto-reactions will be limited."
                 )
-            if not self.intents.members:
-                logger.warning(
-                    "INTENT WARNING: members is disabled. "
-                    "Join/leave logs, namehistory, welcome and staff role checks may fail."
+            if self.intents.members:
+                logger.info(
+                    "Members intent enabled: native member join/leave events are available."
                 )
         except Exception:
             logger.exception("Could not validate intents")

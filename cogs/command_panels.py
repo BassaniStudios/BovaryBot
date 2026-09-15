@@ -119,7 +119,7 @@ class CategoryHub(discord.ui.View):
                 "🔐 Staff tools",
                 (
                     "`/panel` — web panel link + key\n"
-                    "`/welcome_config` `/welcome_test`\n"
+                    "`/memberlog_test` — sample join/leave/kick/ban embeds\n"
                     "`/autorole_panel` `/autofeed_add`\n"
                     "`/delete` `/purge`\n"
                     "`/backup_now` `/db_status`\n"

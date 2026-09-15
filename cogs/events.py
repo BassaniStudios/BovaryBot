@@ -25,7 +25,7 @@ class Events(commands.Cog):
         return self.bot.config.get("CHANNEL_IDS", [])
 
     def _auto_reactions(self) -> list:
-        return self.bot.config.get("AUTO_REACTIONS", ["❤️", "🔥", "💯", "💥", "🎀"])
+        return self.bot.config.get("AUTO_REACTIONS", ["😎", "🔥", "💥"])
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):

@@ -61,14 +61,17 @@ BACKFILL_PER_CHANNEL = _backfill_per_channel()
 class WebLogs(commands.Cog):
     """
     Logs estruturados:
-    - Joins / leaves     → LOG_CHANNEL_ID
+    - Joins / leaves / kicks / bans / unbans → LOG_CHANNEL_ID (privado #id-info)
+      Uses Audit Log to distinguish voluntary leave vs kick vs ban.
+      Requires bot permission: View Audit Log.
     - Message edit/delete → MESSAGE_LOG_CHANNEL_ID ONLY (sempre ativo, estilo antigo)
     - Channel create/delete → WEBLOGS_CHANNEL_ID
     """
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        # Toggles only for non-message events (message log is always on)
+        # Member join/leave logs are native Discord gateway events and are always on.
+        # The legacy toggles are retained only for compatibility with old config files.
         self.config = load_json(FILE, {
             "member_join": True,
             "member_leave": True,
@@ -90,8 +93,57 @@ class WebLogs(commands.Cog):
     def _save(self):
         save_json(FILE, self.config)
 
-    def _info_channel(self) -> Optional[discord.abc.GuildChannel]:
-        return safe_get_channel(self.bot, self.bot.config.get("LOG_CHANNEL_ID"))
+    def _is_primary_guild(self, guild: Optional[discord.Guild]) -> bool:
+        if guild is None:
+            return False
+        configured = self.bot.config.get("GUILD_ID")
+        return not configured or int(configured) == guild.id
+
+    async def _resolve_info_channel(self, guild: discord.Guild) -> Optional[discord.abc.Messageable]:
+        """Resolve the Info channel from the guild itself, with API fallback.
+
+        Member events are server-native gateway events; this resolver only chooses
+        where the resulting embed is posted. It never depends on a slash command.
+        """
+        cid = self.bot.config.get("LOG_CHANNEL_ID")
+        if not cid:
+            logger.error("LOG_CHANNEL_ID is not configured; member event cannot be posted")
+            return None
+
+        channel = guild.get_channel(int(cid))
+        if channel is None:
+            channel = self.bot.get_channel(int(cid))
+        if channel is None:
+            # Server-native recovery: if the configured ID became stale because
+            # the member-info channel was recreated, locate it by name.
+            def _is_member_info_channel(ch: discord.abc.GuildChannel) -> bool:
+                name = getattr(ch, "name", "") or ""
+                lowered = name.casefold()
+                return (
+                    lowered == "📚┃id-member-info".casefold()
+                    or lowered == "id-member-info"
+                    or lowered.endswith("id-member-info")
+                    or lowered == "id-info"  # legacy
+                )
+
+            channel = discord.utils.find(
+                _is_member_info_channel,
+                getattr(guild, "text_channels", []),
+            )
+        if channel is None:
+            try:
+                channel = await guild.fetch_channel(int(cid))
+            except discord.NotFound:
+                logger.error("Info channel %s was not found in guild %s", cid, guild.id)
+                return None
+            except discord.Forbidden:
+                logger.error("Cannot access Info channel %s in guild %s", cid, guild.id)
+                return None
+            except discord.HTTPException as exc:
+                logger.error("Could not fetch Info channel %s: %s", cid, exc)
+                return None
+
+        return channel
 
     def _bot_room(self) -> Optional[discord.abc.GuildChannel]:
         return safe_get_channel(self.bot, self.bot.config.get("BOT_ROOM_CHANNEL_ID"))
@@ -424,10 +476,10 @@ class WebLogs(commands.Cog):
 
     # ── slash config ──────────────────────────────────────────────────────────
 
-    @app_commands.command(name="weblogs_config", description="Configure WebLogs toggles")
+    @app_commands.command(name="weblogs_config", description="Configure WebLogs compatibility settings")
     @app_commands.describe(
-        member_join="Log member joins to Info channel",
-        member_leave="Log member leaves to Info channel",
+        member_join="Legacy setting; member join logging is always active",
+        member_leave="Legacy setting; member leave logging is always active",
         message_delete="(informational — message log is always on)",
         message_edit="(informational — message log is always on)",
         channel_create="Log channel creation (weblogs channel)",
@@ -458,8 +510,8 @@ class WebLogs(commands.Cog):
         self._save()
         lines = [f"**{k}:** `{v}`" for k, v in self.config.items()]
         await interaction.response.send_message(
-            "✅ WebLogs toggles saved.\n"
-            "⚠️ Message delete/edit logs are **always active** (independent of toggles).\n"
+            "✅ WebLogs compatibility settings saved.\n"
+            "ℹ️ Member join/leave logs and message delete/edit logs are **always active**.\n"
             + "\n".join(lines),
             ephemeral=True,
         )
@@ -510,56 +562,605 @@ class WebLogs(commands.Cog):
         except Exception as e:
             await interaction.followup.send(f"❌ Erro ao enviar: `{e}`", ephemeral=True)
 
+    @app_commands.command(
+        name="memberlog_test",
+        description="Send sample join/leave/kick/ban embeds in the channel where you run this command",
+    )
+    @app_commands.describe(
+        kind="Which sample embed to send (default: all)",
+    )
+    @app_commands.choices(
+        kind=[
+            app_commands.Choice(name="All (join + leave + kick + ban + unban)", value="all"),
+            app_commands.Choice(name="Join only", value="join"),
+            app_commands.Choice(name="Leave only", value="leave"),
+            app_commands.Choice(name="Kick only", value="kick"),
+            app_commands.Choice(name="Ban only", value="ban"),
+            app_commands.Choice(name="Unban only", value="unban"),
+        ]
+    )
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def memberlog_test(
+        self,
+        interaction: discord.Interaction,
+        kind: Optional[app_commands.Choice[str]] = None,
+    ):
+        """Posts sample member-log embeds in the channel where the command is executed."""
+        if not interaction.guild or not isinstance(interaction.channel, discord.TextChannel):
+            await interaction.response.send_message(
+                "❌ Use this command inside a text channel of the server.",
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True)
+        target = interaction.channel
+        member = interaction.user
+        if not isinstance(member, discord.Member):
+            await interaction.followup.send("❌ Guild member required.", ephemeral=True)
+            return
+
+        choice = (kind.value if kind else "all").lower()
+        now = datetime.now(timezone.utc)
+        samples: list[discord.Embed] = []
+
+        def _base_member_fields(emb: discord.Embed) -> None:
+            emb.add_field(
+                name="👤 Member",
+                value=f"{member.mention}\n`{discord.utils.escape_markdown(str(member))}`",
+                inline=True,
+            )
+            emb.add_field(name="🆔 User ID", value=f"`{member.id}`", inline=True)
+            emb.add_field(
+                name="📊 Server members",
+                value=f"`{interaction.guild.member_count or '—'}`",
+                inline=True,
+            )
+            emb.set_thumbnail(url=member.display_avatar.url)
+            emb.set_footer(text="Bova's Bot · Member Log TEST (sample)")
+
+        if choice in ("all", "join"):
+            e = discord.Embed(
+                title="🟢 New Member Joined",
+                description=(
+                    f"{member.mention} **joined the server.**\n"
+                    f"Welcome to **{interaction.guild.name}**!\n\n"
+                    f"*This is a **TEST** embed — not a real join.*"
+                ),
+                color=discord.Color.from_rgb(80, 220, 120),
+                timestamp=now,
+            )
+            _base_member_fields(e)
+            e.add_field(
+                name="🤖 Account",
+                value="Bot account" if member.bot else "Human account",
+                inline=True,
+            )
+            e.add_field(name="📅 Account created", value=self._account_age_text(member), inline=False)
+            e.add_field(
+                name="🕒 Joined at",
+                value=discord.utils.format_dt(member.joined_at or now, "F"),
+                inline=True,
+            )
+            e.add_field(name="🏷️ Initial roles", value=self._role_summary(member), inline=False)
+            samples.append(e)
+
+        if choice in ("all", "leave"):
+            e = discord.Embed(
+                title="🔴 Member Left",
+                description=(
+                    f"**{discord.utils.escape_markdown(str(member))}** has left "
+                    f"**{interaction.guild.name}**.\n\n"
+                    f"*This is a **TEST** embed — not a real leave.*"
+                ),
+                color=discord.Color.from_rgb(220, 80, 80),
+                timestamp=now,
+            )
+            _base_member_fields(e)
+            joined_text = (
+                f"{discord.utils.format_dt(member.joined_at, 'F')}\n"
+                f"{discord.utils.format_dt(member.joined_at, 'R')}"
+                if member.joined_at
+                else "Unknown"
+            )
+            e.add_field(name="📅 Joined server", value=joined_text, inline=True)
+            e.add_field(name="⏱️ Time in server", value=self._membership_duration(member), inline=True)
+            e.add_field(name="🏷️ Roles at departure", value=self._role_summary(member), inline=False)
+            e.add_field(name="ℹ️ Event", value="Voluntary leave (TEST)", inline=False)
+            samples.append(e)
+
+        if choice in ("all", "kick"):
+            e = discord.Embed(
+                title="👢 Member Kicked",
+                description=(
+                    f"**{discord.utils.escape_markdown(str(member))}** was **kicked** from "
+                    f"**{interaction.guild.name}**.\n\n"
+                    f"*This is a **TEST** embed — not a real kick.*"
+                ),
+                color=discord.Color.from_rgb(255, 160, 40),
+                timestamp=now,
+            )
+            _base_member_fields(e)
+            e.add_field(name="⏱️ Time in server", value=self._membership_duration(member), inline=True)
+            e.add_field(name="🏷️ Roles at departure", value=self._role_summary(member), inline=False)
+            e.add_field(
+                name="🛡️ Moderator",
+                value=f"{member.mention} (`{member.id}`)\n`{discord.utils.escape_markdown(str(member))}`",
+                inline=True,
+            )
+            e.add_field(name="📝 Reason", value="*Sample reason (test)*", inline=True)
+            e.add_field(name="ℹ️ Event", value="Kick (Audit Log) · TEST", inline=False)
+            samples.append(e)
+
+        if choice in ("all", "ban"):
+            e = discord.Embed(
+                title="🔨 Member Banned",
+                description=(
+                    f"**{discord.utils.escape_markdown(str(member))}** was **banned** from "
+                    f"**{interaction.guild.name}**.\n\n"
+                    f"*This is a **TEST** embed — not a real ban.*"
+                ),
+                color=discord.Color.from_rgb(180, 30, 30),
+                timestamp=now,
+            )
+            _base_member_fields(e)
+            e.add_field(name="⏱️ Time in server", value=self._membership_duration(member), inline=True)
+            e.add_field(
+                name="🛡️ Moderator",
+                value=f"{member.mention} (`{member.id}`)\n`{discord.utils.escape_markdown(str(member))}`",
+                inline=True,
+            )
+            e.add_field(name="📝 Reason", value="*Sample reason (test)*", inline=True)
+            e.add_field(name="ℹ️ Event", value="Ban (Audit Log) · TEST", inline=False)
+            samples.append(e)
+
+        if choice in ("all", "unban"):
+            e = discord.Embed(
+                title="♻️ Member Unbanned",
+                description=(
+                    f"**{discord.utils.escape_markdown(str(member))}** was **unbanned** from "
+                    f"**{interaction.guild.name}**.\n\n"
+                    f"*This is a **TEST** embed — not a real unban.*"
+                ),
+                color=discord.Color.from_rgb(80, 180, 255),
+                timestamp=now,
+            )
+            _base_member_fields(e)
+            e.add_field(
+                name="🛡️ Moderator",
+                value=f"{member.mention} (`{member.id}`)\n`{discord.utils.escape_markdown(str(member))}`",
+                inline=True,
+            )
+            e.add_field(name="📝 Reason", value="*Sample reason (test)*", inline=True)
+            e.add_field(name="ℹ️ Event", value="Unban (Audit Log) · TEST", inline=False)
+            samples.append(e)
+
+        sent = 0
+        errors: list[str] = []
+        for emb in samples:
+            try:
+                await target.send(embed=emb)
+                sent += 1
+            except discord.Forbidden:
+                errors.append("Missing Send Messages / Embed Links in this channel")
+                break
+            except Exception as exc:
+                errors.append(str(exc))
+                break
+
+        if sent:
+            await interaction.followup.send(
+                f"✅ Sent **{sent}** sample embed(s) in {target.mention}.\n"
+                f"Kind: `{choice}`\n"
+                f"*(Real join/leave/kick/ban still go only to LOG_CHANNEL_ID / "
+                f"`📚┃id-member-info`.)*",
+                ephemeral=True,
+            )
+        else:
+            await interaction.followup.send(
+                f"❌ Could not send samples.\n" + ("\n".join(errors) or "Unknown error"),
+                ephemeral=True,
+            )
+
     # ── member join / leave ───────────────────────────────────────────────────
+
+    @staticmethod
+    def _account_age_text(member: discord.Member) -> str:
+        created = member.created_at
+        return f"{discord.utils.format_dt(created, 'F')}\n{discord.utils.format_dt(created, 'R')}"
+
+    @staticmethod
+    def _membership_duration(member: discord.Member) -> str:
+        if not member.joined_at:
+            return "Unknown"
+        now = datetime.now(timezone.utc)
+        delta = now - member.joined_at
+        days = delta.days
+        if days < 1:
+            hours = max(0, int(delta.total_seconds() // 3600))
+            return f"{hours}h"
+        years, rem = divmod(days, 365)
+        months, rem_days = divmod(rem, 30)
+        parts = []
+        if years:
+            parts.append(f"{years}y")
+        if months:
+            parts.append(f"{months}mo")
+        if rem_days or not parts:
+            parts.append(f"{rem_days}d")
+        return " ".join(parts)
+
+    @staticmethod
+    def _role_summary(member: discord.Member) -> str:
+        roles = [r for r in getattr(member, "roles", []) if r.name != "@everyone"]
+        if not roles:
+            return "@everyone"
+        names = [r.mention for r in roles[-12:]]
+        extra = len(roles) - len(names)
+        value = ", ".join(names)
+        if extra > 0:
+            value += f" + {extra} more"
+        return value[:1000]
+
+    async def _find_audit_action(
+        self,
+        guild: discord.Guild,
+        target_id: int,
+        *actions: discord.AuditLogAction,
+        max_age_seconds: float = 20.0,
+    ) -> Optional[discord.AuditLogEntry]:
+        """Look up a recent audit-log entry for the given target and actions.
+
+        Requires the bot to have the **View Audit Log** permission.
+        Returns the most recent matching entry within max_age_seconds, or None.
+        """
+        if not guild.me or not guild.me.guild_permissions.view_audit_log:
+            logger.warning(
+                "Missing View Audit Log permission in guild %s — cannot distinguish kick/ban",
+                guild.id,
+            )
+            return None
+
+        try:
+            now = datetime.now(timezone.utc)
+            # Fetch a small window; Discord returns newest first.
+            async for entry in guild.audit_logs(limit=12, oldest_first=False):
+                if entry.action not in actions:
+                    continue
+                if entry.target is None or getattr(entry.target, "id", None) != target_id:
+                    continue
+                created = entry.created_at
+                if created.tzinfo is None:
+                    created = created.replace(tzinfo=timezone.utc)
+                age = (now - created).total_seconds()
+                if age <= max_age_seconds:
+                    return entry
+                # Entries are ordered newest→oldest; stop once we pass the window.
+                if age > max_age_seconds * 2:
+                    break
+        except discord.Forbidden:
+            logger.warning("Forbidden reading audit log in guild %s", guild.id)
+        except Exception:
+            logger.exception("Failed to query audit log in guild %s", guild.id)
+        return None
+
+    def _moderator_text(self, entry: Optional[discord.AuditLogEntry]) -> str:
+        if not entry or not entry.user:
+            return "Unknown"
+        user = entry.user
+        return f"{user.mention} (`{user.id}`)\n`{discord.utils.escape_markdown(str(user))}`"
+
+    def _reason_text(self, entry: Optional[discord.AuditLogEntry]) -> str:
+        if not entry:
+            return "—"
+        reason = (entry.reason or "").strip()
+        return reason if reason else "*No reason provided*"
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
-        if not self.config.get("member_join"):
+        # Discord's Guild Members gateway event is the source of truth.
+        # Do not gate this on a custom toggle: the member log is a core server feature.
+        if member.bot or not self._is_primary_guild(member.guild):
             return
-        created = member.created_at
+
+        channel = await self._resolve_info_channel(member.guild)
+        if not channel:
+            return
+
         embed = discord.Embed(
-            title="🟢 Member Join",
-            description=f"Welcome {member.mention}",
+            title="🟢 New Member Joined",
+            description=(
+                f"{member.mention} **joined the server.**\n"
+                f"Welcome to **{member.guild.name}**!"
+            ),
             color=discord.Color.from_rgb(80, 220, 120),
             timestamp=datetime.now(timezone.utc),
         )
-        embed.add_field(name="👤 User", value=f"{member.mention}\n`{member}`", inline=True)
-        embed.add_field(name="🆔 ID", value=f"`{member.id}`", inline=True)
+        embed.add_field(
+            name="👤 Member",
+            value=f"{member.mention}\n`{discord.utils.escape_markdown(str(member))}`",
+            inline=True,
+        )
+        embed.add_field(name="🆔 User ID", value=f"`{member.id}`", inline=True)
+        embed.add_field(
+            name="🤖 Account",
+            value="Bot account" if member.bot else "Human account",
+            inline=True,
+        )
         embed.add_field(
             name="📅 Account created",
-            value=f"{discord.utils.format_dt(created, 'F')}\n({discord.utils.format_dt(created, 'R')})",
+            value=self._account_age_text(member),
             inline=False,
         )
-        if member.guild:
-            embed.add_field(name="📊 Member count", value=str(member.guild.member_count), inline=True)
-        if member.display_avatar:
-            embed.set_thumbnail(url=member.display_avatar.url)
-        embed.set_footer(text="Bova's Bot · Info Log")
-        await self._send_embed(self._info_channel(), embed)
+        embed.add_field(
+            name="📊 Server members",
+            value=f"`{member.guild.member_count or '—'}`",
+            inline=True,
+        )
+        embed.add_field(
+            name="🕒 Joined at",
+            value=discord.utils.format_dt(member.joined_at or datetime.now(timezone.utc), "F"),
+            inline=True,
+        )
+        embed.add_field(
+            name="🏷️ Initial roles",
+            value=self._role_summary(member),
+            inline=False,
+        )
+        embed.set_thumbnail(url=member.display_avatar.url)
+        embed.set_footer(text="Bova's Bot · Server Member Log · Discord Gateway")
+        await self._send_embed(channel, embed)
+        logger.info("MEMBER JOIN logged | guild=%s user=%s (%s)", member.guild.id, member.id, member)
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
-        if not self.config.get("member_leave"):
+        """Handles voluntary leave and kick. Ban is handled by on_member_ban."""
+        if not self._is_primary_guild(member.guild):
             return
+
+        channel = await self._resolve_info_channel(member.guild)
+        if not channel:
+            return
+
+        # Give Discord a moment to write the audit-log entry for kicks.
+        await asyncio.sleep(1.25)
+
+        kick_entry = await self._find_audit_action(
+            member.guild,
+            member.id,
+            discord.AuditLogAction.kick,
+            max_age_seconds=25.0,
+        )
+        # If a ban just happened, on_member_ban will log it; skip the generic leave.
+        ban_entry = await self._find_audit_action(
+            member.guild,
+            member.id,
+            discord.AuditLogAction.ban,
+            max_age_seconds=25.0,
+        )
+        if ban_entry:
+            logger.info(
+                "MEMBER REMOVE skipped (ban detected) | guild=%s user=%s",
+                member.guild.id,
+                member.id,
+            )
+            return
+
+        joined_text = (
+            f"{discord.utils.format_dt(member.joined_at, 'F')}\n"
+            f"{discord.utils.format_dt(member.joined_at, 'R')}"
+            if member.joined_at
+            else "Unknown"
+        )
+
+        if kick_entry:
+            title = "👢 Member Kicked"
+            description = (
+                f"**{discord.utils.escape_markdown(str(member))}** was **kicked** from "
+                f"**{member.guild.name}**."
+            )
+            color = discord.Color.from_rgb(255, 160, 40)
+            event_label = "Kick (Audit Log)"
+            logger.info(
+                "MEMBER KICK logged | guild=%s user=%s by %s",
+                member.guild.id,
+                member.id,
+                getattr(kick_entry.user, "id", "?"),
+            )
+        else:
+            title = "🔴 Member Left"
+            description = (
+                f"**{discord.utils.escape_markdown(str(member))}** has left "
+                f"**{member.guild.name}**."
+            )
+            color = discord.Color.from_rgb(220, 80, 80)
+            event_label = "Voluntary leave (or unknown)"
+            logger.info(
+                "MEMBER LEAVE logged | guild=%s user=%s (%s)",
+                member.guild.id,
+                member.id,
+                member,
+            )
+
         embed = discord.Embed(
-            title="🔴 Member Leave",
-            description=f"{member} left the server",
-            color=discord.Color.from_rgb(220, 80, 80),
+            title=title,
+            description=description,
+            color=color,
             timestamp=datetime.now(timezone.utc),
         )
-        embed.add_field(name="👤 User", value=f"`{member}`\n`{member.id}`", inline=True)
-        if member.joined_at:
+        embed.add_field(
+            name="👤 Member",
+            value=f"`{discord.utils.escape_markdown(str(member))}`\n{member.mention}",
+            inline=True,
+        )
+        embed.add_field(name="🆔 User ID", value=f"`{member.id}`", inline=True)
+        embed.add_field(
+            name="📊 Server members",
+            value=f"`{member.guild.member_count or '—'}`",
+            inline=True,
+        )
+        embed.add_field(name="📅 Joined server", value=joined_text, inline=True)
+        embed.add_field(
+            name="⏱️ Time in server",
+            value=self._membership_duration(member),
+            inline=True,
+        )
+        embed.add_field(
+            name="🏷️ Roles at departure",
+            value=self._role_summary(member),
+            inline=False,
+        )
+
+        if kick_entry:
             embed.add_field(
-                name="📅 Joined",
-                value=f"{discord.utils.format_dt(member.joined_at, 'R')}",
+                name="🛡️ Moderator",
+                value=self._moderator_text(kick_entry),
                 inline=True,
             )
-        if member.guild:
-            embed.add_field(name="📊 Member count", value=str(member.guild.member_count), inline=True)
-        if member.display_avatar:
-            embed.set_thumbnail(url=member.display_avatar.url)
-        embed.set_footer(text="Bova's Bot · Info Log")
-        await self._send_embed(self._info_channel(), embed)
+            embed.add_field(
+                name="📝 Reason",
+                value=self._reason_text(kick_entry),
+                inline=True,
+            )
+
+        embed.add_field(name="ℹ️ Event", value=event_label, inline=False)
+        embed.set_thumbnail(url=member.display_avatar.url)
+        embed.set_footer(text="Bova's Bot · Server Member Log · Audit Log")
+        await self._send_embed(channel, embed)
+
+    @commands.Cog.listener()
+    async def on_member_ban(self, guild: discord.Guild, user: discord.User | discord.Member):
+        if not self._is_primary_guild(guild):
+            return
+
+        channel = await self._resolve_info_channel(guild)
+        if not channel:
+            return
+
+        await asyncio.sleep(1.0)
+        ban_entry = await self._find_audit_action(
+            guild,
+            user.id,
+            discord.AuditLogAction.ban,
+            max_age_seconds=30.0,
+        )
+
+        member_like = user if isinstance(user, discord.Member) else None
+        joined_text = "Unknown"
+        duration = "Unknown"
+        roles = "—"
+        if member_like:
+            if member_like.joined_at:
+                joined_text = (
+                    f"{discord.utils.format_dt(member_like.joined_at, 'F')}\n"
+                    f"{discord.utils.format_dt(member_like.joined_at, 'R')}"
+                )
+            duration = self._membership_duration(member_like)
+            roles = self._role_summary(member_like)
+
+        embed = discord.Embed(
+            title="🔨 Member Banned",
+            description=(
+                f"**{discord.utils.escape_markdown(str(user))}** was **banned** from "
+                f"**{guild.name}**."
+            ),
+            color=discord.Color.from_rgb(180, 30, 30),
+            timestamp=datetime.now(timezone.utc),
+        )
+        embed.add_field(
+            name="👤 Member",
+            value=f"`{discord.utils.escape_markdown(str(user))}`\n{user.mention}",
+            inline=True,
+        )
+        embed.add_field(name="🆔 User ID", value=f"`{user.id}`", inline=True)
+        embed.add_field(
+            name="📊 Server members",
+            value=f"`{guild.member_count or '—'}`",
+            inline=True,
+        )
+        embed.add_field(name="📅 Joined server", value=joined_text, inline=True)
+        embed.add_field(name="⏱️ Time in server", value=duration, inline=True)
+        if roles != "—":
+            embed.add_field(name="🏷️ Roles at departure", value=roles, inline=False)
+
+        embed.add_field(
+            name="🛡️ Moderator",
+            value=self._moderator_text(ban_entry),
+            inline=True,
+        )
+        embed.add_field(
+            name="📝 Reason",
+            value=self._reason_text(ban_entry),
+            inline=True,
+        )
+        embed.add_field(name="ℹ️ Event", value="Ban (Audit Log)", inline=False)
+        embed.set_thumbnail(url=user.display_avatar.url)
+        embed.set_footer(text="Bova's Bot · Server Member Log · Audit Log")
+        await self._send_embed(channel, embed)
+        logger.info(
+            "MEMBER BAN logged | guild=%s user=%s by %s",
+            guild.id,
+            user.id,
+            getattr(ban_entry.user, "id", "?") if ban_entry else "?",
+        )
+
+    @commands.Cog.listener()
+    async def on_member_unban(self, guild: discord.Guild, user: discord.User):
+        if not self._is_primary_guild(guild):
+            return
+
+        channel = await self._resolve_info_channel(guild)
+        if not channel:
+            return
+
+        await asyncio.sleep(1.0)
+        unban_entry = await self._find_audit_action(
+            guild,
+            user.id,
+            discord.AuditLogAction.unban,
+            max_age_seconds=30.0,
+        )
+
+        embed = discord.Embed(
+            title="♻️ Member Unbanned",
+            description=(
+                f"**{discord.utils.escape_markdown(str(user))}** was **unbanned** from "
+                f"**{guild.name}**."
+            ),
+            color=discord.Color.from_rgb(80, 180, 255),
+            timestamp=datetime.now(timezone.utc),
+        )
+        embed.add_field(
+            name="👤 Member",
+            value=f"`{discord.utils.escape_markdown(str(user))}`\n{user.mention}",
+            inline=True,
+        )
+        embed.add_field(name="🆔 User ID", value=f"`{user.id}`", inline=True)
+        embed.add_field(
+            name="📊 Server members",
+            value=f"`{guild.member_count or '—'}`",
+            inline=True,
+        )
+        embed.add_field(
+            name="🛡️ Moderator",
+            value=self._moderator_text(unban_entry),
+            inline=True,
+        )
+        embed.add_field(
+            name="📝 Reason",
+            value=self._reason_text(unban_entry),
+            inline=True,
+        )
+        embed.add_field(name="ℹ️ Event", value="Unban (Audit Log)", inline=False)
+        embed.set_thumbnail(url=user.display_avatar.url)
+        embed.set_footer(text="Bova's Bot · Server Member Log · Audit Log")
+        await self._send_embed(channel, embed)
+        logger.info(
+            "MEMBER UNBAN logged | guild=%s user=%s by %s",
+            guild.id,
+            user.id,
+            getattr(unban_entry.user, "id", "?") if unban_entry else "?",
+        )
 
     # ── MESSAGE LOG (simple, always on) ───────────────────────────────────────
 
