@@ -62,14 +62,16 @@ class BovaryBot(commands.Bot):
         self._profile_applied = False
 
     def _load_config(self) -> dict:
+        # Canais de mídia com auto-react (✨ 🌟 💥 🎉). Lista atualizada 2026-09-15.
         media_default = (
-            "1384173879295213689,1384174586345816134,1424515140660760647,"
-            "1424515636524220516,1384173136853078038,1425870476290428978,"
-            "1424434022058033242,1384173137071177753,1424509207172087849,"
-            "1424586421599076473,1425669117750284318,"
-            "1384173137071177752,1425230894641451059,1542185824173424650,"
-            "1425297078816473109,1537555862372094112"
+            "1384173879295213689,1384174586345816134,1537555862372094112,"
+            "1424515140660760647,1425870476290428978,1532220539257622649,"
+            "1531071911499661352,1425669117750284318,1424509207172087849,"
+            "1384173136853078038,1384173136638906401,1541614511268831313,"
+            "1532045910073147412,1384173136638906403,1533492240343629865,"
+            "1533128981774340176,1545100118103949442,1384173137071177753"
         )
+        reactions_default = ["✨", "🌟", "💥", "🎉"]
         # Hardcoded defaults are the production Bovary IDs. Prefer setting them
         # explicitly in the environment so other deployments do not accidentally
         # use production channels.
@@ -79,6 +81,22 @@ class BovaryBot(commands.Bot):
             if os.getenv(key) is None or str(os.getenv(key, "")).strip() == "":
                 _hardcoded_defaults_used.append(key)
             return val
+
+        def _channel_list(key: str, default: str) -> list:
+            """Parse CHANNEL_IDS / MEDIA_SCORE…; empty env falls back to default."""
+            raw = os.getenv(key)
+            if raw is None or not str(raw).strip():
+                if raw is not None:
+                    _hardcoded_defaults_used.append(key)
+                return parse_channel_ids(default)
+            return parse_channel_ids(raw)
+
+        def _reactions_list() -> list:
+            raw = os.getenv("AUTO_REACTIONS")
+            if raw is None or not str(raw).strip():
+                return list(reactions_default)
+            parts = [p.strip() for p in raw.split(",") if p.strip()]
+            return parts or list(reactions_default)
 
         cfg = {
             "GUILD_ID": load_int_env("GUILD_ID", 1384173136085258292),  # main Bovary server (commands live here)
@@ -108,12 +126,10 @@ class BovaryBot(commands.Bot):
             "CREW_LEADER_ROLE_ID": load_int_env("CREW_LEADER_ROLE_ID", 1384173136177791048),
             "REQUIRED_INVITE_CHANNEL": load_int_env("REQUIRED_INVITE_CHANNEL", 1444094610157600859),
             "BOOST_CHANNEL_ID": load_int_env("BOOST_CHANNEL_ID", 1384173136638906407),
-            "CHANNEL_IDS": parse_channel_ids(os.getenv("CHANNEL_IDS", media_default)),
-            "MEDIA_SCORE_CHANNEL_IDS": parse_channel_ids(
-                os.getenv("MEDIA_SCORE_CHANNEL_IDS", media_default)
-            ),
+            "CHANNEL_IDS": _channel_list("CHANNEL_IDS", media_default),
+            "MEDIA_SCORE_CHANNEL_IDS": _channel_list("MEDIA_SCORE_CHANNEL_IDS", media_default),
             "INVITE_COOLDOWN_SECONDS": load_int_env("INVITE_COOLDOWN_SECONDS", 300) or 300,
-            "AUTO_REACTIONS": ["😎", "🔥", "💥"],
+            "AUTO_REACTIONS": _reactions_list(),
             "PANEL_ACCESS_ROLE_ID": load_int_env("PANEL_ACCESS_ROLE_ID", 1542169549833773156),
             # Role allowed to call the HTTP API from the web panel
             "STAFF_API_ROLE_ID": load_int_env("STAFF_API_ROLE_ID", 1547647694997037137),
