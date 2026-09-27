@@ -122,26 +122,14 @@ RESULTS = [
 # ---------------------------------------------------------------------------
 # Helpers — arcade visual
 # ---------------------------------------------------------------------------
-def _meter_ascii(level: int) -> str:
-    bars = [
-        "░░░░░░░░░░",
-        "█░░░░░░░░░",
-        "██░░░░░░░░",
-        "███░░░░░░░",
-        "████░░░░░░",
-        "█████░░░░░",
-        "██████░░░░",
-        "███████░░░",
-        "████████░░",
-        "█████████░",
-        "██████████",
-    ]
-    idx = max(0, min(level, 10))
-    return f"`[{bars[idx]}]`"
+def _meter_blocks(level: int) -> str:
+    """Emoji-style meter — more readable than pure ASCII."""
+    filled = max(0, min(level, 10))
+    empty = 10 - filled
+    return "▰" * filled + "▱" * empty
 
 
 def _arcade_frame(inner: str) -> str:
-    """Wrap text in a simple arcade-style code block frame."""
     return f"```\n{inner}\n```"
 
 
@@ -154,20 +142,20 @@ def build_result_embed(
     color = LEVEL_COLORS[result["color_idx"]]
 
     if anim_step is not None:
-        bar = _meter_ascii(anim_step)
+        meter = _meter_blocks(anim_step)
         machine = (
             "╔══════════════════════════════╗\n"
             "║     THE LOVE PROFESSOR       ║\n"
             "║   ░░ ANALYZING CHEMISTRY ░░  ║\n"
             "╠══════════════════════════════╣\n"
-            f"║  METER  {bar[1:-1]}  ║\n"
+            f"║  {meter}  ║\n"
             "╚══════════════════════════════╝"
         )
         embed = discord.Embed(
-            title="",
+            title="💘 THE LOVE PROFESSOR",
             description=(
                 f"{_arcade_frame(machine)}\n"
-                f"{user1.mention}  ×  {user2.mention}\n\n"
+                f"**{user1.display_name}**  ×  **{user2.display_name}**\n\n"
                 f"*Please wait while the machine calculates...*"
             ),
             color=ARCADE_COLOR,
@@ -177,38 +165,31 @@ def build_result_embed(
         embed.set_footer(text="◆ ARCADE CABINET · THE LOVE PROFESSOR ◆")
         return embed
 
-    bar = _meter_ascii(result["bar"])
-    machine = (
-        "╔══════════════════════════════╗\n"
-        "║     THE LOVE PROFESSOR       ║\n"
-        "║        ◆ RESULT ◆            ║\n"
-        "╠══════════════════════════════╣\n"
-        f"║  {result['emoji']} {result['name']:<22} ║\n"
-        f"║  METER  {bar[1:-1]}  ║\n"
-        "╚══════════════════════════════╝"
-    )
+    # Final result — title is the biggest text Discord allows in embeds
+    meter = _meter_blocks(result["bar"])
     embed = discord.Embed(
-        title="",
+        title=f"{result['emoji']}  {result['name'].upper()}",
         description=(
-            f"{_arcade_frame(machine)}\n"
-            f"{user1.mention}  ×  {user2.mention}\n\n"
-            f"*\"{result['quote']}\"*"
+            f"**{user1.mention}**  ×  **{user2.mention}**\n\n"
+            f"> ### ❝ {result['quote']} ❞\n\n"
+            f"**LOVE METER**\n"
+            f"`{meter}`  **{result['bar']}/10**"
         ),
         color=color,
         timestamp=datetime.now(timezone.utc),
     )
     embed.set_thumbnail(url=LOGO_URL)
-    embed.set_footer(text="◆ ARCADE CABINET · 100% SCIENTIFIC ◆")
+    embed.set_footer(text="◆ ARCADE CABINET · THE LOVE PROFESSOR · 100% SCIENTIFIC ◆")
     return embed
 
 
 def build_panel_embed(waiting_user: Optional[discord.abc.User] = None) -> discord.Embed:
     if waiting_user:
-        status_line = f"▶ WAITING  ·  {waiting_user.display_name[:18]}"
-        tip = "Click **Play Now** to join them!"
+        status = f"⏳ **WAITING** — {waiting_user.mention} is at the machine"
+        tip = "Click **Play Now** to join them and start the test!"
         color = ARCADE_GOLD
     else:
-        status_line = "▶ READY  ·  INSERT PLAYER"
+        status = "🟢 **READY** — Insert player"
         tip = "Click **Play Now** to step up to the machine."
         color = ARCADE_PINK
 
@@ -222,17 +203,16 @@ def build_panel_embed(waiting_user: Optional[discord.abc.User] = None) -> discor
         "║                                ║\n"
         "║   Ice Cold  ←——————→  Sizzlin' ║\n"
         "║                                ║\n"
-        f"║  {status_line:<30} ║\n"
-        "║                                ║\n"
         "╚════════════════════════════════╝"
     )
 
     embed = discord.Embed(
-        title="",
+        title="💘 THE LOVE PROFESSOR",
         description=(
             f"{_arcade_frame(cabinet)}\n"
+            f"{status}\n\n"
             f"{tip}\n\n"
-            f"**🎮 Play Now** — join the queue or match with whoever is waiting\n"
+            f"**🎮 Play Now** — join queue / match with whoever is waiting\n"
             f"**🚪 Cancel Wait** — leave the queue\n"
             f"**💘 Challenge Someone** — pick a specific person"
         ),
