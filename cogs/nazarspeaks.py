@@ -192,25 +192,12 @@ def build_fortune_embed(user: discord.abc.User, fortune: str) -> discord.Embed:
 
 
 def build_panel_embed() -> discord.Embed:
-    cabinet = (
-        "╔════════════════════════════════╗\n"
-        "║                                ║\n"
-        "║         NAZAR SPEAKS           ║\n"
-        "║   ─────────────────────────    ║\n"
-        "║   Madam Nazar sees all.        ║\n"
-        "║   Insert your fate.            ║\n"
-        "║                                ║\n"
-        "║   ✦  The veil is thin...  ✦    ║\n"
-        "║                                ║\n"
-        "╚════════════════════════════════╝"
-    )
     embed = discord.Embed(
         title="🔮 NAZAR SPEAKS",
         description=(
-            f"{_arcade_frame(cabinet)}\n"
-            f"🟢 **READY** — The machine awaits\n\n"
-            f"Click **Consult Madam Nazar** to receive a fortune.\n\n"
-            f"**🔮 Consult Madam Nazar** — receive a vision of the future"
+            "🟢 **READY** — The machine awaits\n\n"
+            "Click **Consult Madam Nazar** to receive a fortune.\n\n"
+            "**🔮 Consult Madam Nazar** — receive a vision of the future"
         ),
         color=MYSTIC_PURPLE,
     )
