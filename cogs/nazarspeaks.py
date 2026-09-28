@@ -85,6 +85,21 @@ FORTUNES = [
     "Ah yes, the mists clear...",
     "Come closer, let me see you.",
     "The future is open to me.",
+    "I see Bovary again... You know the ones I mean. Yes, you. Don't pretend you don't.",
+    "Bovary... such a strange name. I have seen it written many times, yet I have never seen it in my cards.",
+    "I see Bovary gathering once more. You call it a meet... I call it a ritual. Perhaps you should be more careful with your invitations.",
+    "I see the people of Bovary driving through Los Santos. They believe they are choosing the road... but someone else is choosing it for them.",
+    "I see Bovary written across the screen. Strange... I wonder who is reading this.",
+    "I see an old Bovary gathering. Some of you remember the beginning. Others were not there... yet somehow, the story remembers you.",
+    "I see Bovary waiting for its next gathering. Do not ask me when it will happen. You already know the answer.",
+    "I see the Bovary circle growing again. New faces, old names... and someone behind the screen who thinks I cannot see them.",
+    "I see Bovary beneath the stars. Beautiful machines, familiar voices... and a watcher who has been here since the beginning.",
+    "I see Bovary leaving Los Santos for a moment. No, do not follow them. This vision was not meant for you.",
+    "I see the Bovary name appearing where it should not. On roads, in garages, in photographs... even in places you have not yet visited.",
+    "I see Bovary preparing another gathering. You may call it an event... but the cards insist there is more to it.",
+    "I see Bovary in my cards again. This is becoming quite repetitive... perhaps you should give me something new to predict.",
+    "I see Bovary's story continuing. You thought the old days were finished? How amusing... the cards disagree.",
+    "I see you looking for Bovary in the future. Do not worry... Bovary is looking for you too.",
 ]
 
 
@@ -172,7 +187,6 @@ def build_fortune_embed(user: discord.abc.User, fortune: str) -> discord.Embed:
         timestamp=datetime.now(timezone.utc),
     )
     embed.set_thumbnail(url=LOGO_URL)
-    embed.set_image(url=LOGO_URL)
     embed.set_footer(text="◆ ARCADE CABINET · NAZAR SPEAKS · THE FUTURE IS OPEN ◆")
     return embed
 
@@ -214,7 +228,7 @@ async def run_fortune(
     *,
     reply_to: Optional[discord.Message] = None,
 ) -> discord.Message:
-    """Run mystical animation + final fortune. Returns the result message."""
+    """Run mystical animation + final fortune. The fortune message never shows the panel GIF."""
     fortune = random.choice(FORTUNES)
 
     anim_embed = build_anim_embed(user, step=0)
@@ -278,7 +292,13 @@ class NazarPanelView(discord.ui.View):
         self.cog._set_cooldown(user.id)
         await interaction.response.defer()
 
-        await run_fortune(interaction.channel, user)
+        # Move the sticky panel out of the way first. The consultation is then
+        # posted immediately before the refreshed panel, keeping the panel last.
+        fortune_msg = await self.cog._consult_from_panel(interaction.channel, user)
+
+        # Keep the revealed fortune permanently. The refreshed sticky panel
+        # is posted immediately after it, so the fortune remains the
+        # penultimate message and the panel stays at the bottom of the channel.
 
 
 # ---------------------------------------------------------------------------
@@ -293,6 +313,7 @@ class NazarSpeaks(commands.Cog):
         self._panel_view: Optional[NazarPanelView] = None
         self._panel_message_id: Optional[int] = None
         self._sticky_lock = False
+        self._panel_operation_lock = asyncio.Lock()
         self._load_panel_state()
 
     def _load_panel_state(self) -> None:
@@ -319,6 +340,43 @@ class NazarSpeaks(commands.Cog):
         self.bot.add_view(self._panel_view)
         logger.info("NazarSpeaks persistent panel view registered")
 
+    async def _delete_current_panel(self, channel: discord.abc.Messageable) -> None:
+        """Delete the currently stored sticky panel, if it still exists."""
+        if not self._panel_message_id:
+            return
+        try:
+            old = await channel.fetch_message(self._panel_message_id)
+            await old.delete()
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+            pass
+        finally:
+            self._panel_message_id = None
+            self._save_panel_state()
+
+    async def _post_panel(self, channel: discord.abc.Messageable) -> discord.Message:
+        """Post a fresh persistent panel and store its message ID."""
+        view = NazarPanelView(self)
+        self._panel_view = view
+        self.bot.add_view(view)
+        msg = await channel.send(embed=build_panel_embed(), view=view)
+        self._panel_message_id = msg.id
+        self._save_panel_state()
+        return msg
+
+    async def _consult_from_panel(
+        self, channel: discord.abc.Messageable, user: discord.abc.User
+    ) -> discord.Message:
+        """Show a fortune and restore the sticky panel directly underneath it.
+
+        The fortune is intentionally kept in the channel; the panel is always
+        reposted as the final message.
+        """
+        async with self._panel_operation_lock:
+            await self._delete_current_panel(channel)
+            fortune_msg = await run_fortune(channel, user)
+            await self._post_panel(channel)
+            return fortune_msg
+
     # ------------------------------------------------------------------
     # Sticky behaviour — keep panel at the bottom of the channel
     # ------------------------------------------------------------------
@@ -335,22 +393,10 @@ class NazarSpeaks(commands.Cog):
 
         self._sticky_lock = True
         try:
-            channel = message.channel
-            try:
-                old = await channel.fetch_message(self._panel_message_id)
-                await old.delete()
-            except (discord.NotFound, discord.Forbidden, discord.HTTPException):
-                pass
-
-            view = NazarPanelView(self)
-            self._panel_view = view
-            self.bot.add_view(view)
-            new_msg = await channel.send(
-                embed=build_panel_embed(),
-                view=view,
-            )
-            self._panel_message_id = new_msg.id
-            self._save_panel_state()
+            async with self._panel_operation_lock:
+                channel = message.channel
+                await self._delete_current_panel(channel)
+                await self._post_panel(channel)
         except Exception:
             logger.exception("NazarSpeaks sticky repost failed")
         finally:
