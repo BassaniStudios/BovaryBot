@@ -105,6 +105,7 @@ class BovaryBot(commands.Bot):
             # General WebLogs channel (channel/admin events). Message edit/delete logs stay separate.
             "WEBLOGS_CHANNEL_ID": _chan("WEBLOGS_CHANNEL_ID", 1548153354675556412),
             "BOT_ROOM_CHANNEL_ID": _chan("BOT_ROOM_CHANNEL_ID", 1424436722984423529),
+            "NAME_HISTORY_LOG_CHANNEL_ID": _chan("NAME_HISTORY_LOG_CHANNEL_ID", 1441663299065217114),
             # Auto backup of SQLite to a Discord channel (Render free mitigation)
             "BACKUP_CHANNEL_ID": _chan("BACKUP_CHANNEL_ID", 1548438716391890994),  # home server backup room
             "BACKUP_GUILD_ID": load_int_env("BACKUP_GUILD_ID", 1426594245510430903),  # casa = backup only (NO commands)
@@ -237,21 +238,52 @@ class BovaryBot(commands.Bot):
         primary_role = int(self.config.get("PANEL_ACCESS_ROLE_ID") or 1542169549833773156)
         special_roles = {1384173136177791048, 1547647694997037137}
         special_prefixes = ("nazarspeaks_", "loveprofessor_")
+        # Commands additionally exposed to the two special staff roles.
+        # Those roles may use these commands only in the approved staff/log rooms.
+        special_channel_commands = {
+            "meet", "stats", "topmedia", "timestamp_reminder_config",
+            "timestamp_reminder_status", "ping", "info", "timestamp",
+            "help", "peak_hours", "userinfo",
+        }
+        special_allowed_channels = {
+            1540532050531061921,
+            1538739212088516678,
+            1547032601519329300,
+            1427794118440124567,
+            1384173137985540230,
+            1548188378623778847,
+            1548153354675556412,
+            1426755523797057536,
+        }
 
         async def role_check(interaction: discord.Interaction) -> bool:
             member = interaction.user
             if not isinstance(member, discord.Member):
                 raise discord.app_commands.CheckFailure("Guild member context required.")
             role_ids = {r.id for r in member.roles}
-            qualified = getattr(interaction.command, "qualified_name", "") or getattr(interaction.command, "name", "")
-            allowed = primary_role in role_ids
-            if qualified.startswith(special_prefixes):
-                allowed = allowed or bool(role_ids & special_roles)
-            if not allowed:
+            command_name = getattr(interaction.command, "qualified_name", "") or getattr(interaction.command, "name", "")
+
+            # Primary staff role has unrestricted slash-command access.
+            if primary_role in role_ids:
+                return True
+
+            # Nazar Speaks / Love Professor are explicitly available to the two
+            # special roles and are not subject to the log-room restriction.
+            if command_name.startswith(special_prefixes) and role_ids & special_roles:
+                return True
+
+            # The additional utility/stat/log commands are available to the two
+            # special roles, but only inside the approved channels.
+            if command_name in special_channel_commands and role_ids & special_roles:
+                if interaction.channel_id in special_allowed_channels:
+                    return True
                 raise discord.app_commands.CheckFailure(
-                    "Este slash command é restrito aos cargos autorizados."
+                    "Este comando só pode ser usado nos canais autorizados para os cargos especiais."
                 )
-            return True
+
+            raise discord.app_commands.CheckFailure(
+                "Este slash command é restrito aos cargos autorizados."
+            )
 
         # CommandTree exposes this hook before dispatching any application command.
         # Assigning the coroutine on the instance keeps the policy attached even

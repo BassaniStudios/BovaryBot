@@ -242,7 +242,7 @@ def health():
     loops = {}
     try:
         if _bot:
-            for name in ("Backup", "AutoFeeds", "TimestampReminders", "Meets"):
+            for name in ("Backup", "TimestampReminders", "Meets"):
                 cog = _bot.get_cog(name)
                 if not cog:
                     continue
@@ -382,65 +382,6 @@ def api_meet():
     except Exception as e:
         logger.exception("api_meet")
         return jsonify({"error": str(e)}), 500
-
-
-@app.post("/api/autofeed")
-@require_auth
-def api_autofeed():
-    data = request.get_json(force=True, silent=True) or {}
-    if not data.get("message") or not data.get("channel_id"):
-        return jsonify({"error": "message and channel_id required"}), 400
-
-    async def _add():
-        cog = _bot.get_cog("AutoFeeds")
-        if not cog:
-            raise RuntimeError("AutoFeeds cog not loaded")
-        from utils.helpers import SERVER_TZ
-        now = datetime.now(timezone.utc)
-        mode = data.get("mode", "interval")
-        fixed_hour = data.get("fixed_hour")
-        fixed_minute = int(data.get("fixed_minute", 0))
-        if mode == "fixed" and fixed_hour is not None:
-            next_unix = cog._next_fixed(int(fixed_hour), fixed_minute)
-            mode = "fixed"
-        else:
-            start_in = int(data.get("start_in_minutes", 5))
-            next_unix = now.timestamp() + start_in * 60
-            mode = "interval"
-        feed = {
-            "id": int(now.timestamp() * 1000) % 10_000_000,
-            "message": data["message"],
-            "channel_id": int(data["channel_id"]),
-            "role_id": int(data["role_id"]) if data.get("role_id") else None,
-            "interval_minutes": int(data.get("interval_minutes", 1440)),
-            "mode": mode,
-            "fixed_hour": int(fixed_hour) if fixed_hour is not None else None,
-            "fixed_minute": fixed_minute if fixed_hour is not None else None,
-            "next_unix": next_unix,
-            "enabled": True,
-            "use_embed": bool(data.get("use_embed")),
-            "embed_title": data.get("embed_title"),
-            "embed_image": data.get("embed_image"),
-            "embed_color": 0xB450FF,
-        }
-        cog.feeds.append(feed)
-        cog._save()
-        return {"ok": True, "id": feed["id"], "next_unix": next_unix}
-
-    try:
-        return jsonify(_run(_add()))
-    except Exception as e:
-        logger.exception("api_autofeed")
-        return jsonify({"error": str(e)}), 500
-
-
-@app.get("/api/autofeeds")
-@require_auth
-def api_autofeeds_list():
-    cog = _bot.get_cog("AutoFeeds") if _bot else None
-    if not cog:
-        return jsonify({"feeds": []})
-    return jsonify({"feeds": cog.feeds})
 
 
 @app.get("/api/stats/summary")

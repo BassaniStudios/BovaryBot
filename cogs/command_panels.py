@@ -120,7 +120,6 @@ class CategoryHub(discord.ui.View):
                 (
                     "`/panel` — web panel link + key\n"
                     "`/memberlog_test` — sample join/leave/kick/ban embeds\n"
-                    "`/autofeed_add` `/autofeed_list` `/autofeed_remove` `/autofeed_toggle`\n"
                     "`/delete` `/purge`\n"
                     "`/backup_now` `/db_status`\n"
                     "`/sticky_set` `/cmd_add`\n"
@@ -147,6 +146,7 @@ class CommandPanels(commands.Cog):
             description=(
                 "A central map of the bot's current systems.\n\n"
                 "🔐 **Slash access:** restricted by the bot's staff-role policy.\n"
+                "👁️ **Result visibility:** supported report commands can use **Somente você** or **Publicar no canal**.\n"
                 "🎫 **Member panels:** Invite requests, Tickets/Suggestions/Reports, Birthdays and arcade panels continue to work through buttons and modals.\n"
                 "🛡️ **Background systems:** logging, AutoMod monitoring, timestamp reminders, statistics and activity tracking run independently of slash access."
             ),
@@ -155,12 +155,12 @@ class CommandPanels(commands.Cog):
         )
         embed.add_field(
             name="🛠️ Core & Utilities",
-            value="`/ping` `/info` `/timestamp` `/help` `/panel` `/avatar` `/servericon` `/membercount` `/userinfo` `/serverinfo` `/say` `/bova` `/bovasay`",
+            value="`/ping` `/info` `/timestamp` `/help` `/panel` `/avatar` `/servericon` `/membercount` `/userinfo` `/serverinfo` `/say` `/bova`",
             inline=False,
         )
         embed.add_field(
             name="📅 Community Operations",
-            value="`/invitepanel` · `/meet` · `/poll` `/poll_end` `/poll_list` · `/ticket_panel` `/ticket_setup` `/ticket_list` · birthdays · AutoFeeds",
+            value="`/invitepanel` · `/meet` · `/poll` `/poll_end` `/poll_list` · `/ticket_panel` `/ticket_setup` `/ticket_list` · birthdays",
             inline=False,
         )
         embed.add_field(
@@ -170,7 +170,7 @@ class CommandPanels(commands.Cog):
         )
         embed.add_field(
             name="🕵️ Advanced Audit",
-            value="`/member_activity` `/member_invites` `/automod_activity` `/member_time` `/chat_ranking` `/media_ranking` `/role_diff` `/permission_audit` `/mass_action_alert` `/msg_stats` `/log_health` `/guild_snapshot` `/investigate` `/who_deleted` `/peak_hours`",
+            value="`/member_activity` `/member_invites` `/automod_activity` `/chat_ranking` `/media_ranking` `/role_diff` `/permission_audit` `/mass_action_alert` `/msg_stats` `/log_health` `/guild_snapshot` `/investigate` `/who_deleted` `/peak_hours`",
             inline=False,
         )
         embed.add_field(
@@ -180,7 +180,7 @@ class CommandPanels(commands.Cog):
         )
         embed.add_field(
             name="🚫 Removed from the current command set",
-            value="Auto-Role · Welcome DM · `/boost_config`",
+            value="Auto-Role · Welcome DM · `/boost_config` · AutoFeeds · `/bovasay` · `/member_time` (all removed)",
             inline=False,
         )
         embed.set_footer(text="Bova's Bot · Operations Hub")

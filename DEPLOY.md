@@ -22,7 +22,6 @@ Slash commands sync automatically (`GUILD_ID` makes sync faster).
 - `data/cooldowns.json`
 - `data/meets.json`
 - `data/stats.json`
-- `data/autofeeds.json`
 - `data/boost.json`
 - `data/tickets.json`
 - `data/weblogs.json`
@@ -63,7 +62,6 @@ If using `keep_alive.py`: `GET /health` returns JSON `{ status, uptime_seconds }
 ## 4. Common workflows
 **Meet:** `/meet` with date_time `DD/MM/YYYY HH:MM` (São Paulo)  
 **Tickets:** `/ticket_setup` → `/ticket_panel`  
-**Auto-feed:** `/autofeed_add` (interval or `fixed_hour` + optional `use_embed:True`)  
 **Logs toggles:** `/weblogs_config`
 
 ---

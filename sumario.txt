@@ -1,13 +1,12 @@
 ================================================================================
-BOVA'S BOT — v2.9.0  (2026-09-28)
+BOVA'S BOT — v2.9.1  (2026-09-28)
 ================================================================================
 
-VERSION FOLDER NAME: BovaryBot-v2.9.0
+VERSION FOLDER NAME: BovaryBot-v2.9.1
 
 WHAT'S NEW IN 2.2
 -----------------
 - HTTP API on the same Render process (api.py + Flask + flask-cors)
-- Web panel can POST embed / meet / autofeed (Auto-Role panel removed)
 - Auth: X-API-Key + X-Discord-User-Id with role STAFF_API_ROLE_ID
   default role: 1547647694997037137 (or administrator)
 - APPLY_BOT_PROFILE=false by default → banner/avatar no longer overwritten
@@ -26,8 +25,6 @@ Routes:
   GET  /health
   POST /api/embed
   POST /api/meet
-  POST /api/autofeed
-  GET  /api/autofeeds
   GET  /api/stats/summary
   GET  /api/namehistory
 
@@ -73,6 +70,7 @@ LOG CHANNELS (unchanged)
 ================================================================================
 Joins/leaves     → LOG_CHANNEL_ID (Info)
 Names/registry   → BOT_ROOM_CHANNEL_ID
+Name changes     → NAME_HISTORY_LOG_CHANNEL_ID (1441663299065217114)
 Msg delete/edit  → MESSAGE_LOG_CHANNEL_ID
 Boost thank-you  → configured in boost.json (no slash config command)
 
@@ -90,5 +88,10 @@ END
 - Nazar Speaks + Love Professor also allow roles 1384173136177791048 and 1547647694997037137.
 - Added advanced staff audit/activity tools, AutoMod monitoring, invite history, rankings, mass-action alerts and snapshots.
 - Timestamp reminder trigger tightened to a ±45 second window around the configured offset.
-- `/bova` and `/bovasay` now post the GIF inside an embed using a non-transparent GIF asset to avoid Discord transparency aliasing.
+- `/bova` posts the official GIF inside an embed using a non-transparent GIF asset to avoid Discord transparency aliasing; `/bovasay` was removed.
 - Member-facing buttons/components are not affected by slash-command role restrictions.
+- Removed all AutoFeed commands/cog/API routes and the AutoFeed panel button.
+- Removed `/bovasay` and `/member_time`.
+- Query/report commands now offer `Somente você` or `Publicar no canal`; public mode posts the result in the command channel as an embed where applicable.
+- Roles 1384173136177791048 and 1547647694997037137 can use `/meet`, `/stats`, `/topmedia`, timestamp reminders, `/ping`, `/info`, `/timestamp`, `/help`, `/peak_hours` and `/userinfo` only in the eight approved channels.
+- Name-change logs now go to 1441663299065217114.

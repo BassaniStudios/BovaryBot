@@ -36,6 +36,10 @@ class NameHistory(commands.Cog):
     def _bot_room(self) -> Optional[discord.abc.GuildChannel]:
         return safe_get_channel(self.bot, self.bot.config.get("BOT_ROOM_CHANNEL_ID"))
 
+    def _name_change_log(self) -> Optional[discord.abc.GuildChannel]:
+        # Nickname/username changes have their own dedicated log destination.
+        return safe_get_channel(self.bot, self.bot.config.get("NAME_HISTORY_LOG_CHANNEL_ID", 1441663299065217114))
+
     def _ensure_member(self, member: discord.Member) -> Dict[str, Any]:
         key = str(member.id)
         members = self.data.setdefault("members", {})
@@ -115,7 +119,7 @@ class NameHistory(commands.Cog):
         entry["avatar_url"] = str(after.display_avatar.url) if after.display_avatar else None
         self._save()
 
-        channel = self._bot_room()
+        channel = self._name_change_log()
         if channel:
             lines = []
             if before_user != after_user:

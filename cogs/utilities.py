@@ -14,6 +14,14 @@ from utils.helpers import SERVER_TZ, tz_from_offset
 
 logger = logging.getLogger("bovary_bot.utilities")
 
+VISIBILITY_CHOICES = [
+    app_commands.Choice(name="Somente você", value="private"),
+    app_commands.Choice(name="Publicar no canal", value="channel"),
+]
+
+def is_public(visibility: str) -> bool:
+    return visibility == "channel"
+
 CYBER_PURPLE = discord.Color.from_rgb(180, 80, 255)
 CYBER_CYAN = discord.Color.from_rgb(0, 220, 255)
 CYBER_PINK = discord.Color.from_rgb(255, 60, 160)
@@ -133,20 +141,6 @@ class MainPanelView(discord.ui.View):
         )
         await interaction.response.edit_message(embed=embed, view=BackOnly(self.bot))
 
-    @discord.ui.button(label="◈ AUTO FEEDS", style=discord.ButtonStyle.secondary, row=3)
-    async def af_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        embed = cyber_embed(
-            title="◈ AUTO FEEDS",
-            description="Scheduled messages — interval or fixed daily time · plain or embed.",
-            color=CYBER_GREEN,
-        )
-        embed.add_field(
-            name="▸ Commands",
-            value="`/autofeed_add` `/autofeed_list` `/autofeed_remove` `/autofeed_toggle`",
-            inline=False,
-        )
-        await interaction.response.edit_message(embed=embed, view=BackOnly(self.bot))
-
     @discord.ui.button(label="◈ WEBLOGS", style=discord.ButtonStyle.secondary, row=4)
     async def wl_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         embed = cyber_embed(
@@ -207,17 +201,19 @@ class Utilities(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="ping", description="Show bot latency")
-    async def ping(self, interaction: discord.Interaction):
+    @app_commands.choices(visibility=VISIBILITY_CHOICES)
+    async def ping(self, interaction: discord.Interaction, visibility: str = "private"):
         latency = round(self.bot.latency * 1000)
         embed = cyber_embed(
             title="◈ PONG",
             description=f"```ansi\n\u001b[0;32m> LATENCY: {latency}ms\n```",
             color=CYBER_GREEN,
         )
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=embed, ephemeral=not is_public(visibility))
 
     @app_commands.command(name="info", description="Bot, server and user information")
-    async def info(self, interaction: discord.Interaction):
+    @app_commands.choices(visibility=VISIBILITY_CHOICES)
+    async def info(self, interaction: discord.Interaction, visibility: str = "private"):
         bot_user = interaction.client.user
         server = interaction.guild
         user = interaction.user
@@ -244,18 +240,21 @@ class Utilities(commands.Cog):
             value=f"**Name:** {user.display_name}\n**ID:** `{user.id}`",
             inline=False,
         )
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=embed, ephemeral=not is_public(visibility))
 
     @app_commands.command(name="timestamp", description="Generate a Discord timestamp")
+    @app_commands.choices(visibility=VISIBILITY_CHOICES)
     @app_commands.describe(
         date_time="DD/MM/YYYY HH:MM or DD/MM/YYYY. Empty = now.",
         timezone_offset="UTC offset hours (default -3 = São Paulo)",
+        visibility="How the result should be shown",
     )
     async def timestamp(
         self,
         interaction: discord.Interaction,
         date_time: Optional[str] = None,
         timezone_offset: float = -3.0,
+        visibility: str = "private",
     ):
         try:
             tz = tz_from_offset(timezone_offset)
@@ -272,7 +271,7 @@ class Utilities(commands.Cog):
                 else:
                     await interaction.response.send_message(
                         "❌ Invalid format. Use `DD/MM/YYYY HH:MM` or `DD/MM/YYYY`.",
-                        ephemeral=True,
+                        ephemeral=not is_public(visibility),
                     )
                     return
                 dt = dt.replace(tzinfo=tz)
@@ -291,17 +290,18 @@ class Utilities(commands.Cog):
                 ),
                 inline=False,
             )
-            await interaction.response.send_message(embed=embed)
+            await interaction.response.send_message(embed=embed, ephemeral=not is_public(visibility))
         except Exception as e:
             logger.exception("timestamp error")
-            await interaction.response.send_message(f"❌ Error: `{e}`", ephemeral=True)
+            await interaction.response.send_message(f"❌ Error: `{e}`", ephemeral=not is_public(visibility))
 
     @app_commands.command(name="help", description="Bova's Bot cyberpunk control panel")
-    async def help_command(self, interaction: discord.Interaction):
+    @app_commands.choices(visibility=VISIBILITY_CHOICES)
+    async def help_command(self, interaction: discord.Interaction, visibility: str = "private"):
         await interaction.response.send_message(
             embed=_main_embed(),
             view=MainPanelView(self.bot),
-            ephemeral=True,
+            ephemeral=not is_public(visibility),
         )
 
     @app_commands.command(name="panel", description="[STAFF] Get the web panel link (role-restricted)")
@@ -336,7 +336,7 @@ class Utilities(commands.Cog):
                 f"**Link:** {panel_url}\n\n"
                 "▸ Enter the panel access key on the panel login screen. It is intentionally not displayed here.\n"
                 "▸ Sidebar modules: Dashboard · Embed · Meets · Timestamp\n"
-                "▸ Auto Feeds · Tickets · WebLogs · Stats · Commands · Audit Tools\n"
+                "▸ Tickets · WebLogs · Stats · Commands · Audit Tools\n"
                 "▸ Keep link and key private\n"
                 "▸ API: set Render URL in panel config.js (BOVA_API.baseUrl)"
             ),
@@ -378,10 +378,11 @@ class Utilities(commands.Cog):
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="userinfo", description="Detailed user info")
-    @app_commands.describe(user="User (optional)")
-    async def userinfo(self, interaction: discord.Interaction, user: Optional[discord.Member] = None):
+    @app_commands.choices(visibility=VISIBILITY_CHOICES)
+    @app_commands.describe(user="User (optional)", visibility="How the result should be shown")
+    async def userinfo(self, interaction: discord.Interaction, user: Optional[discord.Member] = None, visibility: str = "private"):
         # Defer immediately so Discord never shows "application did not respond"
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=not is_public(visibility))
         try:
             m = user or interaction.user
             if interaction.guild and not isinstance(m, discord.Member):
@@ -407,7 +408,7 @@ class Utilities(commands.Cog):
                 inline=True,
             )
             embed.add_field(name="Roles", value=" ".join(roles) if roles else "—", inline=False)
-            await interaction.followup.send(embed=embed)
+            await interaction.followup.send(embed=embed, ephemeral=not is_public(visibility))
         except Exception as e:
             logger.exception("userinfo failed")
             try:
@@ -540,37 +541,7 @@ class Utilities(commands.Cog):
         await ch.send(embed=embed, file=gif)
         await interaction.response.send_message("✅ GIF enviado no embed.", ephemeral=True)
 
-    @app_commands.command(name="bovasay", description="[STAFF] Post text + official Bova's Bot GIF")
-    @app_commands.describe(
-        message="Text to send with the GIF",
-        channel="Channel (optional)",
-    )
-    async def bovasay(
-        self,
-        interaction: discord.Interaction,
-        message: str,
-        channel: Optional[discord.TextChannel] = None,
-    ):
-        ch = channel or interaction.channel
-        if not isinstance(ch, discord.TextChannel):
-            await interaction.response.send_message("Canal inválido.", ephemeral=True)
-            return
 
-        gif = self._bova_gif_file()
-        content = message[:2000]
-        if gif is None:
-            await ch.send(f"{content}\n{BOVA_GIF_URL}")
-            await interaction.response.send_message("✅ Mensagem + GIF enviados (link).", ephemeral=True)
-            return
-
-        embed = cyber_embed(
-            title="◈ BOVA'S BOT",
-            description=content,
-            color=CYBER_PURPLE,
-        )
-        embed.set_image(url="attachment://bova.gif")
-        await ch.send(embed=embed, file=gif)
-        await interaction.response.send_message("✅ Mensagem + GIF enviados no embed.", ephemeral=True)
 
 
 async def setup(bot: commands.Bot):

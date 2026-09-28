@@ -35,7 +35,6 @@ KV_NAMES = {
     "polls": "polls",
     "sticky": "sticky",
     "customcmds": "customcmds",
-    "autofeeds": "autofeeds",
     "meets": "meets",
     "lastfm": "lastfm",
     "cooldowns": "cooldowns",

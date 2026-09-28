@@ -18,6 +18,14 @@ from discord.ext import commands, tasks
 from utils.storage import load_json, save_json
 
 logger = logging.getLogger("bovary_bot.timestamp_reminders")
+
+VISIBILITY_CHOICES = [
+    app_commands.Choice(name="Somente você", value="private"),
+    app_commands.Choice(name="Publicar no canal", value="channel"),
+]
+
+def is_public(visibility: str) -> bool:
+    return visibility == "channel"
 REMINDERS_FILE = "timestamp_reminders.json"
 CONFIG_FILE = "timestamp_reminder_config.json"
 TIMESTAMP_RE = re.compile(r"<t:\s*(\d{9,12})\s*:\s*[rR]\s*>")
@@ -304,10 +312,12 @@ class TimestampReminders(commands.Cog):
         await self.bot.wait_until_ready()
 
     @app_commands.command(name="timestamp_reminder_config", description="Configure automatic timestamp reminders")
+    @app_commands.choices(visibility=VISIBILITY_CHOICES)
     @app_commands.describe(
         enabled="Enable or disable automatic reminders",
         minutes="Minutes before the event (1-1440)",
         text="Optional English reminder template; {minutes}, {timestamp}, {jump_url} are supported",
+        visibility="How the result should be shown",
     )
     async def timestamp_reminder_config(
         self,
@@ -315,17 +325,19 @@ class TimestampReminders(commands.Cog):
         enabled: bool | None = None,
         minutes: app_commands.Range[int, 1, 1440] | None = None,
         text: str | None = None,
+        visibility: str = "private",
     ):
         cfg = self.configure(enabled=enabled, minutes=minutes, text=text)
         state = "ON" if cfg["enabled"] else "OFF"
         await interaction.response.send_message(
             f"✅ Timestamp reminders: **{state}** · **{cfg['minutes']} min** before\n"
             f"Template: `{cfg['text']}`",
-            ephemeral=True,
+            ephemeral=not is_public(visibility),
         )
 
     @app_commands.command(name="timestamp_reminder_status", description="Show automatic timestamp reminder status")
-    async def timestamp_reminder_status(self, interaction: discord.Interaction):
+    @app_commands.choices(visibility=VISIBILITY_CHOICES)
+    async def timestamp_reminder_status(self, interaction: discord.Interaction, visibility: str = "private"):
         cfg = self.get_config()
         state = "ON" if cfg["enabled"] else "OFF"
         pending = [x for x in self.reminders if not x.get("reminder_sent")]
@@ -340,7 +352,7 @@ class TimestampReminders(commands.Cog):
             f"Pending reminders: **{cfg['pending']}**\n"
             f"Next event: {next_text}\n"
             f"Language: **English**",
-            ephemeral=True,
+            ephemeral=not is_public(visibility),
         )
 
 

@@ -51,6 +51,22 @@ def clip(value: Any, length: int = 180) -> str:
 def _member_has_role(member: discord.Member, role_id: int) -> bool:
     return any(r.id == role_id for r in getattr(member, "roles", []))
 
+VISIBILITY_CHOICES = [
+    app_commands.Choice(name="Somente você", value="private"),
+    app_commands.Choice(name="Publicar no canal", value="channel"),
+]
+
+def is_public(visibility: str) -> bool:
+    return visibility == "channel"
+
+async def send_view(interaction: discord.Interaction, *, embed=None, content: Optional[str] = None, visibility: str = "private"):
+    await interaction.response.send_message(
+        content=content,
+        embed=embed,
+        ephemeral=not is_public(visibility),
+    )
+
+
 
 class AdminTools(commands.Cog):
     """Persistent activity collection + advanced staff slash commands."""
@@ -354,10 +370,11 @@ class AdminTools(commands.Cog):
     # ── 1. Member activity ──────────────────────────────────────────────────
 
     @app_commands.command(name="member_activity", description="Show recent activity recorded for a selected member")
-    async def member_activity(self, interaction: discord.Interaction, member: discord.Member):
+    @app_commands.choices(visibility=VISIBILITY_CHOICES)
+    async def member_activity(self, interaction: discord.Interaction, member: discord.Member, visibility: str = "private"):
         rows = list(self._activity.get(str(member.id), []))[-12:][::-1]
         if not rows:
-            await interaction.response.send_message(f"No recent tracked activity for **{member.display_name}**.", ephemeral=True)
+            await send_view(interaction, content=f"No recent tracked activity for **{member.display_name}**.", visibility=visibility)
             return
         lines = []
         for row in rows:
@@ -371,12 +388,13 @@ class AdminTools(commands.Cog):
             lines.append(f"• **{row.get('kind', 'activity')}**{channel} — {clip(row.get('detail', ''), 180)} · {when}")
         embed = make_embed(title=f"📋 Activity — {member.display_name}", description="\n".join(lines), color=discord.Color.blurple())
         embed.set_thumbnail(url=member.display_avatar.url)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, ephemeral=not is_public(visibility))
 
     # ── 2. Member invites ───────────────────────────────────────────────────
 
     @app_commands.command(name="member_invites", description="List invites created by a selected member")
-    async def member_invites(self, interaction: discord.Interaction, member: discord.Member):
+    @app_commands.choices(visibility=VISIBILITY_CHOICES)
+    async def member_invites(self, interaction: discord.Interaction, member: discord.Member, visibility: str = "private"):
         try:
             active = await interaction.guild.invites()
         except (discord.Forbidden, discord.HTTPException):
@@ -399,7 +417,7 @@ class AdminTools(commands.Cog):
         if not lines and active_codes:
             lines = [f"`{code}` · active invite" for code in sorted(active_codes)]
         if not lines:
-            await interaction.response.send_message(f"No invite history is recorded for **{member.display_name}**.", ephemeral=True)
+            await send_view(interaction, content=f"No invite history is recorded for **{member.display_name}**.", visibility=visibility)
             return
         embed = make_embed(
             title=f"📨 Invites — {member.display_name}",
@@ -407,15 +425,16 @@ class AdminTools(commands.Cog):
             color=discord.Color.blue(),
         )
         embed.set_footer(text="Recipient identity is not exposed when an invite is created; this list records the inviter/code/channel.")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, ephemeral=not is_public(visibility))
 
     # ── 3.1 AutoMod activity ────────────────────────────────────────────────
 
     @app_commands.command(name="automod_activity", description="List recent Discord AutoMod actions for this channel")
-    async def automod_activity(self, interaction: discord.Interaction):
+    @app_commands.choices(visibility=VISIBILITY_CHOICES)
+    async def automod_activity(self, interaction: discord.Interaction, visibility: str = "private"):
         rows = [x for x in self._automod_events if x.get("channel_id") == interaction.channel_id][-15:][::-1]
         if not rows:
-            await interaction.response.send_message("No AutoMod actions recorded for this channel yet.", ephemeral=True)
+            await interaction.response.send_message("No AutoMod actions recorded for this channel yet.", ephemeral=not is_public(visibility))
             return
         lines = []
         for x in rows:
@@ -425,42 +444,19 @@ class AdminTools(commands.Cog):
             unix = int(datetime.fromisoformat(x["at"]).timestamp())
             lines.append(f"• **{who}** — `{x.get('action', 'action')}` · <t:{unix}:R> · `{clip(x.get('content', ''), 100)}`")
         embed = make_embed(title="🛡️ AutoMod — Recent Activity", description="\n".join(lines), color=discord.Color.red())
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, ephemeral=not is_public(visibility))
 
-    # ── 4. Member local time ────────────────────────────────────────────────
+    # ── 4. Chat/minigame ranking ────────────────────────────────────────────
 
-    @app_commands.command(name="member_time", description="Show the best available local-time information for a member")
-    async def member_time(self, interaction: discord.Interaction, member: discord.Member):
-        # Discord's bot API does not expose a member's timezone, locale or country.
-        # Never infer it from IDs, names, avatars or language. If the member has a
-        # timezone recorded by another future source, this command can consume it.
-        known = kv_get(f"member_timezone:{member.id}", None)
-        if isinstance(known, dict) and known.get("timezone"):
-            try:
-                from zoneinfo import ZoneInfo
-                dt = datetime.now(ZoneInfo(str(known["timezone"])))
-                country = known.get("country") or "Not provided"
-                description = f"**Timezone:** `{known['timezone']}`\n**Local time:** <t:{int(dt.timestamp())}:F>\n**Country:** `{country}`"
-            except Exception:
-                description = f"**Timezone:** `{known.get('timezone')}`\n**Country:** `{known.get('country') or 'Not provided'}`"
-        else:
-            description = (
-                "Discord does not expose a member's timezone or country to bots.\n\n"
-                "I will not guess it from the member's name, language, avatar or ID. "
-                "If you later store a timezone for this member, the command can display it."
-            )
-        embed = make_embed(title=f"🕒 Local Time — {member.display_name}", description=description, color=discord.Color.teal())
-        embed.set_thumbnail(url=member.display_avatar.url)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-
-    # ── 5. Chat/minigame ranking ────────────────────────────────────────────
+    # Chat/minigame ranking
 
     @app_commands.command(name="chat_ranking", description="Top 10 chat and minigame activity in the configured rooms")
-    async def chat_ranking(self, interaction: discord.Interaction):
+    @app_commands.choices(visibility=VISIBILITY_CHOICES)
+    async def chat_ranking(self, interaction: discord.Interaction, visibility: str = "private"):
         pairs = sorted(((int(uid), int(count)) for uid, count in self._chat_counts.items()), key=lambda x: x[1], reverse=True)[:10]
         pairs = [(uid, count) for uid, count in pairs if interaction.guild.get_member(uid)]
         if not pairs:
-            await interaction.response.send_message("No tracked activity in the configured chat/minigame channels yet.", ephemeral=True)
+            await interaction.response.send_message("No tracked activity in the configured chat/minigame channels yet.", ephemeral=not is_public(visibility))
             return
         first_id, first_count = pairs[0]
         first = interaction.guild.get_member(first_id)
@@ -474,16 +470,17 @@ class AdminTools(commands.Cog):
             embed.set_thumbnail(url=first.display_avatar.url)
             embed.add_field(name="🥇 #1", value=f"**{user_name(first)}**\n`{first_count}` messages", inline=False)
         embed.set_footer(text="Rooms: 1553823431349371042 · 1531417799300350073")
-        await interaction.response.send_message(embed=embed)
+        await send_view(interaction, embed=embed, visibility=visibility)
 
     # ── 6. Media ranking ────────────────────────────────────────────────────
 
     @app_commands.command(name="media_ranking", description="Top 10 members sending photos and videos in the media category")
-    async def media_ranking(self, interaction: discord.Interaction):
+    @app_commands.choices(visibility=VISIBILITY_CHOICES)
+    async def media_ranking(self, interaction: discord.Interaction, visibility: str = "private"):
         pairs = sorted(((int(uid), int(count)) for uid, count in self._media_counts.items()), key=lambda x: x[1], reverse=True)[:10]
         pairs = [(uid, count) for uid, count in pairs if interaction.guild.get_member(uid)]
         if not pairs:
-            await interaction.response.send_message("No media activity recorded in that category yet.", ephemeral=True)
+            await interaction.response.send_message("No media activity recorded in that category yet.", ephemeral=not is_public(visibility))
             return
         first_id, first_count = pairs[0]
         first = interaction.guild.get_member(first_id)
@@ -497,15 +494,16 @@ class AdminTools(commands.Cog):
             embed.set_thumbnail(url=first.display_avatar.url)
             embed.add_field(name="🥇 #1", value=f"**{user_name(first)}**\n`{first_count}` photos/videos", inline=False)
         embed.set_footer(text=f"Category: {MEDIA_CATEGORY_ID}")
-        await interaction.response.send_message(embed=embed)
+        await send_view(interaction, embed=embed, visibility=visibility)
 
     # ── 8. Role diff ─────────────────────────────────────────────────────────
 
     @app_commands.command(name="role_diff", description="Show role changes for a member and who made the change")
-    async def role_diff(self, interaction: discord.Interaction, member: discord.Member):
+    @app_commands.choices(visibility=VISIBILITY_CHOICES)
+    async def role_diff(self, interaction: discord.Interaction, member: discord.Member, visibility: str = "private"):
         rows = self._role_changes.get(str(member.id), [])[-8:][::-1]
         if not rows:
-            await interaction.response.send_message("No role changes have been recorded for this member yet.", ephemeral=True)
+            await interaction.response.send_message("No role changes have been recorded for this member yet.", ephemeral=not is_public(visibility))
             return
         lines = []
         role_names = {r.id: r.name for r in interaction.guild.roles}
@@ -517,12 +515,13 @@ class AdminTools(commands.Cog):
             lines.append(f"<t:{unix}:R> · **+** {added} · **−** {removed} · by **{actor}**")
         current_roles = ", ".join(r.mention for r in member.roles if not r.is_default()) or "none"
         embed = make_embed(title=f"🏷️ Role Diff — {member.display_name}", description="**Current roles:** " + current_roles + "\n\n" + "\n".join(lines), color=discord.Color.orange())
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, ephemeral=not is_public(visibility))
 
     # ── 9. Permission audit ─────────────────────────────────────────────────
 
     @app_commands.command(name="permission_audit", description="Scan roles and channels for dangerous permissions")
-    async def permission_audit(self, interaction: discord.Interaction):
+    @app_commands.choices(visibility=VISIBILITY_CHOICES)
+    async def permission_audit(self, interaction: discord.Interaction, visibility: str = "private"):
         guild = interaction.guild
         findings: List[str] = []
         everyone = guild.default_role
@@ -558,7 +557,7 @@ class AdminTools(commands.Cog):
             findings.append("No dangerous permissions found by this audit.")
         embed = make_embed(title="🔎 Permission Audit", description="\n".join(findings[:30]), color=discord.Color.red())
         embed.set_footer(text=f"Scanned {len(guild.roles)} roles · {len(guild.channels)} channels")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, ephemeral=not is_public(visibility))
 
     # ── 10. Mass action alert ───────────────────────────────────────────────
 
@@ -636,10 +635,11 @@ class AdminTools(commands.Cog):
         await self._record_actor_action(guild, actor, "bulk_delete", f"bulk deleted `{len(messages)}` messages in <#{messages[0].channel.id}>")
 
     @app_commands.command(name="mass_action_alert", description="Show recent automatic mass-action alerts")
-    async def mass_action_alert(self, interaction: discord.Interaction):
+    @app_commands.choices(visibility=VISIBILITY_CHOICES)
+    async def mass_action_alert(self, interaction: discord.Interaction, visibility: str = "private"):
         rows = self._mass_alerts[-10:][::-1]
         if not rows:
-            await interaction.response.send_message("No mass-action alerts recorded yet. Monitoring is active.", ephemeral=True)
+            await interaction.response.send_message("No mass-action alerts recorded yet. Monitoring is active.", ephemeral=not is_public(visibility))
             return
         lines = []
         for row in rows:
@@ -650,12 +650,13 @@ class AdminTools(commands.Cog):
             )
         embed = make_embed(title="🚨 Mass Action Alerts", description="\n".join(lines), color=discord.Color.red())
         embed.set_footer(text=f"Automatic threshold: 3+ actions by the same executor within 60 seconds")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, ephemeral=not is_public(visibility))
 
     # ── 11. Detailed message stats ──────────────────────────────────────────
 
     @app_commands.command(name="msg_stats", description="Show detailed tracked message statistics for a member")
-    async def msg_stats(self, interaction: discord.Interaction, member: discord.Member):
+    @app_commands.choices(visibility=VISIBILITY_CHOICES)
+    async def msg_stats(self, interaction: discord.Interaction, member: discord.Member, visibility: str = "private"):
         stat = self._msg_stats.get(str(member.id), {})
         messages = int(stat.get("messages", 0))
         chars = int(stat.get("characters", 0))
@@ -680,12 +681,13 @@ class AdminTools(commands.Cog):
         )
         embed = make_embed(title=f"📈 Message Stats — {member.display_name}", description=description, color=discord.Color.cyan())
         embed.add_field(name="Favorite channels", value=fav_text, inline=False)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, ephemeral=not is_public(visibility))
 
     # ── 12. Log health ──────────────────────────────────────────────────────
 
     @app_commands.command(name="log_health", description="Check log channels and required bot permissions")
-    async def log_health(self, interaction: discord.Interaction):
+    @app_commands.choices(visibility=VISIBILITY_CHOICES)
+    async def log_health(self, interaction: discord.Interaction, visibility: str = "private"):
         ids = {
             "Member info": self.bot.config.get("LOG_CHANNEL_ID"),
             "Message log": self.bot.config.get("MESSAGE_LOG_CHANNEL_ID"),
@@ -705,7 +707,7 @@ class AdminTools(commands.Cog):
             ok = p and p.view_channel and p.send_messages and p.embed_links
             lines.append(f"{'✅' if ok else '⚠️'} **{name}** — <#{ch.id}> · View={bool(p and p.view_channel)} Send={bool(p and p.send_messages)} Embed={bool(p and p.embed_links)}")
         embed = make_embed(title="🩺 Log Health", description="\n".join(lines), color=discord.Color.green())
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, ephemeral=not is_public(visibility))
 
     # ── 13. Guild snapshot ──────────────────────────────────────────────────
 
@@ -738,13 +740,14 @@ class AdminTools(commands.Cog):
         }
 
     @app_commands.command(name="guild_snapshot", description="Create a server snapshot and compare it with the previous one")
-    async def guild_snapshot(self, interaction: discord.Interaction):
+    @app_commands.choices(visibility=VISIBILITY_CHOICES)
+    async def guild_snapshot(self, interaction: discord.Interaction, visibility: str = "private"):
         guild = interaction.guild
         previous = kv_get(f"guild_snapshot:{guild.id}", None)
         current = self._snapshot(guild)
         kv_set(f"guild_snapshot:{guild.id}", current)
         if not previous:
-            await interaction.response.send_message("📸 Initial guild snapshot saved. Run `/guild_snapshot` again later to compare changes.", ephemeral=True)
+            await interaction.response.send_message("📸 Initial guild snapshot saved. Run `/guild_snapshot` again later to compare changes.", ephemeral=not is_public(visibility))
             return
         added_roles = sorted(set(current["roles"]) - set(previous.get("roles", [])))
         removed_roles = sorted(set(previous.get("roles", [])) - set(current["roles", []]))
@@ -774,12 +777,13 @@ class AdminTools(commands.Cog):
         if removed_channels:
             desc += "\n**Removed channels:** " + ", ".join(previous.get("channel_names", {}).get(str(x), str(x)) for x in removed_channels[:10])
         embed = make_embed(title="📸 Guild Snapshot Diff", description=desc, color=discord.Color.blurple())
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, ephemeral=not is_public(visibility))
 
     # ── 14. Investigate ─────────────────────────────────────────────────────
 
     @app_commands.command(name="investigate", description="Open a staff investigation panel for a member")
-    async def investigate(self, interaction: discord.Interaction, member: discord.Member):
+    @app_commands.choices(visibility=VISIBILITY_CHOICES)
+    async def investigate(self, interaction: discord.Interaction, member: discord.Member, visibility: str = "private"):
         name_cog = self.bot.get_cog("NameHistory")
         names = []
         if name_cog:
@@ -806,16 +810,17 @@ class AdminTools(commands.Cog):
         embed.add_field(name="Stats", value=f"Tracked messages: `{total_messages}`\nRecent activities: `{len(self._activity.get(str(member.id), []))}`", inline=True)
         embed.add_field(name="Deleted messages", value=deleted_text[:1000], inline=True)
         embed.add_field(name="DM record", value=dm_text[:1000], inline=False)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, ephemeral=not is_public(visibility))
 
     # ── 15. Who deleted ─────────────────────────────────────────────────────
 
     @app_commands.command(name="who_deleted", description="Best-effort audit-log lookup for who deleted a message")
-    async def who_deleted(self, interaction: discord.Interaction, message_id: str):
+    @app_commands.choices(visibility=VISIBILITY_CHOICES)
+    async def who_deleted(self, interaction: discord.Interaction, message_id: str, visibility: str = "private"):
         try:
             mid = int(message_id)
         except ValueError:
-            await interaction.response.send_message("❌ Message ID must be numeric.", ephemeral=True)
+            await interaction.response.send_message("❌ Message ID must be numeric.", ephemeral=not is_public(visibility))
             return
         web = self.bot.get_cog("WebLogs")
         snap = getattr(web, "_msg_cache", {}).get(mid) if web else None
@@ -837,7 +842,7 @@ class AdminTools(commands.Cog):
         if not found:
             await interaction.response.send_message(
                 "⚠️ Discord's audit log does not expose a guaranteed message-ID → executor mapping. No matching recent deletion entry was found.",
-                ephemeral=True,
+                ephemeral=not is_public(visibility),
             )
             return
         entry = found[0]
@@ -851,12 +856,13 @@ class AdminTools(commands.Cog):
             ),
             color=discord.Color.orange(),
         )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, ephemeral=not is_public(visibility))
 
     # ── 16. Peak hours ───────────────────────────────────────────────────────
 
     @app_commands.command(name="peak_hours", description="Show periods with the highest unique-user engagement")
-    async def peak_hours(self, interaction: discord.Interaction):
+    @app_commands.choices(visibility=VISIBILITY_CHOICES)
+    async def peak_hours(self, interaction: discord.Interaction, visibility: str = "private"):
         hour_users: Counter[int] = Counter()
         weekday_users: Counter[int] = Counter()
         for date_key, hours in self._engagement.items():
@@ -880,7 +886,7 @@ class AdminTools(commands.Cog):
         )
         embed.add_field(name="Top hours (São Paulo)", value=hour_lines, inline=False)
         embed.add_field(name="Top days", value=day_lines, inline=False)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, ephemeral=not is_public(visibility))
 
 
 async def setup(bot: commands.Bot):

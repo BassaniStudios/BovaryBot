@@ -13,6 +13,14 @@ from utils.helpers import make_embed, is_media_in_message, SERVER_TZ
 from utils.storage import load_json, save_json, default_stats
 
 logger = logging.getLogger("bovary_bot.stats")
+
+VISIBILITY_CHOICES = [
+    app_commands.Choice(name="Somente você", value="private"),
+    app_commands.Choice(name="Publicar no canal", value="channel"),
+]
+
+def is_public(visibility: str) -> bool:
+    return visibility == "channel"
 STATS_FILE = "stats.json"
 
 
@@ -142,8 +150,9 @@ class Stats(commands.Cog):
         return items[:n]
 
     @app_commands.command(name="stats", description="Show server activity statistics (numbers + charts)")
-    async def stats_cmd(self, interaction: discord.Interaction):
-        await interaction.response.defer()
+    @app_commands.choices(visibility=VISIBILITY_CHOICES)
+    async def stats_cmd(self, interaction: discord.Interaction, visibility: str = "private"):
+        await interaction.response.defer(ephemeral=not is_public(visibility))
         embed = make_embed(title="◈ Server Statistics", color=discord.Color.from_rgb(0, 220, 255))
         embed.add_field(
             name="Members",
@@ -188,18 +197,19 @@ class Stats(commands.Cog):
                 inline=False,
             )
 
-        await interaction.followup.send(embed=embed)
+        await interaction.followup.send(embed=embed, ephemeral=not is_public(visibility))
 
     @app_commands.command(
         name="topmedia",
         description="Show or post the most reacted media of the period",
     )
-    @app_commands.describe(post="If true, posts a public highlight message")
-    async def topmedia(self, interaction: discord.Interaction, post: bool = False):
+    @app_commands.choices(visibility=VISIBILITY_CHOICES)
+    @app_commands.describe(post="If true, posts a public highlight message", visibility="How the result should be shown")
+    async def topmedia(self, interaction: discord.Interaction, post: bool = False, visibility: str = "private"):
         top = self.data.get("weekly_top") or self._top_media()
         if not top:
             await interaction.response.send_message(
-                "No media scores recorded yet.", ephemeral=True
+                "No media scores recorded yet.", ephemeral=not is_public(visibility)
             )
             return
 
@@ -215,20 +225,21 @@ class Stats(commands.Cog):
         if post:
             await interaction.response.send_message(embed=embed)
         else:
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            await interaction.response.send_message(embed=embed, ephemeral=not is_public(visibility))
 
 
     @app_commands.command(
         name="week_summary",
         description="Activity snapshot for the tracked period (not full chat reading)",
     )
-    async def week_summary(self, interaction: discord.Interaction):
+    @app_commands.choices(visibility=VISIBILITY_CHOICES)
+    async def week_summary(self, interaction: discord.Interaction, visibility: str = "private"):
         """
         Discord does not give a full 'read all chats' API without scanning every channel.
         This command summarizes what the bot already tracks: messages, media, joins/leaves.
         Narrative AI summary was removed on purpose.
         """
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer(ephemeral=not is_public(visibility))
         top_msg = self._topk("messages", 8)
         top_react = self._topk("reactions_given", 5)
         media_top = self._top_media()
@@ -273,7 +284,7 @@ class Stats(commands.Cog):
                 inline=False,
             )
         embed.set_footer(text="Bova's Bot · week_summary")
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        await interaction.followup.send(embed=embed, ephemeral=not is_public(visibility))
 
 
 async def setup(bot: commands.Bot):
