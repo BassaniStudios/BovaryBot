@@ -166,10 +166,27 @@ class BovaryBot(commands.Bot):
             logger.exception("SQLite bootstrap failed")
 
         cogs_dir = Path(__file__).parent / "cogs"
+        # Cogs intentionally removed in v2.9.x — never load even if leftover
+        # files remain in an old Git repo / Render workspace.
+        BLOCKED_COGS = {
+            "autorole",
+            "autofeed",
+            "autofeeds",
+            "auto_role",
+            "auto_feed",
+            "auto_feeds",
+        }
         for file in cogs_dir.glob("*.py"):
             if file.name.startswith("_"):
                 continue
-            ext = f"cogs.{file.stem}"
+            stem = file.stem
+            if stem in BLOCKED_COGS or stem.startswith("autorole") or stem.startswith("autofeed"):
+                logger.warning(
+                    "Ignorando cog legado (removido): cogs.%s — delete o arquivo %s do repositório",
+                    stem, file.name,
+                )
+                continue
+            ext = f"cogs.{stem}"
             try:
                 await self.load_extension(ext)
                 logger.info("Cog carregado: %s", ext)

@@ -104,3 +104,13 @@ END
 - setup_hook now FORCE-WIPES guild slash commands on Discord, then re-syncs only currently loaded cogs.
   This removes ghost /autofeed_add /autofeed_list /autofeed_remove /autofeed_toggle left by older deploys.
 - Deploy logs list every synced command name for verification.
+
+================================================================================
+2026-09-28 HOTFIX v2.9.3 — BLOCK LEGACY COGS ON LOAD
+================================================================================
+- setup_hook skips autorole / autofeed / autofeeds (and name variants) even if
+  leftover .py files still exist in the Git repo or Render src tree.
+- Prevents: ExtensionFailed: cogs.autorole ... cannot import name default_autorole
+- Still recommended: delete cogs/autorole.py, cogs/autofeed*.py and all __pycache__
+  from the repository and keep __pycache__/ in .gitignore.
+- Force guild command wipe from v2.9.2 remains in place.
