@@ -55,6 +55,7 @@ class Backup(commands.Cog):
         self.bot = bot
         self._last_auto: Optional[str] = None
         self._last_size: int = -1
+        self._startup_backup_done = False
         self.auto_backup_loop.start()
 
     def cog_unload(self):
@@ -657,12 +658,31 @@ class Backup(commands.Cog):
             hours,
             self.bot.config.get("BACKUP_CHANNEL_ID"),
         )
+        # Startup safety backup runs from on_ready (more reliable after long
+        # guild-command sync / Discord 429 delays in setup_hook).
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        """Post a safety backup shortly after READY (independent of command sync delays)."""
+        if self._startup_backup_done:
+            return
+        self._startup_backup_done = True
         import asyncio
-        await asyncio.sleep(120)
+        await asyncio.sleep(20)
         try:
             channel = await self._get_backup_channel()
-            if channel:
-                await self._send_db_backup(channel, reason="startup")
+            if not channel:
+                logger.warning(
+                    "Startup safety backup skipped: BACKUP_CHANNEL_ID=%s not found "
+                    "(bot must be in the home/casa guild with View+Send+Attach)",
+                    self.bot.config.get("BACKUP_CHANNEL_ID"),
+                )
+                return
+            ok = await self._send_db_backup(channel, reason="startup")
+            if ok:
+                logger.info("Startup SQLite safety backup completed")
+            else:
+                logger.warning("Startup SQLite safety backup returned False (empty/invalid DB?)")
         except Exception:
             logger.exception("Startup backup failed")
 
@@ -761,7 +781,7 @@ class Backup(commands.Cog):
         text = (
             "**Auto-backup + auto-restore is ON.**\n\n"
             f"• Every **{self._interval_hours():g} hours** the bot posts `bovary.db` to the backup channel.\n"
-            "• Also creates a startup backup ~2 min after the bot becomes ready.\n"
+            "• Also creates a startup safety backup ~20s after the bot becomes ready.\n"
             "• After a fresh Render deploy, an empty/new `bovary.db` automatically restores the newest valid backup.\n"
             "• A local database containing data is never overwritten by automatic recovery.\n"
             "• Force now: `/backup_now`\n\n"

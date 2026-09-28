@@ -195,70 +195,79 @@ class BovaryBot(commands.Bot):
 
         self._install_slash_command_access_policy()
 
+        # Slash sync is intentionally NOT awaited here. A full guild command PUT
+        # can hit Discord 429 for many minutes and would block setup_hook, which
+        # delays READY — bot appears offline while only the Flask /health is up.
+        import asyncio
+        asyncio.create_task(self._sync_app_commands_background())
+
+    async def _sync_app_commands_background(self) -> None:
+        """Sync slash commands after startup so Discord connection is not blocked."""
+        import asyncio
+        await asyncio.sleep(3)
+        try:
+            await self.wait_until_ready()
+        except Exception:
+            pass
+        # extra settle time after READY
+        await asyncio.sleep(5)
+
         guild_id = self.config.get("GUILD_ID")
-        if guild_id:
-            # Development/private-server mode: keep slash commands GUILD-ONLY.
-            #
-            # IMPORTANT: do not leave the same commands registered both globally
-            # and in the guild. Discord treats global and guild commands as
-            # separate command records, so users can see every command twice.
-            # This also cleans up global commands left by older versions that
-            # previously used copy_global_to(guild=...).
-            #
-            # FORCE WIPE: clear guild commands on Discord first, then re-push only
-            # the commands loaded from current cogs. This removes ghost entries
-            # (e.g. old /autofeed_*) that can survive a plain re-sync.
-            guild = discord.Object(id=guild_id)
+        force_wipe = str(os.getenv("FORCE_COMMAND_RESYNC", "")).strip().lower() in {
+            "1", "true", "yes", "on",
+        }
+        try:
+            if guild_id:
+                guild = discord.Object(id=guild_id)
 
-            try:
-                self.tree.clear_commands(guild=guild)
-                wiped = await self.tree.sync(guild=guild)
+                # Optional full wipe (removes ghost /autofeed_* etc). Default OFF
+                # so routine deploys do not burn the guild-commands rate limit.
+                if force_wipe:
+                    try:
+                        self.tree.clear_commands(guild=guild)
+                        wiped = await self.tree.sync(guild=guild)
+                        logger.info(
+                            "FORCE_COMMAND_RESYNC: limpeza de slash no guild %s (%d residual)",
+                            guild_id, len(wiped),
+                        )
+                    except Exception:
+                        logger.exception("Falha na limpeza forçada de comandos do guild %s", guild_id)
+
+                self.tree.copy_global_to(guild=guild)
+                synced = await self.tree.sync(guild=guild)
+
+                self.tree.clear_commands(guild=None)
+                global_synced = await self.tree.sync()
+
+                home_id = self.config.get("BACKUP_GUILD_ID")
+                if home_id and int(home_id) != int(guild_id):
+                    try:
+                        home = discord.Object(id=int(home_id))
+                        self.tree.clear_commands(guild=home)
+                        cleared_home = await self.tree.sync(guild=home)
+                        logger.info(
+                            "Servidor casa %s é só backup — comandos removidos (%d residual)",
+                            home_id, len(cleared_home),
+                        )
+                    except Exception:
+                        logger.exception("Falha ao limpar comandos do servidor casa %s", home_id)
+
+                names = sorted({c.name for c in self.tree.get_commands()})
                 logger.info(
-                    "Limpeza forçada de slash commands no guild %s (%d residual removido)",
-                    guild_id, len(wiped),
+                    "Comandos sincronizados SOMENTE no servidor principal %s (%d); "
+                    "globais removidos (%d). Casa = backup only. Names: %s",
+                    guild_id,
+                    len(synced),
+                    len(global_synced),
+                    ", ".join(names),
                 )
-            except Exception:
-                logger.exception("Falha na limpeza forçada de comandos do guild %s", guild_id)
-
-            # Re-copy the currently loaded commands into the target guild and sync.
-            self.tree.copy_global_to(guild=guild)
-            synced = await self.tree.sync(guild=guild)
-
-            # Remove every global command owned by this application.
-            self.tree.clear_commands(guild=None)
-            global_synced = await self.tree.sync()
-
-            # Home/casa server is backup-only: strip any slash commands left there
-            # from older deploys so they do not appear or fire on that guild.
-            home_id = self.config.get("BACKUP_GUILD_ID")
-            if home_id and int(home_id) != int(guild_id):
-                try:
-                    home = discord.Object(id=int(home_id))
-                    self.tree.clear_commands(guild=home)
-                    cleared_home = await self.tree.sync(guild=home)
-                    logger.info(
-                        "Servidor casa %s é só backup — comandos removidos (%d residual)",
-                        home_id, len(cleared_home),
-                    )
-                except Exception:
-                    logger.exception("Falha ao limpar comandos do servidor casa %s", home_id)
-
-            # Log command names so deploy logs prove autofeed is absent
-            names = sorted({c.name for c in self.tree.get_commands()})
-            logger.info(
-                "Comandos sincronizados SOMENTE no servidor principal %s (%d); "
-                "globais removidos (%d). Casa = backup only. Names: %s",
-                guild_id,
-                len(synced),
-                len(global_synced),
-                ", ".join(names),
-            )
-            if any(n.startswith("autofeed") for n in names):
-                logger.error("UNEXPECTED autofeed command still in tree: %s", names)
-        else:
-            # No GUILD_ID: publish the currently loaded commands globally.
-            synced = await self.tree.sync()
-            logger.info("Comandos sincronizados globalmente (%d comandos)", len(synced))
+                if any(n.startswith("autofeed") for n in names):
+                    logger.error("UNEXPECTED autofeed command still in tree: %s", names)
+            else:
+                synced = await self.tree.sync()
+                logger.info("Comandos sincronizados globalmente (%d comandos)", len(synced))
+        except Exception:
+            logger.exception("Background slash-command sync failed")
 
     def _install_slash_command_access_policy(self) -> None:
         """Restrict every slash command to the configured staff role.

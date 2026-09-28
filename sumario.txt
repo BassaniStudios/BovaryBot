@@ -114,3 +114,23 @@ END
 - Still recommended: delete cogs/autorole.py, cogs/autofeed*.py and all __pycache__
   from the repository and keep __pycache__/ in .gitignore.
 - Force guild command wipe from v2.9.2 remains in place.
+
+================================================================================
+2026-09-28 HOTFIX v2.9.4 — STARTUP SAFETY BACKUP
+================================================================================
+- Startup SQLite safety backup no longer waits 120s inside the backup task
+  before_loop (that path could be delayed behind Discord command-sync 429s).
+- Backup now triggers from on_ready + ~20s delay, with clearer logs if
+  BACKUP_CHANNEL_ID is missing or the home guild is inaccessible.
+- Manual /backup_now still works as immediate force.
+
+================================================================================
+2026-09-28 HOTFIX v2.9.5 — DO NOT BLOCK READY ON COMMAND SYNC
+================================================================================
+- Root cause of "bot offline but Render URL live": setup_hook awaited guild
+  command sync; Discord 429 retries (40s + 430s + …) delayed READY for many
+  minutes. Flask health stayed 200 so Render showed the service as live.
+- Slash sync now runs in a background task after READY.
+- FORCE wipe (empty guild commands then re-push) only when env
+  FORCE_COMMAND_RESYNC=true — use once to clear ghost /autofeed_*, then remove.
+- Startup safety backup (v2.9.4 on_ready path) can run without waiting on sync.
