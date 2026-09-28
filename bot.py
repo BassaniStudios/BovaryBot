@@ -202,26 +202,53 @@ class BovaryBot(commands.Bot):
         asyncio.create_task(self._sync_app_commands_background())
 
     async def _sync_app_commands_background(self) -> None:
-        """Sync slash commands after startup so Discord connection is not blocked."""
+        """Sync slash commands after READY, with cooldown to avoid Discord 429 storms.
+
+        Recent bulk overwrites (force-wipe + many deploys) exhaust the guild
+        commands rate limit. discord.py will retry every ~7 minutes forever;
+        that keeps the bucket empty and slash commands never reappear.
+
+        Strategy:
+        - Wait COMMAND_SYNC_DELAY_SECONDS (default 900 = 15 min) after READY
+          so the rate-limit window can recover.
+        - Perform at most one sync attempt this process (timeout 10 min).
+        - Set SKIP_COMMAND_SYNC=true to skip entirely (bot stays online).
+        - Set FORCE_COMMAND_RESYNC=true only when you need a full wipe.
+        """
         import asyncio
-        await asyncio.sleep(3)
+
+        if str(os.getenv("SKIP_COMMAND_SYNC", "")).strip().lower() in {"1", "true", "yes", "on"}:
+            logger.warning("SKIP_COMMAND_SYNC set — slash commands will NOT be re-registered this boot")
+            return
+
         try:
             await self.wait_until_ready()
         except Exception:
             pass
-        # extra settle time after READY
-        await asyncio.sleep(5)
 
-        guild_id = self.config.get("GUILD_ID")
+        delay = 900
+        try:
+            delay = max(0, int(os.getenv("COMMAND_SYNC_DELAY_SECONDS", "900")))
+        except ValueError:
+            delay = 900
+
+        if delay:
+            logger.info(
+                "Aguardando %ss antes do sync de slash commands (evita loop de 429). "
+                "Não reinicie o serviço durante esta espera.",
+                delay,
+            )
+            await asyncio.sleep(delay)
+
         force_wipe = str(os.getenv("FORCE_COMMAND_RESYNC", "")).strip().lower() in {
             "1", "true", "yes", "on",
         }
-        try:
+
+        async def _do_sync() -> None:
+            guild_id = self.config.get("GUILD_ID")
             if guild_id:
                 guild = discord.Object(id=guild_id)
 
-                # Optional full wipe (removes ghost /autofeed_* etc). Default OFF
-                # so routine deploys do not burn the guild-commands rate limit.
                 if force_wipe:
                     try:
                         self.tree.clear_commands(guild=guild)
@@ -266,8 +293,18 @@ class BovaryBot(commands.Bot):
             else:
                 synced = await self.tree.sync()
                 logger.info("Comandos sincronizados globalmente (%d comandos)", len(synced))
+
+        try:
+            await asyncio.wait_for(_do_sync(), timeout=600)
+        except asyncio.TimeoutError:
+            logger.error(
+                "Sync de slash commands esgotou 10 min (provável 429 persistente). "
+                "Deixe o bot ligado e tente de novo em 1h com um único restart, "
+                "ou defina COMMAND_SYNC_DELAY_SECONDS=3600 no Render."
+            )
         except Exception:
             logger.exception("Background slash-command sync failed")
+
 
     def _install_slash_command_access_policy(self) -> None:
         """Restrict every slash command to the configured staff role.

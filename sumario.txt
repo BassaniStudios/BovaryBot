@@ -134,3 +134,13 @@ END
 - FORCE wipe (empty guild commands then re-push) only when env
   FORCE_COMMAND_RESYNC=true — use once to clear ghost /autofeed_*, then remove.
 - Startup safety backup (v2.9.4 on_ready path) can run without waiting on sync.
+
+================================================================================
+2026-09-28 HOTFIX v2.9.6 — BREAK THE 429 COMMAND-SYNC LOOP
+================================================================================
+- Discord kept returning 429 every ~7 minutes on guild command PUT; continuous
+  retries never completed so the slash list stayed empty after the earlier wipe.
+- After READY, wait COMMAND_SYNC_DELAY_SECONDS (default 900) before one sync.
+- Sync attempt hard-timeout 10 minutes; then gives up until next boot.
+- SKIP_COMMAND_SYNC=true skips registration (bot stays online).
+- Do not set FORCE_COMMAND_RESYNC while rate-limited.
