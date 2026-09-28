@@ -1,5 +1,5 @@
 """
-Welcome DM on join + optional voice greet (configurable, OFF by default).
+Optional voice greet (configurable through stored configuration, OFF by default).
 """
 from __future__ import annotations
 
@@ -8,11 +8,10 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 import discord
-from discord import app_commands
 from discord.ext import commands
 
 from utils.helpers import make_embed, safe_get_channel
-from utils.storage import load_json, save_json
+from utils.storage import load_json
 
 logger = logging.getLogger("bovary_bot.welcome")
 FILE = "welcome.json"
@@ -22,22 +21,6 @@ class Welcome(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.config: Dict[str, Any] = load_json(FILE, {
-            "dm_enabled": True,
-            "dm_title": "Welcome to Bovary Club Society",
-            "dm_body": (
-                "Hello {user},\n"
-                "Welcome to **Bovary Club Society** 🚗✨\n"
-                "More than a crew – a community where we bring together other friendly crews\n"
-                "We're glad you're here.\n\n"
-                "🌐 **Community website:** https://bovaryclub.github.io/Crew/\n"
-                "Visit the website to explore crew, meetings and the **Bovary Now APP** "
-                "(all app information is on the website).\n\n"
-                "• Check meeting announcement channels on our server\n"
-                "• Check of the APP to find out in real time if there is an active session\n"
-                "• Check of the space to post your photos and videos\n\n"
-                "— Bova Bot"
-            ),
-            "dm_image": "",
             "voice_greet_enabled": False,
             "voice_log_channel_id": None,
             "voice_join_bot": False,
@@ -45,72 +28,6 @@ class Welcome(commands.Cog):
             "voice_required_role_id": 1548171930962763917,
             "voice_message": "🔊 {user} joined **{channel}**",
         })
-
-    def _save(self):
-        save_json(FILE, self.config)
-
-    def _render(self, template: str, **kwargs) -> str:
-        try:
-            return template.format(**kwargs)
-        except Exception:
-            return template
-
-    async def _send_welcome_dm(self, member: discord.Member):
-        """Send the welcome DM and return (success, human-readable reason)."""
-        if member.bot:
-            return False, "Bots do not receive welcome DMs."
-
-        if not self.config.get("dm_enabled"):
-            return False, "Welcome DMs are disabled in the bot configuration."
-
-        title = self.config.get("dm_title") or "Welcome"
-        body = self._render(
-            self.config.get("dm_body") or "Welcome {user}!",
-            user=member.display_name,
-            mention=member.mention,
-            server=member.guild.name if member.guild else "the server",
-        )
-        embed = discord.Embed(
-            title=f"✨ {title}",
-            description=body,
-            color=discord.Color.from_rgb(180, 80, 255),
-            timestamp=datetime.now(timezone.utc),
-        )
-        if member.guild and member.guild.icon:
-            embed.set_thumbnail(url=member.guild.icon.url)
-        img = (self.config.get("dm_image") or "").strip()
-        if img:
-            embed.set_image(url=img)
-        embed.set_footer(text="Bova's Bot · Bovary Club Society")
-
-        try:
-            await member.send(embed=embed)
-            logger.info("Welcome DM sent successfully to %s", member.id)
-            return True, "DM sent successfully."
-        except discord.Forbidden:
-            logger.info("Discord rejected welcome DM to %s (Forbidden)", member.id)
-            return False, (
-                "Discord rejected the DM (403 Forbidden). "
-                "Check your server DM/privacy settings, Message Requests/Spam, "
-                "and make sure the bot is not blocked."
-            )
-        except discord.HTTPException as exc:
-            logger.warning(
-                "Welcome DM failed for %s: HTTP %s",
-                member.id,
-                getattr(exc, "status", "unknown"),
-            )
-            return False, (
-                f"Discord returned an HTTP error ({getattr(exc, 'status', 'unknown')}). "
-                "Try again in a moment."
-            )
-        except Exception:
-            logger.exception("Welcome DM failed")
-            return False, "An unexpected error occurred while sending the DM."
-
-    @commands.Cog.listener()
-    async def on_member_join(self, member: discord.Member):
-        await self._send_welcome_dm(member)
 
     @commands.Cog.listener()
     async def on_voice_state_update(
@@ -162,81 +79,6 @@ class Welcome(commands.Cog):
                 except Exception:
                     logger.debug("Voice join bot failed", exc_info=True)
 
-    @app_commands.command(name="welcome_config", description="Configure welcome DM and voice greet")
-    @app_commands.describe(
-        dm_enabled="Send personalized DM when someone joins",
-        dm_title="DM embed title",
-        dm_body="DM body — use {user} {mention} {server}",
-        dm_image="Optional image URL for the DM embed",
-        voice_greet_enabled="Log when someone joins a voice channel",
-        voice_log_channel="Text channel for voice join messages",
-        voice_join_bot="Bot also joins the voice channel (can be noisy — default off)",
-        voice_required_role="Only trigger for this role (default: Bovas Bot interaction)",
-    )
-    @app_commands.checks.has_permissions(administrator=True)
-    async def welcome_config(
-        self,
-        interaction: discord.Interaction,
-        dm_enabled: Optional[bool] = None,
-        dm_title: Optional[str] = None,
-        dm_body: Optional[str] = None,
-        dm_image: Optional[str] = None,
-        voice_greet_enabled: Optional[bool] = None,
-        voice_log_channel: Optional[discord.TextChannel] = None,
-        voice_join_bot: Optional[bool] = None,
-        voice_required_role: Optional[discord.Role] = None,
-    ):
-        if dm_enabled is not None:
-            self.config["dm_enabled"] = dm_enabled
-        if dm_title is not None:
-            self.config["dm_title"] = dm_title[:200]
-        if dm_body is not None:
-            self.config["dm_body"] = dm_body[:1800]
-        if dm_image is not None:
-            self.config["dm_image"] = dm_image.strip()
-        if voice_greet_enabled is not None:
-            self.config["voice_greet_enabled"] = voice_greet_enabled
-        if voice_log_channel is not None:
-            self.config["voice_log_channel_id"] = voice_log_channel.id
-        if voice_join_bot is not None:
-            self.config["voice_join_bot"] = voice_join_bot
-        if voice_required_role is not None:
-            self.config["voice_required_role_id"] = voice_required_role.id
-        self._save()
-        rid = self.config.get("voice_required_role_id")
-        await interaction.response.send_message(
-            f"✅ Welcome config saved.\n"
-            f"DM: `{self.config.get('dm_enabled')}` · "
-            f"Voice log: `{self.config.get('voice_greet_enabled')}` · "
-            f"Bot joins VC: `{self.config.get('voice_join_bot')}` · "
-            f"Voice role: `{rid}`",
-            ephemeral=True,
-        )
-
-    @app_commands.command(name="welcome_test", description="Send yourself a test welcome DM")
-    @app_commands.checks.has_permissions(manage_guild=True)
-    async def welcome_test(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
-        member = interaction.user
-        if not isinstance(member, discord.Member):
-            await interaction.followup.send("Guild only.", ephemeral=True)
-            return
-        try:
-            success, reason = await self._send_welcome_dm(member)
-            if success:
-                await interaction.followup.send(
-                    "✅ **DM enviada com sucesso!**\n"
-                    "Confira suas mensagens privadas (incluindo Solicitações de mensagens/Spam).",
-                    ephemeral=True,
-                )
-            else:
-                await interaction.followup.send(
-                    f"❌ **DM não enviada.**\n{reason}",
-                    ephemeral=True,
-                )
-        except Exception as e:
-            logger.exception("Welcome test failed")
-            await interaction.followup.send(f"❌ Falha no teste: {e}", ephemeral=True)
 
 
 async def setup(bot: commands.Bot):

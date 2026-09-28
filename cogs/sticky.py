@@ -28,7 +28,6 @@ class Sticky(commands.Cog):
 
     @app_commands.command(name="sticky_set", description="Set a sticky message for this channel")
     @app_commands.describe(content="Message content to keep at the bottom")
-    @app_commands.checks.has_permissions(manage_messages=True)
     async def sticky_set(self, interaction: discord.Interaction, content: str):
         await interaction.response.defer(ephemeral=True)
         ch = interaction.channel
@@ -53,7 +52,6 @@ class Sticky(commands.Cog):
         await interaction.followup.send("✅ Sticky set.", ephemeral=True)
 
     @app_commands.command(name="sticky_clear", description="Remove sticky from this channel")
-    @app_commands.checks.has_permissions(manage_messages=True)
     async def sticky_clear(self, interaction: discord.Interaction):
         ch = interaction.channel
         if not isinstance(ch, discord.TextChannel):

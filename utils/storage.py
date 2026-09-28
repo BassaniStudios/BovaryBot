@@ -122,17 +122,6 @@ def _save_file(name: str, data: Any) -> None:
         logger.error("Failed to write JSON %s: %s", name, e)
 
 
-def default_autorole() -> Dict:
-    return {
-        "title": "Choose your roles",
-        "description": "React below to get access to the channels you care about.",
-        "color": 0xB450FF,
-        "roles": [],
-        "message_id": None,
-        "channel_id": None,
-    }
-
-
 def default_stats() -> Dict:
     return {
         "messages": {},

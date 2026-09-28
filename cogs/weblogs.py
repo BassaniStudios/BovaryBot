@@ -485,7 +485,6 @@ class WebLogs(commands.Cog):
         channel_create="Log channel creation (weblogs channel)",
         channel_delete="Log channel deletion (weblogs channel)",
     )
-    @app_commands.checks.has_permissions(manage_guild=True)
     async def weblogs_config(
         self,
         interaction: discord.Interaction,
@@ -517,7 +516,6 @@ class WebLogs(commands.Cog):
         )
 
     @app_commands.command(name="msglog_test", description="Test the dedicated message-log channel")
-    @app_commands.checks.has_permissions(manage_guild=True)
     async def msglog_test(self, interaction: discord.Interaction):
         """Sends a test embed to MESSAGE_LOG_CHANNEL_ID and reports status."""
         await interaction.response.defer(ephemeral=True)
@@ -579,7 +577,6 @@ class WebLogs(commands.Cog):
             app_commands.Choice(name="Unban only", value="unban"),
         ]
     )
-    @app_commands.checks.has_permissions(manage_guild=True)
     async def memberlog_test(
         self,
         interaction: discord.Interaction,

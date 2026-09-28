@@ -35,7 +35,6 @@ KV_NAMES = {
     "polls": "polls",
     "sticky": "sticky",
     "customcmds": "customcmds",
-    "autorole": "autorole",
     "autofeeds": "autofeeds",
     "meets": "meets",
     "lastfm": "lastfm",
@@ -669,7 +668,6 @@ class Backup(commands.Cog):
             logger.exception("Startup backup failed")
 
     @app_commands.command(name="backup_now", description="[STAFF] Force an immediate SQLite backup to the backup channel")
-    @app_commands.checks.has_permissions(administrator=True)
     async def backup_now(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         channel = await self._get_backup_channel()
@@ -687,7 +685,6 @@ class Backup(commands.Cog):
 
     @app_commands.command(name="backup_export", description="[STAFF] Export data from SQLite to Discord (ephemeral DM-style)")
     @app_commands.describe(file="Which: stats, namehistory, tickets, polls, sticky, customcmds, audit, db, all")
-    @app_commands.checks.has_permissions(administrator=True)
     async def backup_export(self, interaction: discord.Interaction, file: str = "all"):
         await interaction.response.defer(ephemeral=True)
         _bootstrap()
@@ -743,7 +740,6 @@ class Backup(commands.Cog):
             )
 
     @app_commands.command(name="db_status", description="[STAFF] SQLite storage status")
-    @app_commands.checks.has_permissions(administrator=True)
     async def db_status(self, interaction: discord.Interaction):
         _bootstrap()
         info = sqldb.db_stats()

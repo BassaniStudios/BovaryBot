@@ -118,7 +118,6 @@ class Meets(commands.Cog):
         enable_reminder="Enable 30-minute reminder",
         timezone_offset="UTC offset hours for date_time (default -3 = São Paulo)",
     )
-    @app_commands.checks.has_permissions(manage_messages=True)
     @app_commands.checks.cooldown(1, 10.0)
     async def meet(
         self,

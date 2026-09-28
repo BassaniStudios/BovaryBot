@@ -32,7 +32,6 @@ class CustomCmds(commands.Cog):
         response="Text response (supports simple markdown)",
         embed="If true, send as embed",
     )
-    @app_commands.checks.has_permissions(manage_messages=True)
     async def cmd_add(
         self,
         interaction: discord.Interaction,
@@ -54,7 +53,6 @@ class CustomCmds(commands.Cog):
 
     @app_commands.command(name="cmd_remove", description="Remove a custom command")
     @app_commands.describe(name="Command name")
-    @app_commands.checks.has_permissions(manage_messages=True)
     async def cmd_remove(self, interaction: discord.Interaction, name: str):
         name = name.strip().lower()
         if name in self._cmds():

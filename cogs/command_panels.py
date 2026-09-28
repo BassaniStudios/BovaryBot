@@ -120,7 +120,7 @@ class CategoryHub(discord.ui.View):
                 (
                     "`/panel` — web panel link + key\n"
                     "`/memberlog_test` — sample join/leave/kick/ban embeds\n"
-                    "`/autorole_panel` `/autofeed_add`\n"
+                    "`/autofeed_add` `/autofeed_list` `/autofeed_remove` `/autofeed_toggle`\n"
                     "`/delete` `/purge`\n"
                     "`/backup_now` `/db_status`\n"
                     "`/sticky_set` `/cmd_add`\n"
@@ -140,22 +140,52 @@ class CommandPanels(commands.Cog):
         except Exception:
             pass
 
-    @app_commands.command(name="commands_panel", description="Post the category command hub (buttons)")
-    @app_commands.checks.has_permissions(manage_messages=True)
+    @app_commands.command(name="commands_panel", description="Post the detailed Bova command hub")
     async def commands_panel(self, interaction: discord.Interaction):
         embed = discord.Embed(
-            title="◈ BOVA COMMAND HUB",
+            title="◈ BOVA COMMAND HUB · OPERATIONS",
             description=(
-                "Pick a **category**. Each button shows the easy options for that area.\n"
-                "Members rarely need raw `/` commands — use these guides + specialty panels "
-                "(tickets, birthdays, autorole)."
+                "A central map of the bot's current systems.\n\n"
+                "🔐 **Slash access:** restricted by the bot's staff-role policy.\n"
+                "🎫 **Member panels:** Invite requests, Tickets/Suggestions/Reports, Birthdays and arcade panels continue to work through buttons and modals.\n"
+                "🛡️ **Background systems:** logging, AutoMod monitoring, timestamp reminders, statistics and activity tracking run independently of slash access."
             ),
             color=discord.Color.from_rgb(180, 80, 255),
             timestamp=datetime.now(timezone.utc),
         )
-        embed.set_footer(text="Bova's Bot · Category panels")
+        embed.add_field(
+            name="🛠️ Core & Utilities",
+            value="`/ping` `/info` `/timestamp` `/help` `/panel` `/avatar` `/servericon` `/membercount` `/userinfo` `/serverinfo` `/say` `/bova` `/bovasay`",
+            inline=False,
+        )
+        embed.add_field(
+            name="📅 Community Operations",
+            value="`/invitepanel` · `/meet` · `/poll` `/poll_end` `/poll_list` · `/ticket_panel` `/ticket_setup` `/ticket_list` · birthdays · AutoFeeds",
+            inline=False,
+        )
+        embed.add_field(
+            name="📊 Logs & Statistics",
+            value="`/stats` `/topmedia` `/week_summary` `/weblogs_config` `/msglog_test` `/memberlog_test` `/namehistory` `/namehistory_export`",
+            inline=False,
+        )
+        embed.add_field(
+            name="🕵️ Advanced Audit",
+            value="`/member_activity` `/member_invites` `/automod_activity` `/member_time` `/chat_ranking` `/media_ranking` `/role_diff` `/permission_audit` `/mass_action_alert` `/msg_stats` `/log_health` `/guild_snapshot` `/investigate` `/who_deleted` `/peak_hours`",
+            inline=False,
+        )
+        embed.add_field(
+            name="🔮 Special Systems",
+            value="Nazar Speaks · Love Professor · Timestamp Reminders · Custom Commands · Sticky Messages · Backup/Database",
+            inline=False,
+        )
+        embed.add_field(
+            name="🚫 Removed from the current command set",
+            value="Auto-Role · Welcome DM · `/boost_config`",
+            inline=False,
+        )
+        embed.set_footer(text="Bova's Bot · Operations Hub")
         await interaction.channel.send(embed=embed, view=CategoryHub(self.bot))
-        await interaction.response.send_message("✅ Command hub posted.", ephemeral=True)
+        await interaction.response.send_message("✅ Detailed command hub posted.", ephemeral=True)
 
 
 async def setup(bot: commands.Bot):

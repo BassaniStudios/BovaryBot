@@ -680,7 +680,6 @@ class LoveProfessor(commands.Cog):
         name="loveprofessor_panel",
         description="[ADMIN] Post the permanent The Love Professor arcade panel",
     )
-    @app_commands.checks.has_permissions(manage_guild=True)
     @app_commands.guild_only()
     async def loveprofessor_panel(self, interaction: discord.Interaction):
         if interaction.channel_id != ALLOWED_CHANNEL_ID:
@@ -722,7 +721,6 @@ class LoveProfessor(commands.Cog):
         name="loveprofessor_test",
         description="[ADMIN] Test the love machine — the bot plays with you",
     )
-    @app_commands.checks.has_permissions(manage_guild=True)
     @app_commands.guild_only()
     async def loveprofessor_test(self, interaction: discord.Interaction):
         if interaction.channel_id != ALLOWED_CHANNEL_ID:
@@ -747,9 +745,9 @@ class LoveProfessor(commands.Cog):
     async def admin_cmd_error(
         self, interaction: discord.Interaction, error: app_commands.AppCommandError
     ):
-        if isinstance(error, app_commands.MissingPermissions):
+        if isinstance(error, app_commands.CheckFailure):
             await interaction.response.send_message(
-                "❌ You need **Manage Server** permission to use this command.",
+                "❌ Você não possui um dos cargos autorizados para este comando.",
                 ephemeral=True,
             )
         else:

@@ -32,7 +32,6 @@ class Moderation(commands.Cog):
         channel="Channel where the message is located",
         message_id="ID of the message to delete",
     )
-    @app_commands.checks.has_permissions(manage_messages=True)
     @app_commands.checks.cooldown(1, 3.0)
     async def delete_msg(
         self,
@@ -99,7 +98,6 @@ class Moderation(commands.Cog):
         description="Delete a number of messages in the current channel",
     )
     @app_commands.describe(amount="Number of messages to delete (1-100)")
-    @app_commands.checks.has_permissions(manage_messages=True)
     @app_commands.checks.cooldown(1, 5.0)
     async def purge(
         self,

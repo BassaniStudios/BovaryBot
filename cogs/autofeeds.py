@@ -106,7 +106,6 @@ class AutoFeeds(commands.Cog):
         embed_title="Embed title (if use_embed)",
         embed_image="Optional image URL for embed",
     )
-    @app_commands.checks.has_permissions(manage_guild=True)
     @app_commands.checks.cooldown(1, 5.0)
     async def autofeed_add(
         self,
@@ -162,7 +161,6 @@ class AutoFeeds(commands.Cog):
         )
 
     @app_commands.command(name="autofeed_list", description="List auto-feeds")
-    @app_commands.checks.has_permissions(manage_guild=True)
     async def autofeed_list(self, interaction: discord.Interaction):
         if not self.feeds:
             await interaction.response.send_message("No auto-feeds configured.", ephemeral=True)
@@ -184,7 +182,6 @@ class AutoFeeds(commands.Cog):
         await interaction.response.send_message("\n\n".join(lines)[:2000], ephemeral=True)
 
     @app_commands.command(name="autofeed_remove", description="Remove an auto-feed by ID")
-    @app_commands.checks.has_permissions(manage_guild=True)
     async def autofeed_remove(self, interaction: discord.Interaction, feed_id: int):
         before = len(self.feeds)
         self.feeds = [f for f in self.feeds if f.get("id") != feed_id]
@@ -194,7 +191,6 @@ class AutoFeeds(commands.Cog):
         )
 
     @app_commands.command(name="autofeed_toggle", description="Enable/disable an auto-feed")
-    @app_commands.checks.has_permissions(manage_guild=True)
     async def autofeed_toggle(self, interaction: discord.Interaction, feed_id: int):
         for f in self.feeds:
             if f.get("id") == feed_id:

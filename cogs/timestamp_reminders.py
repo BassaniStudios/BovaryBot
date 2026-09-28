@@ -244,8 +244,12 @@ class TimestampReminders(commands.Cog):
 
         now = datetime.now(timezone.utc).timestamp()
         target_seconds = self._minutes() * 60
-        lower_bound = max(0, target_seconds - 90)
-        upper_bound = target_seconds
+        # Trigger only in a narrow window around the configured offset.
+        # The previous 90-second one-sided window could also hide clock/data
+        # drift when a pending timestamp was created from stale state.
+        trigger_window = 45
+        lower_bound = max(0, target_seconds - trigger_window)
+        upper_bound = target_seconds + trigger_window
         changed = False
 
         for item in list(self.reminders):
@@ -259,6 +263,11 @@ class TimestampReminders(commands.Cog):
                 continue
 
             delta = start - now
+            if delta <= 0:
+                item["reminder_sent"] = True
+                item["reminder_sent_at"] = datetime.now(timezone.utc).isoformat()
+                changed = True
+                continue
             if not (lower_bound <= delta <= upper_bound):
                 continue
 
@@ -300,7 +309,6 @@ class TimestampReminders(commands.Cog):
         minutes="Minutes before the event (1-1440)",
         text="Optional English reminder template; {minutes}, {timestamp}, {jump_url} are supported",
     )
-    @app_commands.checks.has_permissions(manage_guild=True)
     async def timestamp_reminder_config(
         self,
         interaction: discord.Interaction,
@@ -320,10 +328,17 @@ class TimestampReminders(commands.Cog):
     async def timestamp_reminder_status(self, interaction: discord.Interaction):
         cfg = self.get_config()
         state = "ON" if cfg["enabled"] else "OFF"
+        pending = [x for x in self.reminders if not x.get("reminder_sent")]
+        pending.sort(key=lambda x: int(x.get("timestamp", 0) or 0))
+        next_text = "none"
+        if pending:
+            next_ts = int(pending[0].get("timestamp", 0))
+            next_text = f"<t:{next_ts}:F> · <t:{next_ts}:R>"
         await interaction.response.send_message(
             f"⏰ **Timestamp Reminder**\nStatus: **{state}**\n"
-            f"Trigger: **{cfg['minutes']} minutes** before\n"
+            f"Trigger: **{cfg['minutes']} minutes** before (±45s)\n"
             f"Pending reminders: **{cfg['pending']}**\n"
+            f"Next event: {next_text}\n"
             f"Language: **English**",
             ephemeral=True,
         )

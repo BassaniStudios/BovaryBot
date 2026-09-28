@@ -125,7 +125,6 @@ class BovaryBot(commands.Bot):
             ),
             "CREW_LEADER_ROLE_ID": load_int_env("CREW_LEADER_ROLE_ID", 1384173136177791048),
             "REQUIRED_INVITE_CHANNEL": load_int_env("REQUIRED_INVITE_CHANNEL", 1444094610157600859),
-            "BOOST_CHANNEL_ID": load_int_env("BOOST_CHANNEL_ID", 1384173136638906407),
             "CHANNEL_IDS": _channel_list("CHANNEL_IDS", media_default),
             "MEDIA_SCORE_CHANNEL_IDS": _channel_list("MEDIA_SCORE_CHANNEL_IDS", media_default),
             "INVITE_COOLDOWN_SECONDS": load_int_env("INVITE_COOLDOWN_SECONDS", 300) or 300,
@@ -176,6 +175,8 @@ class BovaryBot(commands.Bot):
             except Exception:
                 logger.exception("Falha ao carregar cog %s", ext)
 
+        self._install_slash_command_access_policy()
+
         guild_id = self.config.get("GUILD_ID")
         if guild_id:
             # Development/private-server mode: keep slash commands GUILD-ONLY.
@@ -223,6 +224,45 @@ class BovaryBot(commands.Bot):
             # No GUILD_ID: publish the currently loaded commands globally.
             synced = await self.tree.sync()
             logger.info("Comandos sincronizados globalmente (%d comandos)", len(synced))
+
+    def _install_slash_command_access_policy(self) -> None:
+        """Restrict every slash command to the configured staff role.
+
+        Nazar Speaks and Love Professor have a second explicit role whitelist.
+        This tree-level check is intentionally independent from Discord
+        Administrator/Manage Server permissions. It applies to both guild and
+        copied command objects. Component buttons, modals and persistent panels
+        are not application commands and are therefore not blocked.
+        """
+        primary_role = int(self.config.get("PANEL_ACCESS_ROLE_ID") or 1542169549833773156)
+        special_roles = {1384173136177791048, 1547647694997037137}
+        special_prefixes = ("nazarspeaks_", "loveprofessor_")
+
+        async def role_check(interaction: discord.Interaction) -> bool:
+            member = interaction.user
+            if not isinstance(member, discord.Member):
+                raise discord.app_commands.CheckFailure("Guild member context required.")
+            role_ids = {r.id for r in member.roles}
+            qualified = getattr(interaction.command, "qualified_name", "") or getattr(interaction.command, "name", "")
+            allowed = primary_role in role_ids
+            if qualified.startswith(special_prefixes):
+                allowed = allowed or bool(role_ids & special_roles)
+            if not allowed:
+                raise discord.app_commands.CheckFailure(
+                    "Este slash command é restrito aos cargos autorizados."
+                )
+            return True
+
+        # CommandTree exposes this hook before dispatching any application command.
+        # Assigning the coroutine on the instance keeps the policy attached even
+        # when the command tree is copied into the production guild.
+        self.tree.interaction_check = role_check  # type: ignore[method-assign]
+        count = len(list(self.tree.walk_commands()))
+        logger.info(
+            "Slash command role policy installed on %d commands. Primary role=%s; special roles=%s",
+            count, primary_role, sorted(special_roles),
+        )
+
 
     async def on_ready(self):
         if not rotate_status.is_running():
@@ -306,6 +346,8 @@ class BovaryBot(commands.Bot):
         logger.exception("Erro em slash command: %s", error)
         if isinstance(error, discord.app_commands.MissingPermissions):
             message = "🚫 Você não tem permissão para executar este comando."
+        elif isinstance(error, discord.app_commands.CheckFailure):
+            message = str(error) or "🚫 Você não tem o cargo necessário para usar este slash command."
         elif isinstance(error, discord.app_commands.CommandOnCooldown):
             message = f"⏳ Aguarde {error.retry_after:.1f}s antes de usar este comando novamente."
         else:

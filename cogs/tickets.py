@@ -179,7 +179,6 @@ class Tickets(commands.Cog):
         )
 
     @app_commands.command(name="ticket_panel", description="Post the easy Ticket / Suggestions / Report panel")
-    @app_commands.checks.has_permissions(manage_messages=True)
     async def ticket_panel(self, interaction: discord.Interaction, channel: Optional[discord.TextChannel] = None):
         ch = channel or interaction.channel
         if not isinstance(ch, discord.TextChannel):
@@ -208,7 +207,6 @@ class Tickets(commands.Cog):
         await interaction.response.send_message(f"✅ Panel posted in {ch.mention}", ephemeral=True)
 
     @app_commands.command(name="ticket_setup", description="Set panel/log channels for easy tickets")
-    @app_commands.checks.has_permissions(administrator=True)
     async def ticket_setup(
         self,
         interaction: discord.Interaction,
@@ -230,7 +228,6 @@ class Tickets(commands.Cog):
         )
 
     @app_commands.command(name="ticket_list", description="[STAFF] List recent submissions")
-    @app_commands.checks.has_permissions(manage_messages=True)
     async def ticket_list(self, interaction: discord.Interaction, limit: app_commands.Range[int, 1, 30] = 15):
         entries = list(reversed(self.config.get("entries") or []))[:limit]
         if not entries:

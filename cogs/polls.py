@@ -209,7 +209,6 @@ class Polls(commands.Cog):
         hours="Auto-close after N hours (0 = no limit)",
         channel="Channel to post (default: current)",
     )
-    @app_commands.checks.has_permissions(manage_messages=True)
     @app_commands.checks.cooldown(1, 5.0)
     async def poll_cmd(
         self,
@@ -248,7 +247,6 @@ class Polls(commands.Cog):
 
     @app_commands.command(name="poll_end", description="Force-end a poll by ID")
     @app_commands.describe(poll_id="Poll ID shown when created")
-    @app_commands.checks.has_permissions(manage_messages=True)
     async def poll_end(self, interaction: discord.Interaction, poll_id: str):
         poll = self._poll(poll_id.strip())
         if not poll:
@@ -266,7 +264,6 @@ class Polls(commands.Cog):
         await interaction.response.send_message("✅ Poll closed.", ephemeral=True)
 
     @app_commands.command(name="poll_list", description="List active polls")
-    @app_commands.checks.has_permissions(manage_messages=True)
     async def poll_list(self, interaction: discord.Interaction):
         active = [p for p in self.data.get("polls", {}).values() if not p.get("closed")]
         if not active:

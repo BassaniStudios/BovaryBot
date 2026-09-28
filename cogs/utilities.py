@@ -89,20 +89,6 @@ class MainPanelView(discord.ui.View):
         embed.add_field(name="▸ Commands", value="`/invitepanel`", inline=False)
         await interaction.response.edit_message(embed=embed, view=BackOnly(self.bot))
 
-    @discord.ui.button(label="◈ AUTO-ROLE", style=discord.ButtonStyle.secondary, row=1)
-    async def ar_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        embed = cyber_embed(
-            title="◈ AUTO-ROLE",
-            description="Button roles — add multiple roles via slash or web panel.",
-            color=CYBER_PURPLE,
-        )
-        embed.add_field(
-            name="▸ Commands",
-            value="`/autorole_panel` `/autorole_add` `/autorole_remove` `/autorole_list` `/autorole_config`",
-            inline=False,
-        )
-        await interaction.response.edit_message(embed=embed, view=BackOnly(self.bot))
-
     @discord.ui.button(label="◈ REMINDERS", style=discord.ButtonStyle.secondary, row=1)
     async def reminders_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         embed = cyber_embed(
@@ -159,16 +145,6 @@ class MainPanelView(discord.ui.View):
             value="`/autofeed_add` `/autofeed_list` `/autofeed_remove` `/autofeed_toggle`",
             inline=False,
         )
-        await interaction.response.edit_message(embed=embed, view=BackOnly(self.bot))
-
-    @discord.ui.button(label="◈ BOOST", style=discord.ButtonStyle.secondary, row=4)
-    async def boost_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        embed = cyber_embed(
-            title="◈ BOOST",
-            description="Thank-you embeds when someone boosts the server.",
-            color=CYBER_PINK,
-        )
-        embed.add_field(name="▸ Commands", value="`/boost_config`", inline=False)
         await interaction.response.edit_message(embed=embed, view=BackOnly(self.bot))
 
     @discord.ui.button(label="◈ WEBLOGS", style=discord.ButtonStyle.secondary, row=4)
@@ -359,8 +335,8 @@ class Utilities(commands.Cog):
             description=(
                 f"**Link:** {panel_url}\n\n"
                 "▸ Enter the panel access key on the panel login screen. It is intentionally not displayed here.\n"
-                "▸ Sidebar modules: Dashboard · Auto-Role · Embed · Meets · Timestamp\n"
-                "▸ Auto Feeds · Tickets · Boost · WebLogs · Stats · Commands\n"
+                "▸ Sidebar modules: Dashboard · Embed · Meets · Timestamp\n"
+                "▸ Auto Feeds · Tickets · WebLogs · Stats · Commands · Audit Tools\n"
                 "▸ Keep link and key private\n"
                 "▸ API: set Render URL in panel config.js (BOVA_API.baseUrl)"
             ),
@@ -510,7 +486,6 @@ class Utilities(commands.Cog):
 
     @app_commands.command(name="say", description="[STAFF] Make the bot say something")
     @app_commands.describe(message="Message to send", channel="Channel (optional)")
-    @app_commands.checks.has_permissions(manage_messages=True)
     async def say(
         self,
         interaction: discord.Interaction,
@@ -527,6 +502,8 @@ class Utilities(commands.Cog):
     def _bova_gif_file(self) -> Optional[discord.File]:
         """Load the small chat GIF from assets (250x250)."""
         candidates = [
+            Path(__file__).resolve().parent.parent / "assets" / "bova_embed.gif",
+            Path("assets/bova_embed.gif"),
             Path(__file__).resolve().parent.parent / "assets" / "bova_chat.gif",
             Path("assets/bova_chat.gif"),
         ]
@@ -537,7 +514,6 @@ class Utilities(commands.Cog):
 
     @app_commands.command(name="bova", description="[STAFF] Post the official Bova's Bot GIF")
     @app_commands.describe(channel="Channel (optional)")
-    @app_commands.checks.has_permissions(manage_messages=True)
     async def bova(
         self,
         interaction: discord.Interaction,
@@ -555,15 +531,20 @@ class Utilities(commands.Cog):
             await interaction.response.send_message("✅ GIF enviado (link).", ephemeral=True)
             return
 
-        await ch.send(file=gif)
-        await interaction.response.send_message("✅ GIF enviado.", ephemeral=True)
+        embed = cyber_embed(
+            title="◈ BOVA'S BOT",
+            description="Bova's Bot · SYSTEM ONLINE",
+            color=CYBER_PURPLE,
+        )
+        embed.set_image(url="attachment://bova.gif")
+        await ch.send(embed=embed, file=gif)
+        await interaction.response.send_message("✅ GIF enviado no embed.", ephemeral=True)
 
     @app_commands.command(name="bovasay", description="[STAFF] Post text + official Bova's Bot GIF")
     @app_commands.describe(
         message="Text to send with the GIF",
         channel="Channel (optional)",
     )
-    @app_commands.checks.has_permissions(manage_messages=True)
     async def bovasay(
         self,
         interaction: discord.Interaction,
@@ -582,8 +563,14 @@ class Utilities(commands.Cog):
             await interaction.response.send_message("✅ Mensagem + GIF enviados (link).", ephemeral=True)
             return
 
-        await ch.send(content=content, file=gif)
-        await interaction.response.send_message("✅ Mensagem + GIF enviados.", ephemeral=True)
+        embed = cyber_embed(
+            title="◈ BOVA'S BOT",
+            description=content,
+            color=CYBER_PURPLE,
+        )
+        embed.set_image(url="attachment://bova.gif")
+        await ch.send(embed=embed, file=gif)
+        await interaction.response.send_message("✅ Mensagem + GIF enviados no embed.", ephemeral=True)
 
 
 async def setup(bot: commands.Bot):

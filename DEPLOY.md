@@ -20,7 +20,6 @@ Slash commands sync automatically (`GUILD_ID` makes sync faster).
 
 ### Data files (created at runtime)
 - `data/cooldowns.json`
-- `data/autorole.json`
 - `data/meets.json`
 - `data/stats.json`
 - `data/autofeeds.json`
@@ -57,12 +56,11 @@ If using `keep_alive.py`: `GET /health` returns JSON `{ status, uptime_seconds }
 | Join / leave | 1441663299065217114 (Info) | `LOG_CHANNEL_ID` |
 | Admin (purge, tickets, channels) | 1424436722984423529 (bot-room) | `BOT_ROOM_CHANNEL_ID` |
 | Message delete/edit | 1432715549116207248 | `MESSAGE_LOG_CHANNEL_ID` |
-| Boost thank-you | 1384173136638906407 | `BOOST_CHANNEL_ID` |
+| Boost thank-you | 1384173136638906407 | boost.json / built-in fallback |
 
 ---
 
 ## 4. Common workflows
-**Auto-role:** `/autorole_add` (repeat for each role) → `/autorole_panel`  
 **Meet:** `/meet` with date_time `DD/MM/YYYY HH:MM` (São Paulo)  
 **Tickets:** `/ticket_setup` → `/ticket_panel`  
 **Auto-feed:** `/autofeed_add` (interval or `fixed_hour` + optional `use_embed:True`)  
@@ -92,3 +90,13 @@ If using `keep_alive.py`: `GET /health` returns JSON `{ status, uptime_seconds }
 
 To migrate existing local data once: run the bot once with local DB (no Turso vars), then set Turso vars and use a one-shot export/import, or keep the JSON migration path on first Turso connect if `data/*.json` still exist.
 
+
+## 5. Slash-command access policy
+All slash commands are restricted by role, independently of Administrator/Manage Server permissions:
+- Primary slash role: `1542169549833773156`
+- Nazar Speaks + Love Professor additional roles: `1384173136177791048`, `1547647694997037137`
+
+This policy applies only to application/slash commands. Persistent buttons, modals and panels for invitations, tickets, birthdays and arcade/minigame systems continue to be usable according to their own component logic.
+
+## 6. Advanced staff monitoring
+The bot now tracks member activity, invite creation/use, AutoMod actions in the configured AutoMod channel, chat/media rankings, role changes, permission audits, mass-action bursts, message statistics, log health and guild snapshots. Historical coverage begins from the updated bot deployment unless existing bot data already contains the relevant counters.

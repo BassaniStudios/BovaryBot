@@ -314,7 +314,6 @@ class Birthdays(commands.Cog):
         await self.bot.wait_until_ready()
 
     @app_commands.command(name="birthday_panel", description="Post the easy birthday panel (buttons only)")
-    @app_commands.checks.has_permissions(manage_messages=True)
     async def birthday_panel(self, interaction: discord.Interaction):
         embed = discord.Embed(
             title="🎂 Birthdays · Bovary Club",
@@ -337,7 +336,6 @@ class Birthdays(commands.Cog):
         self.bot.add_view(view)
 
     @app_commands.command(name="birthday_announce_channel", description="Channel for daily birthday announcements")
-    @app_commands.checks.has_permissions(administrator=True)
     async def birthday_announce_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
         self.data["announce_channel_id"] = channel.id
         self._save()

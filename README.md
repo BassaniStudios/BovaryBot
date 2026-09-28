@@ -1,4 +1,4 @@
-# Bova's Bot — v2.4-sql
+# Bova's Bot — v2.9.0
 
 Private bot for **Bovary Club Society**. Developed by **Bassani**.
 

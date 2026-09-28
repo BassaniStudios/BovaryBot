@@ -318,12 +318,10 @@ _JSON_CANDIDATES = [
     "sticky.json",
     "customcmds.json",
     "audit.json",
-    "autorole.json",
     "autofeeds.json",
     "meets.json",
     "lastfm.json",
     "cooldowns.json",
-    "boost.json",
     "weblogs.json",
 ]
 

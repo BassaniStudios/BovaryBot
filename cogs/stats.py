@@ -142,7 +142,6 @@ class Stats(commands.Cog):
         return items[:n]
 
     @app_commands.command(name="stats", description="Show server activity statistics (numbers + charts)")
-    @app_commands.checks.has_permissions(manage_guild=True)
     async def stats_cmd(self, interaction: discord.Interaction):
         await interaction.response.defer()
         embed = make_embed(title="◈ Server Statistics", color=discord.Color.from_rgb(0, 220, 255))
@@ -196,7 +195,6 @@ class Stats(commands.Cog):
         description="Show or post the most reacted media of the period",
     )
     @app_commands.describe(post="If true, posts a public highlight message")
-    @app_commands.checks.has_permissions(manage_messages=True)
     async def topmedia(self, interaction: discord.Interaction, post: bool = False):
         top = self.data.get("weekly_top") or self._top_media()
         if not top:
@@ -224,7 +222,6 @@ class Stats(commands.Cog):
         name="week_summary",
         description="Activity snapshot for the tracked period (not full chat reading)",
     )
-    @app_commands.checks.has_permissions(manage_messages=True)
     async def week_summary(self, interaction: discord.Interaction):
         """
         Discord does not give a full 'read all chats' API without scanning every channel.

@@ -139,7 +139,6 @@ class NameHistory(commands.Cog):
 
     @app_commands.command(name="namehistory", description="Show name history for a member")
     @app_commands.describe(member="Member to look up")
-    @app_commands.checks.has_permissions(manage_guild=True)
     async def namehistory_cmd(self, interaction: discord.Interaction, member: discord.Member):
         entry = self.data.get("members", {}).get(str(member.id))
         if not entry:
@@ -168,7 +167,6 @@ class NameHistory(commands.Cog):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(name="namehistory_export", description="Export name history JSON (staff)")
-    @app_commands.checks.has_permissions(manage_guild=True)
     async def namehistory_export(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         path = __import__("pathlib").Path(__file__).resolve().parent.parent / "data" / "namehistory.json"

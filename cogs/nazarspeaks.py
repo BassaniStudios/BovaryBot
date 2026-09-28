@@ -396,7 +396,6 @@ class NazarSpeaks(commands.Cog):
         name="nazarspeaks_panel",
         description="[ADMIN] Post the permanent Nazar Speaks arcade panel",
     )
-    @app_commands.checks.has_permissions(manage_guild=True)
     @app_commands.guild_only()
     async def nazarspeaks_panel(self, interaction: discord.Interaction):
         if interaction.channel_id != ALLOWED_CHANNEL_ID:
@@ -436,7 +435,6 @@ class NazarSpeaks(commands.Cog):
         name="nazarspeaks_test",
         description="[ADMIN] Test Nazar Speaks — works in any channel (including hidden)",
     )
-    @app_commands.checks.has_permissions(manage_guild=True)
     @app_commands.guild_only()
     async def nazarspeaks_test(self, interaction: discord.Interaction):
         await interaction.response.defer()
@@ -453,9 +451,9 @@ class NazarSpeaks(commands.Cog):
     async def admin_cmd_error(
         self, interaction: discord.Interaction, error: app_commands.AppCommandError
     ):
-        if isinstance(error, app_commands.MissingPermissions):
+        if isinstance(error, app_commands.CheckFailure):
             await interaction.response.send_message(
-                "❌ You need **Manage Server** permission to use this command.",
+                "❌ Você não possui um dos cargos autorizados para este comando.",
                 ephemeral=True,
             )
         else:

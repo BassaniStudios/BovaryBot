@@ -384,61 +384,6 @@ def api_meet():
         return jsonify({"error": str(e)}), 500
 
 
-@app.post("/api/autorole/panel")
-@require_auth
-def api_autorole_panel():
-    data = request.get_json(force=True, silent=True) or {}
-    channel_id = data.get("channel_id")
-    if not channel_id:
-        return jsonify({"error": "channel_id required"}), 400
-
-    async def _send():
-        import discord
-        from cogs.autorole import AutoRoleView
-        cog = _bot.get_cog("AutoRole")
-        if not cog:
-            raise RuntimeError("AutoRole cog not loaded")
-        # optional config update from panel
-        if data.get("title"):
-            cog.config["title"] = data["title"]
-        if data.get("description"):
-            cog.config["description"] = data["description"]
-        if data.get("color") is not None:
-            c = data["color"]
-            if isinstance(c, str) and c.startswith("#"):
-                c = int(c[1:], 16)
-            cog.config["color"] = c
-        if data.get("roles"):
-            # merge roles from panel [{role_id, label, emoji}]
-            cog.config["roles"] = data["roles"]
-        cog._save()
-        roles = cog.config.get("roles") or []
-        if not roles:
-            raise RuntimeError("No roles configured — use roles in body or /autorole_add first")
-        channel = _bot.get_channel(int(channel_id))
-        if channel is None:
-            channel = await _bot.fetch_channel(int(channel_id))
-        embed = discord.Embed(
-            title=cog.config.get("title", "Choose your roles"),
-            description=cog.config.get("description", ""),
-            color=cog.config.get("color", 0xB450FF),
-        )
-        embed.set_footer(text="Bova's Bot · Auto-Role · Click to toggle")
-        view = AutoRoleView(_bot, roles)
-        msg = await channel.send(embed=embed, view=view)
-        cog.config["message_id"] = msg.id
-        cog.config["channel_id"] = channel.id
-        cog._save()
-        cog._reregister_view()
-        return {"ok": True, "message_id": msg.id}
-
-    try:
-        return jsonify(_run(_send()))
-    except Exception as e:
-        logger.exception("api_autorole")
-        return jsonify({"error": str(e)}), 500
-
-
 @app.post("/api/autofeed")
 @require_auth
 def api_autofeed():
