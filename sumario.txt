@@ -95,3 +95,12 @@ END
 - Query/report commands now offer `Somente você` or `Publicar no canal`; public mode posts the result in the command channel as an embed where applicable.
 - Roles 1384173136177791048 and 1547647694997037137 can use `/meet`, `/stats`, `/topmedia`, timestamp reminders, `/ping`, `/info`, `/timestamp`, `/help`, `/peak_hours` and `/userinfo` only in the eight approved channels.
 - Name-change logs now go to 1441663299065217114.
+
+================================================================================
+2026-09-28 HOTFIX v2.9.2 — AUTOFEED GHOST COMMANDS
+================================================================================
+- Confirmed: no autofeed cog, no /autofeed_* slash definitions, no /api/autofeed routes in source.
+- Stale __pycache__ bytecode from older builds still mentioned autofeed strings — purged from package.
+- setup_hook now FORCE-WIPES guild slash commands on Discord, then re-syncs only currently loaded cogs.
+  This removes ghost /autofeed_add /autofeed_list /autofeed_remove /autofeed_toggle left by older deploys.
+- Deploy logs list every synced command name for verification.

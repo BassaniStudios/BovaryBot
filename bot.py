@@ -187,11 +187,23 @@ class BovaryBot(commands.Bot):
             # separate command records, so users can see every command twice.
             # This also cleans up global commands left by older versions that
             # previously used copy_global_to(guild=...).
+            #
+            # FORCE WIPE: clear guild commands on Discord first, then re-push only
+            # the commands loaded from current cogs. This removes ghost entries
+            # (e.g. old /autofeed_*) that can survive a plain re-sync.
             guild = discord.Object(id=guild_id)
 
-            # Copy the currently loaded commands into the target guild and sync
-            # them immediately. Guild commands are the recommended choice for
-            # development/testing because they update instantly.
+            try:
+                self.tree.clear_commands(guild=guild)
+                wiped = await self.tree.sync(guild=guild)
+                logger.info(
+                    "Limpeza forçada de slash commands no guild %s (%d residual removido)",
+                    guild_id, len(wiped),
+                )
+            except Exception:
+                logger.exception("Falha na limpeza forçada de comandos do guild %s", guild_id)
+
+            # Re-copy the currently loaded commands into the target guild and sync.
             self.tree.copy_global_to(guild=guild)
             synced = await self.tree.sync(guild=guild)
 
@@ -214,13 +226,18 @@ class BovaryBot(commands.Bot):
                 except Exception:
                     logger.exception("Falha ao limpar comandos do servidor casa %s", home_id)
 
+            # Log command names so deploy logs prove autofeed is absent
+            names = sorted({c.name for c in self.tree.get_commands()})
             logger.info(
                 "Comandos sincronizados SOMENTE no servidor principal %s (%d); "
-                "globais removidos (%d). Casa = backup only.",
+                "globais removidos (%d). Casa = backup only. Names: %s",
                 guild_id,
                 len(synced),
                 len(global_synced),
+                ", ".join(names),
             )
+            if any(n.startswith("autofeed") for n in names):
+                logger.error("UNEXPECTED autofeed command still in tree: %s", names)
         else:
             # No GUILD_ID: publish the currently loaded commands globally.
             synced = await self.tree.sync()
