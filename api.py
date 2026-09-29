@@ -700,6 +700,120 @@ def api_server_summary():
 
 
 
+
+@app.post("/api/arcade")
+@require_auth
+def api_arcade():
+    """Trigger arcade mini-game panel post or test in the game's fixed channel.
+
+    Body: { "game": "loveprofessor"|"nazarspeaks"|"cursedhoroscope", "action": "panel"|"test" }
+    """
+    data = request.get_json(force=True, silent=True) or {}
+    game = str(data.get("game") or "").strip().lower()
+    action = str(data.get("action") or "").strip().lower()
+
+    GAMES = {
+        "loveprofessor": {
+            "cog": "LoveProfessor",
+            "channel_id": 1553823431349371042,
+            "label": "The Love Professor",
+        },
+        "nazarspeaks": {
+            "cog": "NazarSpeaks",
+            "channel_id": 1531417799300350073,
+            "label": "Nazar Speaks",
+        },
+        "cursedhoroscope": {
+            "cog": "CursedHoroscope",
+            "channel_id": 1554302868293554196,
+            "label": "Cursed Horoscope",
+        },
+    }
+
+    if game not in GAMES:
+        return jsonify({"error": "invalid game", "allowed": list(GAMES.keys())}), 400
+    if action not in ("panel", "test"):
+        return jsonify({"error": "invalid action", "allowed": ["panel", "test"]}), 400
+
+    meta = GAMES[game]
+    cog = _bot.get_cog(meta["cog"]) if _bot else None
+    if not cog:
+        return jsonify({"error": f"{meta['cog']} cog not loaded"}), 503
+
+    channel_id = meta["channel_id"]
+
+    async def _run_action():
+        channel = _bot.get_channel(channel_id)
+        if channel is None:
+            channel = await _bot.fetch_channel(channel_id)
+
+        if action == "panel":
+            # Delete previous panel if tracked, then post a fresh sticky panel
+            if getattr(cog, "_panel_message_id", None):
+                try:
+                    old = await channel.fetch_message(cog._panel_message_id)
+                    await old.delete()
+                except Exception:
+                    pass
+            if hasattr(cog, "_post_panel"):
+                msg = await cog._post_panel(channel)
+            else:
+                # Love Professor uses slightly different helpers
+                import discord
+                from cogs.loveprofessor import LovePanelView, build_panel_embed
+                view = LovePanelView(cog)
+                cog._panel_view = view
+                _bot.add_view(view)
+                if hasattr(cog, "waiting_user"):
+                    cog.waiting_user = None
+                msg = await channel.send(embed=build_panel_embed(None), view=view)
+                cog._panel_message_id = msg.id
+                if hasattr(cog, "_save_panel_state"):
+                    cog._save_panel_state()
+            return {"ok": True, "action": "panel", "game": game, "channel_id": str(channel_id), "message_id": str(msg.id)}
+
+        # action == "test"
+        if game == "nazarspeaks":
+            from cogs.nazarspeaks import run_fortune
+            # Prefer a system user; fall back to bot user for display
+            user = _bot.user
+            msg = await run_fortune(channel, user)
+            return {"ok": True, "action": "test", "game": game, "channel_id": str(channel_id), "message_id": str(msg.id)}
+
+        if game == "loveprofessor":
+            from cogs.loveprofessor import run_love_test
+            user = _bot.user
+            msg = await run_love_test(channel, user, user)
+            return {"ok": True, "action": "test", "game": game, "channel_id": str(channel_id), "message_id": str(msg.id) if msg else None}
+
+        if game == "cursedhoroscope":
+            import random
+            from cogs.cursedhoroscope import SIGNS, build_result_embed
+            sign_key = random.choice(list(SIGNS.keys()))
+            phrase = random.choice(SIGNS[sign_key]["phrases"])
+            embed = build_result_embed(_bot.user, sign_key, phrase)
+            msg = await channel.send(
+                content=f"🧪 **Test mode** — cursed prediction for {_bot.user.mention}:",
+                embed=embed,
+            )
+            return {"ok": True, "action": "test", "game": game, "channel_id": str(channel_id), "message_id": str(msg.id)}
+
+        return {"error": "unhandled"}
+
+    try:
+        result = _run(_run_action(), timeout=60.0)
+        log_action(
+            actor_id=int(request.headers.get("X-Discord-User-Id") or 0) or None,
+            action=f"arcade_{game}_{action}",
+            detail={"channel_id": channel_id},
+            success=bool(result.get("ok")),
+        )
+        return jsonify(result)
+    except Exception as e:
+        logger.exception("arcade action failed")
+        return jsonify({"error": str(e)}), 500
+
+
 @app.get("/api/tickets")
 @require_auth
 def api_tickets():
