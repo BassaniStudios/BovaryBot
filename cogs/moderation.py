@@ -95,7 +95,7 @@ class Moderation(commands.Cog):
 
     @app_commands.command(
         name="purge",
-        description="Delete a number of messages in the current channel",
+        description="[LOCKED] Delete a number of messages in the current channel",
     )
     @app_commands.describe(amount="Number of messages to delete (1-100)")
     @app_commands.checks.cooldown(1, 5.0)

@@ -394,7 +394,7 @@ class NazarSpeaks(commands.Cog):
     # ------------------------------------------------------------------
     @app_commands.command(
         name="nazarspeaks_panel",
-        description="[ADMIN] Post the permanent Nazar Speaks arcade panel",
+        description="Post the permanent Nazar Speaks arcade panel",
     )
     @app_commands.guild_only()
     async def nazarspeaks_panel(self, interaction: discord.Interaction):
@@ -433,7 +433,7 @@ class NazarSpeaks(commands.Cog):
     # ------------------------------------------------------------------
     @app_commands.command(
         name="nazarspeaks_test",
-        description="[ADMIN] Test Nazar Speaks — works in any channel (including hidden)",
+        description="Test Nazar Speaks — works in any channel (including hidden)",
     )
     @app_commands.guild_only()
     async def nazarspeaks_test(self, interaction: discord.Interaction):

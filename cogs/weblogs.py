@@ -99,6 +99,15 @@ class WebLogs(commands.Cog):
         configured = self.bot.config.get("GUILD_ID")
         return not configured or int(configured) == guild.id
 
+    def _is_casa_guild_id(self, guild_id: Optional[int]) -> bool:
+        """True for Bova's Bot Support Server (casa) — skip message edit/delete logs there."""
+        if not guild_id:
+            return False
+        casa = self.bot.config.get("BACKUP_GUILD_ID")
+        if not casa:
+            casa = 1426594245510430903
+        return int(guild_id) == int(casa)
+
     async def _resolve_info_channel(self, guild: discord.Guild) -> Optional[discord.abc.Messageable]:
         """Resolve the Info channel from the guild itself, with API fallback.
 
@@ -476,7 +485,7 @@ class WebLogs(commands.Cog):
 
     # ── slash config ──────────────────────────────────────────────────────────
 
-    @app_commands.command(name="weblogs_config", description="Configure WebLogs compatibility settings")
+    @app_commands.command(name="weblogs_config", description="[LOCKED] Configure WebLogs compatibility settings")
     @app_commands.describe(
         member_join="Legacy setting; member join logging is always active",
         member_leave="Legacy setting; member leave logging is always active",
@@ -1256,6 +1265,8 @@ class WebLogs(commands.Cog):
         """Fires when the message is still in discord.py cache (full content)."""
         if not message.guild:
             return
+        if self._is_casa_guild_id(message.guild.id):
+            return
         if message.author and message.author.bot:
             return
         if message.channel and message.channel.id == self._ignore_id():
@@ -1314,6 +1325,8 @@ class WebLogs(commands.Cog):
         """
         if not payload.guild_id:
             return
+        if self._is_casa_guild_id(payload.guild_id):
+            return
         if payload.channel_id == self._ignore_id():
             return
         # Already handled by on_message_delete (or a previous raw) → skip
@@ -1360,6 +1373,8 @@ class WebLogs(commands.Cog):
     @commands.Cog.listener()
     async def on_message_edit(self, before: discord.Message, after: discord.Message):
         if not before.guild:
+            return
+        if self._is_casa_guild_id(before.guild.id):
             return
         if before.author and before.author.bot:
             return

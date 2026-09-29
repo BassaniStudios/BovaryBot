@@ -227,7 +227,7 @@ class Tickets(commands.Cog):
             ephemeral=True,
         )
 
-    @app_commands.command(name="ticket_list", description="[STAFF] List recent submissions")
+    @app_commands.command(name="ticket_list", description="List recent submissions")
     async def ticket_list(self, interaction: discord.Interaction, limit: app_commands.Range[int, 1, 30] = 15):
         entries = list(reversed(self.config.get("entries") or []))[:limit]
         if not entries:

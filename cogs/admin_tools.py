@@ -892,7 +892,7 @@ class AdminTools(commands.Cog):
 
     @app_commands.command(
         name="sync_commands",
-        description="[ADMIN] Force re-register all slash commands on this server (use if menus are missing)",
+        description="[LOCKED] Force re-register all slash commands on this server",
     )
     @app_commands.guild_only()
     async def sync_commands(self, interaction: discord.Interaction):
@@ -901,24 +901,37 @@ class AdminTools(commands.Cog):
         if not guild_id:
             await interaction.followup.send("❌ GUILD_ID not configured.", ephemeral=True)
             return
-        if interaction.guild_id and int(interaction.guild_id) != int(guild_id):
+        casa = self.bot.config.get("BACKUP_GUILD_ID")
+        allowed = {int(guild_id)}
+        if casa:
+            allowed.add(int(casa))
+        if interaction.guild_id and int(interaction.guild_id) not in allowed:
             await interaction.followup.send(
-                f"❌ Run this only on the main server (`{guild_id}`).",
+                "❌ Run this on the main or casa server.",
                 ephemeral=True,
             )
             return
-        guild = discord.Object(id=int(guild_id))
+        targets = [int(guild_id)]
+        casa = self.bot.config.get("BACKUP_GUILD_ID")
+        if casa and int(casa) not in targets:
+            targets.append(int(casa))
         try:
-            self.bot.tree.copy_global_to(guild=guild)
-            synced = await self.bot.tree.sync(guild=guild)
-            names = sorted({c.name for c in synced})
+            lines = []
+            last_synced = []
+            for gid in targets:
+                gobj = discord.Object(id=gid)
+                self.bot.tree.copy_global_to(guild=gobj)
+                synced = await self.bot.tree.sync(guild=gobj)
+                last_synced = list(synced)
+                lines.append(f"• guild `{gid}` → **{len(synced)}** commands")
+            names = sorted({c.name for c in last_synced})
             preview = ", ".join(f"`/{n}`" for n in names[:20])
             extra = f" … +{len(names) - 20} more" if len(names) > 20 else ""
             await interaction.followup.send(
-                f"✅ Synced **{len(synced)}** slash commands on this server.\n{preview}{extra}",
+                "✅ Slash sync done:\n" + "\n".join(lines) + f"\n{preview}{extra}",
                 ephemeral=True,
             )
-            logger.info("Manual /sync_commands by %s — %d commands", interaction.user, len(synced))
+            logger.info("Manual /sync_commands by %s — %s", interaction.user, lines)
         except discord.HTTPException as e:
             if e.status == 429:
                 retry = getattr(e, "retry_after", 60)
@@ -939,24 +952,38 @@ class AdminTools(commands.Cog):
     async def sync_commands_prefix(self, ctx: commands.Context):
         """Prefix fallback: |sync_commands — works even when slash menus are empty."""
         # Same role policy as slash: primary staff or special roles
+        OWNER_ID = 921803925051572266
         primary = int(self.bot.config.get("PANEL_ACCESS_ROLE_ID") or 1542169549833773156)
-        special = {1384173136177791048, 1547647694997037137}
         role_ids = {r.id for r in getattr(ctx.author, "roles", [])}
-        if primary not in role_ids and not (role_ids & special):
+        is_owner = int(ctx.author.id) == OWNER_ID
+        # Same restriction as slash: only owner + Lider may force-sync
+        if not is_owner and primary not in role_ids:
             if not getattr(ctx.author, "guild_permissions", None) or not ctx.author.guild_permissions.administrator:
-                await ctx.reply("❌ Staff only.", mention_author=False)
+                await ctx.reply("❌ Only Lider / bot owner can sync commands.", mention_author=False)
                 return
         guild_id = self.bot.config.get("GUILD_ID")
-        if not guild_id or (ctx.guild and ctx.guild.id != int(guild_id)):
-            await ctx.reply("❌ Main server only.", mention_author=False)
+        casa_id = self.bot.config.get("BACKUP_GUILD_ID")
+        allowed = {int(guild_id)} if guild_id else set()
+        if casa_id:
+            allowed.add(int(casa_id))
+        if not allowed or (ctx.guild and ctx.guild.id not in allowed):
+            await ctx.reply("❌ Only on main or casa server.", mention_author=False)
             return
         msg = await ctx.reply("⏳ Syncing slash commands…", mention_author=False)
-        guild = discord.Object(id=int(guild_id))
+        targets = sorted(allowed)
         try:
-            self.bot.tree.copy_global_to(guild=guild)
-            synced = await self.bot.tree.sync(guild=guild)
-            await msg.edit(content=f"✅ Synced **{len(synced)}** slash commands. Type `/` to refresh the menu.")
-            logger.info("Prefix |sync_commands by %s — %d commands", ctx.author, len(synced))
+            parts = []
+            last_n = 0
+            for gid in targets:
+                gobj = discord.Object(id=gid)
+                self.bot.tree.copy_global_to(guild=gobj)
+                synced = await self.bot.tree.sync(guild=gobj)
+                last_n = len(synced)
+                parts.append(f"`{gid}`={last_n}")
+            await msg.edit(
+                content=f"✅ Synced slash on {', '.join(parts)}. Type `/` to refresh."
+            )
+            logger.info("Prefix |sync_commands by %s — %s", ctx.author, parts)
         except discord.HTTPException as e:
             if e.status == 429:
                 retry = getattr(e, "retry_after", 60)

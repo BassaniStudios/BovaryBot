@@ -714,21 +714,32 @@ def api_sync_commands():
 
     async def _sync():
         import discord
-        guild_id = _bot.config.get("GUILD_ID") if _bot else None
-        if not guild_id:
+        main_id = _bot.config.get("GUILD_ID") if _bot else None
+        casa_id = _bot.config.get("BACKUP_GUILD_ID") if _bot else None
+        if not main_id and not casa_id:
             return {"error": "GUILD_ID not configured"}
-        guild = discord.Object(id=int(guild_id))
-        if force_wipe:
-            _bot.tree.clear_commands(guild=guild)
-            await _bot.tree.sync(guild=guild)
-        _bot.tree.copy_global_to(guild=guild)
-        synced = await _bot.tree.sync(guild=guild)
-        names = sorted({c.name for c in synced})
+        targets = []
+        if main_id:
+            targets.append(int(main_id))
+        if casa_id and int(casa_id) not in targets:
+            targets.append(int(casa_id))
+        results = []
+        last_names = []
+        for gid in targets:
+            guild = discord.Object(id=gid)
+            if force_wipe:
+                _bot.tree.clear_commands(guild=guild)
+                await _bot.tree.sync(guild=guild)
+            _bot.tree.copy_global_to(guild=guild)
+            synced = await _bot.tree.sync(guild=guild)
+            names = sorted({c.name for c in synced})
+            last_names = names
+            results.append({"guild_id": str(gid), "count": len(synced)})
         return {
             "ok": True,
-            "guild_id": str(guild_id),
-            "count": len(synced),
-            "commands": names,
+            "guilds": results,
+            "count": results[-1]["count"] if results else 0,
+            "commands": last_names,
         }
 
     try:

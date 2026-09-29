@@ -26,7 +26,7 @@ class CustomCmds(commands.Cog):
     def _cmds(self) -> Dict[str, Dict]:
         return self.data.setdefault("commands", {})
 
-    @app_commands.command(name="cmd_add", description="Create a custom command (tag)")
+    @app_commands.command(name="cmd_add", description="[LOCKED] Create a custom command (tag)")
     @app_commands.describe(
         name="Command name (no spaces)",
         response="Text response (supports simple markdown)",
@@ -51,7 +51,7 @@ class CustomCmds(commands.Cog):
         self._save()
         await interaction.response.send_message(f"✅ Custom command `/{name}` saved. Use `/run {name}`.", ephemeral=True)
 
-    @app_commands.command(name="cmd_remove", description="Remove a custom command")
+    @app_commands.command(name="cmd_remove", description="[LOCKED] Remove a custom command")
     @app_commands.describe(name="Command name")
     async def cmd_remove(self, interaction: discord.Interaction, name: str):
         name = name.strip().lower()
@@ -62,7 +62,7 @@ class CustomCmds(commands.Cog):
         else:
             await interaction.response.send_message("Not found.", ephemeral=True)
 
-    @app_commands.command(name="cmd_list", description="List custom commands")
+    @app_commands.command(name="cmd_list", description="[LOCKED] List custom commands")
     async def cmd_list(self, interaction: discord.Interaction):
         cmds = self._cmds()
         if not cmds:

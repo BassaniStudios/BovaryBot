@@ -678,7 +678,7 @@ class LoveProfessor(commands.Cog):
     # ------------------------------------------------------------------
     @app_commands.command(
         name="loveprofessor_panel",
-        description="[ADMIN] Post the permanent The Love Professor arcade panel",
+        description="Post the permanent The Love Professor arcade panel",
     )
     @app_commands.guild_only()
     async def loveprofessor_panel(self, interaction: discord.Interaction):
@@ -719,7 +719,7 @@ class LoveProfessor(commands.Cog):
     # ------------------------------------------------------------------
     @app_commands.command(
         name="loveprofessor_test",
-        description="[ADMIN] Test the love machine — the bot plays with you",
+        description="Test the love machine — the bot plays with you",
     )
     @app_commands.guild_only()
     async def loveprofessor_test(self, interaction: discord.Interaction):

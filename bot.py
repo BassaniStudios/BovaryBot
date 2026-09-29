@@ -253,27 +253,41 @@ class BovaryBot(commands.Bot):
         }
 
         async def _once() -> list:
-            guild_id = self.config.get("GUILD_ID")
-            if not guild_id:
+            import discord
+            main_id = self.config.get("GUILD_ID")
+            casa_id = self.config.get("BACKUP_GUILD_ID")
+            targets = []
+            if main_id:
+                targets.append(int(main_id))
+            if casa_id and int(casa_id) not in targets:
+                targets.append(int(casa_id))
+
+            if not targets:
                 synced = await self.tree.sync()
-                logger.info("Comandos sincronizados globalmente (%d comandos)", len(synced))
+                logger.info("Comandos sincronizados globalmente (%d)", len(synced))
                 return list(synced)
 
-            guild = discord.Object(id=int(guild_id))
+            all_synced = []
+            for gid in targets:
+                guild = discord.Object(id=gid)
+                if force_wipe:
+                    try:
+                        self.tree.clear_commands(guild=guild)
+                        wiped = await self.tree.sync(guild=guild)
+                        logger.info("FORCE wipe guild %s (%d residual)", gid, len(wiped))
+                    except Exception:
+                        logger.exception("Falha wipe guild %s", gid)
 
-            if force_wipe:
-                try:
-                    self.tree.clear_commands(guild=guild)
-                    wiped = await self.tree.sync(guild=guild)
-                    logger.info(
-                        "FORCE_COMMAND_RESYNC: limpeza no guild %s (%d residual)",
-                        guild_id, len(wiped),
-                    )
-                except Exception:
-                    logger.exception("Falha na limpeza forçada do guild %s", guild_id)
-
-            self.tree.copy_global_to(guild=guild)
-            synced = await self.tree.sync(guild=guild)
+                self.tree.copy_global_to(guild=guild)
+                synced = await self.tree.sync(guild=guild)
+                all_synced = list(synced)
+                names = sorted({c.name for c in synced})
+                logger.info(
+                    "Slash OK no guild %s: %d comandos. Exemplos: %s",
+                    gid,
+                    len(synced),
+                    ", ".join(names[:20]) + ("…" if len(names) > 20 else ""),
+                )
 
             if clear_globals:
                 try:
@@ -281,36 +295,13 @@ class BovaryBot(commands.Bot):
                     global_synced = await self.tree.sync()
                     logger.info("Globais limpos (%d residual)", len(global_synced))
                 except Exception:
-                    logger.exception("Falha ao limpar comandos globais (não-bloqueante)")
+                    logger.exception("Falha ao limpar globais")
 
-            home_id = self.config.get("BACKUP_GUILD_ID")
-            if home_id and int(home_id) != int(guild_id) and clear_globals:
-                try:
-                    home = discord.Object(id=int(home_id))
-                    self.tree.clear_commands(guild=home)
-                    cleared_home = await self.tree.sync(guild=home)
-                    logger.info(
-                        "Servidor casa %s limpo (%d residual) — backup only",
-                        home_id, len(cleared_home),
-                    )
-                except Exception:
-                    logger.exception("Falha ao limpar servidor casa %s", home_id)
-
-            names = sorted({c.name for c in synced})
-            logger.info(
-                "Slash OK no guild %s: %d comandos. Exemplos: %s",
-                guild_id,
-                len(synced),
-                ", ".join(names[:25]) + ("…" if len(names) > 25 else ""),
-            )
+            names = sorted({c.name for c in all_synced})
             cursed = [n for n in names if n.startswith("cursedhoroscope")]
             if cursed:
                 logger.info("Cursed Horoscope registrado: %s", ", ".join(cursed))
-            else:
-                logger.warning(
-                    "Cursed Horoscope NÃO está na lista sincronizada — confira se o cog carregou."
-                )
-            return list(synced)
+            return all_synced
 
         max_attempts = 5
         last_err = None
@@ -359,74 +350,88 @@ class BovaryBot(commands.Bot):
         )
 
     def _install_slash_command_access_policy(self) -> None:
-        """Restrict every slash command to the configured staff role.
+        """Slash access:
 
-        Nazar Speaks and Love Professor have a second explicit role whitelist.
-        This tree-level check is intentionally independent from Discord
-        Administrator/Manage Server permissions. It applies to both guild and
-        copied command objects. Component buttons, modals and persistent panels
-        are not application commands and are therefore not blocked.
+        Full access:
+          - Bot owner user ID (B4ssani)
+          - Lider role (PANEL_ACCESS_ROLE_ID)
+
+        Special staff (Host Meet Organizer + Bot Staff API):
+          - All slash commands EXCEPT a fixed blacklist
+          - No channel restriction (whole server)
+
+        Everyone else: blocked on slash (panel buttons still work).
         """
-        primary_role = int(self.config.get("PANEL_ACCESS_ROLE_ID") or 1542169549833773156)
-        special_roles = {1384173136177791048, 1547647694997037137}
-        special_prefixes = ("nazarspeaks_", "loveprofessor_", "cursedhoroscope_")
-        # Commands additionally exposed to the two special staff roles.
-        # Those roles may use these commands only in the approved staff/log rooms.
-        special_channel_commands = {
-            "meet", "stats", "topmedia", "timestamp_reminder_config",
-            "timestamp_reminder_status", "ping", "info", "timestamp",
-            "help", "peak_hours", "userinfo",
+        OWNER_USER_ID = 921803925051572266  # B4ssani — full access
+        primary_role = int(self.config.get("PANEL_ACCESS_ROLE_ID") or 1542169549833773156)  # Lider
+        special_roles = {
+            int(self.config.get("CREW_LEADER_ROLE_ID") or 1384173136177791048),  # Host Meet Organizer
+            int(self.config.get("STAFF_API_ROLE_ID") or 1547647694997037137),    # Bot Staff API
         }
-        special_allowed_channels = {
-            1540532050531061921,
-            1538739212088516678,
-            1547032601519329300,
-            1427794118440124567,
-            1384173137985540230,
-            1548188378623778847,
-            1548153354675556412,
-            1426755523797057536,
+        # Commands special roles may NOT use
+        special_denied = {
+            "say",
+            "backup_export",
+            "backup_hint",
+            "backup_now",
+            "cmd_add",
+            "cmd_list",
+            "cmd_remove",
+            "commands_panel",
+            "db_status",
+            "dm_auto_response",
+            "dm_history",
+            "panel",
+            "purge",
+            "sync_commands",
+            "weblogs_config",
         }
 
         async def role_check(interaction: discord.Interaction) -> bool:
             member = interaction.user
             if not isinstance(member, discord.Member):
                 raise discord.app_commands.CheckFailure("Guild member context required.")
-            role_ids = {r.id for r in member.roles}
-            command_name = getattr(interaction.command, "qualified_name", "") or getattr(interaction.command, "name", "")
 
-            # Primary staff role has unrestricted slash-command access.
+            command_name = (
+                getattr(interaction.command, "qualified_name", None)
+                or getattr(interaction.command, "name", "")
+                or ""
+            )
+            # Group subcommands use "parent sub" — compare by leaf name too
+            leaf = command_name.split()[-1] if command_name else ""
+
+            # Owner always full access
+            if int(member.id) == OWNER_USER_ID:
+                return True
+
+            role_ids = {r.id for r in member.roles}
+
+            # Lider — full access
             if primary_role in role_ids:
                 return True
 
-            # Nazar Speaks / Love Professor are explicitly available to the two
-            # special roles and are not subject to the log-room restriction.
-            if command_name.startswith(special_prefixes) and role_ids & special_roles:
+            # Special roles — all except blacklist, any channel
+            if role_ids & special_roles:
+                if command_name in special_denied or leaf in special_denied:
+                    raise discord.app_commands.CheckFailure(
+                        "Este comando é restrito ao Lider / dono do bot."
+                    )
                 return True
-
-            # The additional utility/stat/log commands are available to the two
-            # special roles, but only inside the approved channels.
-            if command_name in special_channel_commands and role_ids & special_roles:
-                if interaction.channel_id in special_allowed_channels:
-                    return True
-                raise discord.app_commands.CheckFailure(
-                    "Este comando só pode ser usado nos canais autorizados para os cargos especiais."
-                )
 
             raise discord.app_commands.CheckFailure(
                 "Este slash command é restrito aos cargos autorizados."
             )
 
-        # CommandTree exposes this hook before dispatching any application command.
-        # Assigning the coroutine on the instance keeps the policy attached even
-        # when the command tree is copied into the production guild.
         self.tree.interaction_check = role_check  # type: ignore[method-assign]
         count = len(list(self.tree.walk_commands()))
         logger.info(
-            "Slash command role policy installed on %d commands. Primary role=%s; special roles=%s",
-            count, primary_role, sorted(special_roles),
+            "Slash policy: owner=%s Lider=%s special=%s denied=%s | %d commands",
+            OWNER_USER_ID,
+            primary_role,
+            sorted(special_roles),
+            sorted(special_denied),
+            count,
         )
-
 
     async def on_ready(self):
         if not rotate_status.is_running():

@@ -304,7 +304,7 @@ class Utilities(commands.Cog):
             ephemeral=not is_public(visibility),
         )
 
-    @app_commands.command(name="panel", description="[STAFF] Get the web panel link (role-restricted)")
+    @app_commands.command(name="panel", description="[LOCKED] Get the web panel link")
     async def panel(self, interaction: discord.Interaction):
         role_id = self.bot.config.get("PANEL_ACCESS_ROLE_ID")
         panel_url = self.bot.config.get("PANEL_URL") or "https://bovaryclub.github.io/BovaryBot-Panel/"
@@ -485,7 +485,7 @@ class Utilities(commands.Cog):
         embed.set_footer(text="Bova's Bot · Server analytics")
         await interaction.followup.send(embed=embed)
 
-    @app_commands.command(name="say", description="[STAFF] Make the bot say something")
+    @app_commands.command(name="say", description="[LOCKED] Make the bot say something")
     @app_commands.describe(message="Message to send", channel="Channel (optional)")
     async def say(
         self,
@@ -513,7 +513,7 @@ class Utilities(commands.Cog):
                 return discord.File(p, filename="bova.gif")
         return None
 
-    @app_commands.command(name="bova", description="[STAFF] Post the official Bova's Bot GIF")
+    @app_commands.command(name="bova", description="Post the official Bova's Bot GIF")
     @app_commands.describe(channel="Channel (optional)")
     async def bova(
         self,

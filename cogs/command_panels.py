@@ -139,7 +139,7 @@ class CommandPanels(commands.Cog):
         except Exception:
             pass
 
-    @app_commands.command(name="commands_panel", description="Post the detailed Bova command hub")
+    @app_commands.command(name="commands_panel", description="[LOCKED] Post the detailed Bova command hub")
     async def commands_panel(self, interaction: discord.Interaction):
         embed = discord.Embed(
             title="◈ BOVA COMMAND HUB · OPERATIONS",

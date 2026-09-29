@@ -686,7 +686,7 @@ class Backup(commands.Cog):
         except Exception:
             logger.exception("Startup backup failed")
 
-    @app_commands.command(name="backup_now", description="[STAFF] Force an immediate SQLite backup to the backup channel")
+    @app_commands.command(name="backup_now", description="[LOCKED] Force an immediate SQLite backup to the backup channel")
     async def backup_now(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         channel = await self._get_backup_channel()
@@ -702,7 +702,7 @@ class Backup(commands.Cog):
         else:
             await interaction.followup.send("❌ Backup failed (invalid or empty DB?).", ephemeral=True)
 
-    @app_commands.command(name="backup_export", description="[STAFF] Export data from SQLite to Discord (ephemeral DM-style)")
+    @app_commands.command(name="backup_export", description="[LOCKED] Export data from SQLite to Discord")
     @app_commands.describe(file="Which: stats, namehistory, tickets, polls, sticky, customcmds, audit, db, all")
     async def backup_export(self, interaction: discord.Interaction, file: str = "all"):
         await interaction.response.defer(ephemeral=True)
@@ -758,7 +758,7 @@ class Backup(commands.Cog):
                 ephemeral=True,
             )
 
-    @app_commands.command(name="db_status", description="[STAFF] SQLite storage status")
+    @app_commands.command(name="db_status", description="[LOCKED] SQLite storage status")
     async def db_status(self, interaction: discord.Interaction):
         _bootstrap()
         info = sqldb.db_stats()
@@ -776,7 +776,7 @@ class Backup(commands.Cog):
         )
         await interaction.response.send_message(text, ephemeral=True)
 
-    @app_commands.command(name="backup_hint", description="How auto-backup works on Render free")
+    @app_commands.command(name="backup_hint", description="[LOCKED] How auto-backup works on Render free")
     async def backup_hint(self, interaction: discord.Interaction):
         text = (
             "**Auto-backup + auto-restore is ON.**\n\n"

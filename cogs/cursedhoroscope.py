@@ -1140,7 +1140,7 @@ class CursedHoroscope(commands.Cog):
     # ------------------------------------------------------------------
     @app_commands.command(
         name="cursedhoroscope_panel",
-        description="[ADMIN] Post the permanent Cursed Horoscope arcade panel",
+        description="Post the permanent Cursed Horoscope arcade panel",
     )
     @app_commands.guild_only()
     async def cursedhoroscope_panel(self, interaction: discord.Interaction):
@@ -1183,7 +1183,7 @@ class CursedHoroscope(commands.Cog):
     # ------------------------------------------------------------------
     @app_commands.command(
         name="cursedhoroscope_test",
-        description="[ADMIN] Test Cursed Horoscope — works in any channel",
+        description="Test Cursed Horoscope — works in any channel",
     )
     @app_commands.guild_only()
     async def cursedhoroscope_test(self, interaction: discord.Interaction):

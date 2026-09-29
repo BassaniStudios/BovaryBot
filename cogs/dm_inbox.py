@@ -106,7 +106,7 @@ class DMInbox(commands.Cog):
                 except Exception:
                     logger.exception("Automatic DM reply failed")
 
-    @app_commands.command(name="dm_inbox", description="[STAFF] Show recent users who contacted the bot by DM")
+    @app_commands.command(name="dm_inbox", description="Show recent users who contacted the bot by DM")
     async def dm_inbox(self, interaction: discord.Interaction):
         if not self._is_staff(interaction):
             await interaction.response.send_message("❌ Staff only.", ephemeral=True)
@@ -124,7 +124,7 @@ class DMInbox(commands.Cog):
         embed = discord.Embed(title="📥 DM Inbox", description="\n".join(rows)[:4000] or "No conversations.", color=discord.Color.blurple())
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="dm_history", description="[STAFF] View recent DM history with a user")
+    @app_commands.command(name="dm_history", description="[LOCKED] View recent DM history with a user")
     @app_commands.describe(user="Discord user", limit="Number of messages to show (1-30)")
     async def dm_history(self, interaction: discord.Interaction, user: discord.User, limit: app_commands.Range[int, 1, 30] = 15):
         if not self._is_staff(interaction):
@@ -144,7 +144,7 @@ class DMInbox(commands.Cog):
         embed.set_footer(text=f"User ID: {user.id}")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="dm_reply", description="[STAFF] Reply to a user by DM through the bot")
+    @app_commands.command(name="dm_reply", description="Reply to a user by DM through the bot")
     @app_commands.describe(user="Discord user", message="Reply text")
     async def dm_reply(self, interaction: discord.Interaction, user: discord.User, message: str):
         if not self._is_staff(interaction):
@@ -169,7 +169,7 @@ class DMInbox(commands.Cog):
         save_json(FILE, self.data)
         await interaction.response.send_message(f"✅ Reply sent to **{user}**.", ephemeral=True)
 
-    @app_commands.command(name="dm_auto_response", description="[STAFF] Configure automatic DM acknowledgement")
+    @app_commands.command(name="dm_auto_response", description="[LOCKED] Configure automatic DM acknowledgement")
     @app_commands.describe(enabled="Enable or disable automatic replies", text="Automatic reply text")
     async def dm_auto_response(self, interaction: discord.Interaction, enabled: bool, text: str | None = None):
         if not self._is_staff(interaction):
