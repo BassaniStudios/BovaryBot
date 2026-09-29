@@ -317,7 +317,7 @@ class BovaryBot(commands.Bot):
         """
         primary_role = int(self.config.get("PANEL_ACCESS_ROLE_ID") or 1542169549833773156)
         special_roles = {1384173136177791048, 1547647694997037137}
-        special_prefixes = ("nazarspeaks_", "loveprofessor_")
+        special_prefixes = ("nazarspeaks_", "loveprofessor_", "cursedhoroscope_")
         # Commands additionally exposed to the two special staff roles.
         # Those roles may use these commands only in the approved staff/log rooms.
         special_channel_commands = {
