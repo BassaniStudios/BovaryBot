@@ -10,6 +10,7 @@ import asyncio
 import logging
 import random
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 import discord
@@ -23,6 +24,10 @@ logger = logging.getLogger("bovary_bot.cursedhoroscope")
 # ---------------------------------------------------------------------------
 # Config — SET YOUR CHANNEL ID HERE
 # ---------------------------------------------------------------------------
+# Local asset (ImageKit URLs often fail to render in Discord embeds)
+GIF_FILENAME = "madame_boavry.gif"
+GIF_PATH = Path(__file__).resolve().parent.parent / "assets" / GIF_FILENAME
+# Fallback CDN URL (only used if local file is missing)
 GIF_URL = "https://ik.imagekit.io/BassaniStudios/madame%20boavry.gif?updatedAt=1790644003965"
 # TODO: replace with the real channel ID where this panel will live
 ALLOWED_CHANNEL_ID = 1554302868293554196
@@ -915,7 +920,19 @@ EXTRA_PROPHECIES = [
 # ---------------------------------------------------------------------------
 # Embed builders
 # ---------------------------------------------------------------------------
-def build_panel_embed() -> discord.Embed:
+
+def _gif_file() -> Optional[discord.File]:
+    """Open the local Madame Boavry GIF for embed attachment."""
+    try:
+        if GIF_PATH.is_file():
+            return discord.File(GIF_PATH, filename=GIF_FILENAME)
+    except Exception:
+        logger.exception("Failed to open Cursed Horoscope GIF at %s", GIF_PATH)
+    return None
+
+
+
+def build_panel_embed(*, use_attachment: bool = True) -> discord.Embed:
     embed = discord.Embed(
         title="👻 Cursed Horoscope 💀",
         description=(
@@ -924,7 +941,10 @@ def build_panel_embed() -> discord.Embed:
         ),
         color=CURSED_PURPLE,
     )
-    embed.set_image(url=GIF_URL)
+    if use_attachment and GIF_PATH.is_file():
+        embed.set_image(url=f"attachment://{GIF_FILENAME}")
+    else:
+        embed.set_image(url=GIF_URL)
     embed.set_footer(text="◆ ARCADE · CURSED HOROSCOPE · HALLOWEEN SPECIAL ◆")
     return embed
 
@@ -942,7 +962,7 @@ def build_result_embed(user: discord.abc.User, sign_key: str, phrase: str) -> di
         color=CURSED_RED,
         timestamp=datetime.now(timezone.utc),
     )
-    embed.set_thumbnail(url=GIF_URL)
+    # Thumbnail omitted — large GIF is reserved for the sticky panel image
     embed.set_footer(text="◆ CURSED HOROSCOPE · NO MERCY · NO REFUNDS ◆")
     return embed
 
@@ -1063,7 +1083,11 @@ class CursedHoroscope(commands.Cog):
         view = CursedHoroscopeView(self)
         self._panel_view = view
         self.bot.add_view(view)
-        msg = await channel.send(embed=build_panel_embed(), view=view)
+        gif = _gif_file()
+        kwargs = {"embed": build_panel_embed(use_attachment=bool(gif)), "view": view}
+        if gif is not None:
+            kwargs["file"] = gif
+        msg = await channel.send(**kwargs)
         self._panel_message_id = msg.id
         self._save_panel_state()
         return msg
@@ -1138,8 +1162,12 @@ class CursedHoroscope(commands.Cog):
         self._panel_view = view
         self.bot.add_view(view)
 
-        embed = build_panel_embed()
-        await interaction.response.send_message(embed=embed, view=view)
+        gif = _gif_file()
+        embed = build_panel_embed(use_attachment=bool(gif))
+        kwargs = {"embed": embed, "view": view}
+        if gif is not None:
+            kwargs["file"] = gif
+        await interaction.response.send_message(**kwargs)
         msg = await interaction.original_response()
         self._panel_message_id = msg.id
         self._save_panel_state()
