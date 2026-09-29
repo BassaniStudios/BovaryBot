@@ -23,10 +23,10 @@ logger = logging.getLogger("bovary_bot.cursedhoroscope")
 # ---------------------------------------------------------------------------
 # Config — SET YOUR CHANNEL ID HERE
 # ---------------------------------------------------------------------------
-GIF_URL = "https://ik.imagekit.io/BassaniStudios/madame%20boavry.gif"
+GIF_URL = "https://ik.imagekit.io/BassaniStudios/madame%20boavry.gif?updatedAt=1790644003965"
 # TODO: replace with the real channel ID where this panel will live
 ALLOWED_CHANNEL_ID = 1554302868293554196
-COOLDOWN_SECONDS = 1200  # 20 minutes
+COOLDOWN_SECONDS = 600  # 10 minutes
 PANEL_STATE_FILE = "cursedhoroscope_panel.json"
 
 # Dark cursed / Halloween theme
@@ -920,8 +920,7 @@ def build_panel_embed() -> discord.Embed:
         title="👻 Cursed Horoscope 💀",
         description=(
             "**Click your sign below to receive your cursed prediction.**\n\n"
-            "One random prophecy. No mercy. No refunds.\n"
-            "The panel always stays at the bottom of the channel."
+            "Consult the fortune teller Nazar and find out (or not) what fate has in store for you."
         ),
         color=CURSED_PURPLE,
     )
