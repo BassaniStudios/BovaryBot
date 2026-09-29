@@ -202,20 +202,26 @@ class BovaryBot(commands.Bot):
         asyncio.create_task(self._sync_app_commands_background())
 
     async def _sync_app_commands_background(self) -> None:
-        """Sync slash commands after READY, with cooldown to avoid Discord 429 storms.
+        """Sync slash commands after READY — single guild PUT with 429 retries.
 
-        Recent bulk overwrites (force-wipe + many deploys) exhaust the guild
-        commands rate limit. discord.py will retry every ~7 minutes forever;
-        that keeps the bucket empty and slash commands never reappear.
+        Root cause of missing commands after many deploys:
+        - Multiple tree.sync() calls (guild + global wipe + backup clear) hit
+          Discord's application-command rate limit hard.
+        - A single 10-minute timeout aborts while discord.py is still retrying 429s,
+          so the guild never gets a successful overwrite and slash menus stay empty
+          or stale.
 
-        Strategy:
-        - Wait COMMAND_SYNC_DELAY_SECONDS (default 900 = 15 min) after READY
-          so the rate-limit window can recover.
-        - Perform at most one sync attempt this process (timeout 10 min).
-        - Set SKIP_COMMAND_SYNC=true to skip entirely (bot stays online).
-        - Set FORCE_COMMAND_RESYNC=true only when you need a full wipe.
+        New strategy (safe after a long uptime / recovered bucket):
+        - Optional short delay (default 60s; override with COMMAND_SYNC_DELAY_SECONDS).
+        - ONE primary operation: copy_global_to + sync(guild=main).
+        - Global wipe is OFF by default (ENABLE_GLOBAL_COMMAND_CLEAR=true to re-enable).
+        - Up to 5 attempts; on 429 sleep retry_after (or 60–120s) and try again.
+        - Overall budget 30 minutes.
+        - SKIP_COMMAND_SYNC=true skips entirely.
+        - FORCE_COMMAND_RESYNC=true does a clear+sync wipe first (use rarely).
         """
         import asyncio
+        import discord
 
         if str(os.getenv("SKIP_COMMAND_SYNC", "")).strip().lower() in {"1", "true", "yes", "on"}:
             logger.warning("SKIP_COMMAND_SYNC set — slash commands will NOT be re-registered this boot")
@@ -226,15 +232,14 @@ class BovaryBot(commands.Bot):
         except Exception:
             pass
 
-        delay = 900
         try:
-            delay = max(0, int(os.getenv("COMMAND_SYNC_DELAY_SECONDS", "900")))
+            delay = max(0, int(os.getenv("COMMAND_SYNC_DELAY_SECONDS", "60")))
         except ValueError:
-            delay = 900
+            delay = 60
 
         if delay:
             logger.info(
-                "Aguardando %ss antes do sync de slash commands (evita loop de 429). "
+                "Aguardando %ss antes do sync de slash commands. "
                 "Não reinicie o serviço durante esta espera.",
                 delay,
             )
@@ -243,68 +248,115 @@ class BovaryBot(commands.Bot):
         force_wipe = str(os.getenv("FORCE_COMMAND_RESYNC", "")).strip().lower() in {
             "1", "true", "yes", "on",
         }
+        clear_globals = str(os.getenv("ENABLE_GLOBAL_COMMAND_CLEAR", "")).strip().lower() in {
+            "1", "true", "yes", "on",
+        }
 
-        async def _do_sync() -> None:
+        async def _once() -> list:
             guild_id = self.config.get("GUILD_ID")
-            if guild_id:
-                guild = discord.Object(id=guild_id)
-
-                if force_wipe:
-                    try:
-                        self.tree.clear_commands(guild=guild)
-                        wiped = await self.tree.sync(guild=guild)
-                        logger.info(
-                            "FORCE_COMMAND_RESYNC: limpeza de slash no guild %s (%d residual)",
-                            guild_id, len(wiped),
-                        )
-                    except Exception:
-                        logger.exception("Falha na limpeza forçada de comandos do guild %s", guild_id)
-
-                self.tree.copy_global_to(guild=guild)
-                synced = await self.tree.sync(guild=guild)
-
-                self.tree.clear_commands(guild=None)
-                global_synced = await self.tree.sync()
-
-                home_id = self.config.get("BACKUP_GUILD_ID")
-                if home_id and int(home_id) != int(guild_id):
-                    try:
-                        home = discord.Object(id=int(home_id))
-                        self.tree.clear_commands(guild=home)
-                        cleared_home = await self.tree.sync(guild=home)
-                        logger.info(
-                            "Servidor casa %s é só backup — comandos removidos (%d residual)",
-                            home_id, len(cleared_home),
-                        )
-                    except Exception:
-                        logger.exception("Falha ao limpar comandos do servidor casa %s", home_id)
-
-                names = sorted({c.name for c in self.tree.get_commands()})
-                logger.info(
-                    "Comandos sincronizados SOMENTE no servidor principal %s (%d); "
-                    "globais removidos (%d). Casa = backup only. Names: %s",
-                    guild_id,
-                    len(synced),
-                    len(global_synced),
-                    ", ".join(names),
-                )
-                if any(n.startswith("autofeed") for n in names):
-                    logger.error("UNEXPECTED autofeed command still in tree: %s", names)
-            else:
+            if not guild_id:
                 synced = await self.tree.sync()
                 logger.info("Comandos sincronizados globalmente (%d comandos)", len(synced))
+                return list(synced)
 
-        try:
-            await asyncio.wait_for(_do_sync(), timeout=600)
-        except asyncio.TimeoutError:
-            logger.error(
-                "Sync de slash commands esgotou 10 min (provável 429 persistente). "
-                "Deixe o bot ligado e tente de novo em 1h com um único restart, "
-                "ou defina COMMAND_SYNC_DELAY_SECONDS=3600 no Render."
+            guild = discord.Object(id=int(guild_id))
+
+            if force_wipe:
+                try:
+                    self.tree.clear_commands(guild=guild)
+                    wiped = await self.tree.sync(guild=guild)
+                    logger.info(
+                        "FORCE_COMMAND_RESYNC: limpeza no guild %s (%d residual)",
+                        guild_id, len(wiped),
+                    )
+                except Exception:
+                    logger.exception("Falha na limpeza forçada do guild %s", guild_id)
+
+            self.tree.copy_global_to(guild=guild)
+            synced = await self.tree.sync(guild=guild)
+
+            if clear_globals:
+                try:
+                    self.tree.clear_commands(guild=None)
+                    global_synced = await self.tree.sync()
+                    logger.info("Globais limpos (%d residual)", len(global_synced))
+                except Exception:
+                    logger.exception("Falha ao limpar comandos globais (não-bloqueante)")
+
+            home_id = self.config.get("BACKUP_GUILD_ID")
+            if home_id and int(home_id) != int(guild_id) and clear_globals:
+                try:
+                    home = discord.Object(id=int(home_id))
+                    self.tree.clear_commands(guild=home)
+                    cleared_home = await self.tree.sync(guild=home)
+                    logger.info(
+                        "Servidor casa %s limpo (%d residual) — backup only",
+                        home_id, len(cleared_home),
+                    )
+                except Exception:
+                    logger.exception("Falha ao limpar servidor casa %s", home_id)
+
+            names = sorted({c.name for c in synced})
+            logger.info(
+                "Slash OK no guild %s: %d comandos. Exemplos: %s",
+                guild_id,
+                len(synced),
+                ", ".join(names[:25]) + ("…" if len(names) > 25 else ""),
             )
-        except Exception:
-            logger.exception("Background slash-command sync failed")
+            cursed = [n for n in names if n.startswith("cursedhoroscope")]
+            if cursed:
+                logger.info("Cursed Horoscope registrado: %s", ", ".join(cursed))
+            else:
+                logger.warning(
+                    "Cursed Horoscope NÃO está na lista sincronizada — confira se o cog carregou."
+                )
+            return list(synced)
 
+        max_attempts = 5
+        last_err = None
+        for attempt in range(1, max_attempts + 1):
+            try:
+                await asyncio.wait_for(_once(), timeout=300)
+                return
+            except asyncio.TimeoutError as e:
+                last_err = e
+                logger.error(
+                    "Sync attempt %d/%d timed out (300s). Aguardando 90s…",
+                    attempt, max_attempts,
+                )
+                await asyncio.sleep(90)
+            except discord.HTTPException as e:
+                last_err = e
+                if e.status == 429:
+                    retry_after = getattr(e, "retry_after", None)
+                    if retry_after is None:
+                        try:
+                            retry_after = float((e.response.json() or {}).get("retry_after", 60))
+                        except Exception:
+                            retry_after = 90.0
+                    wait = max(30.0, float(retry_after) + 5.0)
+                    logger.warning(
+                        "Rate limit 429 no sync (attempt %d/%d). Aguardando %.0fs…",
+                        attempt, max_attempts, wait,
+                    )
+                    await asyncio.sleep(wait)
+                else:
+                    logger.exception(
+                        "HTTP %s no sync (attempt %d/%d)", e.status, attempt, max_attempts
+                    )
+                    await asyncio.sleep(30)
+            except Exception as e:
+                last_err = e
+                logger.exception("Sync attempt %d/%d failed", attempt, max_attempts)
+                await asyncio.sleep(30)
+
+        logger.error(
+            "Sync de slash commands FALHOU após %d tentativas. Último erro: %s. "
+            "Use /sync_commands no Discord (staff) ou POST /api/sync-commands, "
+            "ou reinicie UMA vez com COMMAND_SYNC_DELAY_SECONDS=120.",
+            max_attempts,
+            last_err,
+        )
 
     def _install_slash_command_access_policy(self) -> None:
         """Restrict every slash command to the configured staff role.

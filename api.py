@@ -701,6 +701,51 @@ def api_server_summary():
 
 
 
+
+@app.post("/api/sync-commands")
+@require_auth
+def api_sync_commands():
+    """Force guild slash-command registration (recovery when Discord menus are empty).
+
+    Body optional: { "force_wipe": false }
+    """
+    data = request.get_json(force=True, silent=True) or {}
+    force_wipe = bool(data.get("force_wipe"))
+
+    async def _sync():
+        import discord
+        guild_id = _bot.config.get("GUILD_ID") if _bot else None
+        if not guild_id:
+            return {"error": "GUILD_ID not configured"}
+        guild = discord.Object(id=int(guild_id))
+        if force_wipe:
+            _bot.tree.clear_commands(guild=guild)
+            await _bot.tree.sync(guild=guild)
+        _bot.tree.copy_global_to(guild=guild)
+        synced = await _bot.tree.sync(guild=guild)
+        names = sorted({c.name for c in synced})
+        return {
+            "ok": True,
+            "guild_id": str(guild_id),
+            "count": len(synced),
+            "commands": names,
+        }
+
+    try:
+        result = _run(_sync(), timeout=300.0)
+        log_action(
+            actor_id=int(request.headers.get("X-Discord-User-Id") or 0) or None,
+            action="sync_commands",
+            detail={"force_wipe": force_wipe, "count": result.get("count")},
+            success=bool(result.get("ok")),
+        )
+        status = 200 if result.get("ok") else 500
+        return jsonify(result), status
+    except Exception as e:
+        logger.exception("api sync-commands failed")
+        return jsonify({"error": str(e)}), 500
+
+
 @app.post("/api/arcade")
 @require_auth
 def api_arcade():

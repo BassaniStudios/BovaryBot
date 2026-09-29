@@ -888,6 +888,86 @@ class AdminTools(commands.Cog):
         embed.add_field(name="Top days", value=day_lines, inline=False)
         await interaction.response.send_message(embed=embed, ephemeral=not is_public(visibility))
 
+    # ── 17. Force slash command sync ─────────────────────────────────────────
+
+    @app_commands.command(
+        name="sync_commands",
+        description="[ADMIN] Force re-register all slash commands on this server (use if menus are missing)",
+    )
+    @app_commands.guild_only()
+    async def sync_commands(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        guild_id = self.bot.config.get("GUILD_ID")
+        if not guild_id:
+            await interaction.followup.send("❌ GUILD_ID not configured.", ephemeral=True)
+            return
+        if interaction.guild_id and int(interaction.guild_id) != int(guild_id):
+            await interaction.followup.send(
+                f"❌ Run this only on the main server (`{guild_id}`).",
+                ephemeral=True,
+            )
+            return
+        guild = discord.Object(id=int(guild_id))
+        try:
+            self.bot.tree.copy_global_to(guild=guild)
+            synced = await self.bot.tree.sync(guild=guild)
+            names = sorted({c.name for c in synced})
+            preview = ", ".join(f"`/{n}`" for n in names[:20])
+            extra = f" … +{len(names) - 20} more" if len(names) > 20 else ""
+            await interaction.followup.send(
+                f"✅ Synced **{len(synced)}** slash commands on this server.\n{preview}{extra}",
+                ephemeral=True,
+            )
+            logger.info("Manual /sync_commands by %s — %d commands", interaction.user, len(synced))
+        except discord.HTTPException as e:
+            if e.status == 429:
+                retry = getattr(e, "retry_after", 60)
+                await interaction.followup.send(
+                    f"⏳ Discord rate limit (429). Try again in **{int(retry) + 5}s**.",
+                    ephemeral=True,
+                )
+            else:
+                await interaction.followup.send(f"❌ HTTP {e.status}: {e}", ephemeral=True)
+        except Exception as e:
+            logger.exception("Manual sync_commands failed")
+            await interaction.followup.send(f"❌ Sync failed: {e}", ephemeral=True)
+
+
+
+    @commands.command(name="sync_commands")
+    @commands.guild_only()
+    async def sync_commands_prefix(self, ctx: commands.Context):
+        """Prefix fallback: |sync_commands — works even when slash menus are empty."""
+        # Same role policy as slash: primary staff or special roles
+        primary = int(self.bot.config.get("PANEL_ACCESS_ROLE_ID") or 1542169549833773156)
+        special = {1384173136177791048, 1547647694997037137}
+        role_ids = {r.id for r in getattr(ctx.author, "roles", [])}
+        if primary not in role_ids and not (role_ids & special):
+            if not getattr(ctx.author, "guild_permissions", None) or not ctx.author.guild_permissions.administrator:
+                await ctx.reply("❌ Staff only.", mention_author=False)
+                return
+        guild_id = self.bot.config.get("GUILD_ID")
+        if not guild_id or (ctx.guild and ctx.guild.id != int(guild_id)):
+            await ctx.reply("❌ Main server only.", mention_author=False)
+            return
+        msg = await ctx.reply("⏳ Syncing slash commands…", mention_author=False)
+        guild = discord.Object(id=int(guild_id))
+        try:
+            self.bot.tree.copy_global_to(guild=guild)
+            synced = await self.bot.tree.sync(guild=guild)
+            await msg.edit(content=f"✅ Synced **{len(synced)}** slash commands. Type `/` to refresh the menu.")
+            logger.info("Prefix |sync_commands by %s — %d commands", ctx.author, len(synced))
+        except discord.HTTPException as e:
+            if e.status == 429:
+                retry = getattr(e, "retry_after", 60)
+                await msg.edit(content=f"⏳ Rate limited. Retry in **{int(retry)+5}s**.")
+            else:
+                await msg.edit(content=f"❌ HTTP {e.status}: {e}")
+        except Exception as e:
+            logger.exception("Prefix sync_commands failed")
+            await msg.edit(content=f"❌ {e}")
+
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(AdminTools(bot))
