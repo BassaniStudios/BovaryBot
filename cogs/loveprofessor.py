@@ -1,6 +1,13 @@
 """
 The Love Professor — GTA Online arcade-style love tester mini-game.
-Persistent sticky panel, queue matching, challenge system, admin test mode.
+Persistent sticky panel (delayed), queue matching with lock, challenge system, admin test mode.
+
+Fixes:
+- Race condition on waiting_user (asyncio.Lock)
+- Sticky panel: delayed re-pin (default 90s) so chat after results is not interrupted
+- Cooldown only applied when a test actually starts (match / accept)
+- Safer sticky (skip if already last message, proper task cancel, single lock)
+- waiting_user stored by id for restart resilience of panel state
 """
 from __future__ import annotations
 
@@ -25,6 +32,9 @@ LOGO_URL = "https://ik.imagekit.io/BassaniStudios/TheLoveProfessor-GTAO-ArcadeGa
 ALLOWED_CHANNEL_ID = 1553823431349371042
 COOLDOWN_SECONDS = 90
 CHALLENGE_TIMEOUT = 600  # 10 minutes — plenty of time to accept
+# Delay before sticky panel is moved back to the bottom of the channel.
+# Gives people time to comment on results without the panel jumping constantly.
+STICKY_DELAY_SECONDS = 90  # between 60–120 as requested
 PANEL_STATE_FILE = "loveprofessor_panel.json"
 
 LEVEL_COLORS = [
@@ -219,7 +229,9 @@ def build_panel_embed(waiting_user: Optional[discord.abc.User] = None) -> discor
         color=color,
     )
     embed.set_image(url=LOGO_URL)
-    embed.set_footer(text="◆ ARCADE · THE LOVE PROFESSOR · NO TIME LIMIT ON QUEUE ◆")
+    embed.set_footer(
+        text=f"◆ ARCADE · THE LOVE PROFESSOR · PANEL RE-PINS AFTER ~{STICKY_DELAY_SECONDS}s QUIET ◆"
+    )
     return embed
 
 
@@ -295,6 +307,10 @@ class ChallengeView(discord.ui.View):
         for item in self.children:
             item.disabled = True  # type: ignore
 
+        # Cooldown only when the test actually starts
+        self.cog._set_cooldown(self.challenger.id)
+        self.cog._set_cooldown(self.target.id)
+
         await interaction.response.edit_message(
             content=f"✅ {self.target.mention} accepted the challenge from {self.challenger.mention}!",
             embed=None,
@@ -306,6 +322,8 @@ class ChallengeView(discord.ui.View):
             self.target,
             reply_to=interaction.message,
         )
+        # After a test, schedule sticky so panel returns after conversation
+        self.cog._schedule_sticky()
 
     @discord.ui.button(label="Decline 💔", style=discord.ButtonStyle.danger)
     async def decline(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -334,6 +352,7 @@ class ChallengeView(discord.ui.View):
         embed.set_thumbnail(url=LOGO_URL)
         embed.set_footer(text="◆ ARCADE CABINET · THE LOVE PROFESSOR ◆")
         await interaction.response.edit_message(content=None, embed=embed, view=self)
+        self.cog._schedule_sticky()
 
     async def on_timeout(self):
         if self.resolved or not self.message:
@@ -360,6 +379,7 @@ class ChallengeView(discord.ui.View):
             await self.message.edit(content=None, embed=embed, view=self)
         except (discord.NotFound, discord.HTTPException):
             pass
+        self.cog._schedule_sticky()
 
 
 # ---------------------------------------------------------------------------
@@ -409,7 +429,8 @@ class ChallengeUserSelect(discord.ui.UserSelect):
             )
             return
 
-        self.cog._set_cooldown(challenger.id)
+        # Cooldown is NOT set here — only when the target accepts (or on Play Now match).
+        # Challenger is free to challenge again if declined/expired.
 
         machine = (
             "╔══════════════════════════════╗\n"
@@ -438,6 +459,7 @@ class ChallengeUserSelect(discord.ui.UserSelect):
             view=view,
         )
         view.message = await interaction.original_response()
+        self.cog._schedule_sticky()
 
 
 class ChallengeSelectView(discord.ui.View):
@@ -483,53 +505,66 @@ class LovePanelView(discord.ui.View):
             )
             return
 
-        waiting = self.cog.waiting_user
+        # Serialize queue access to prevent double-match / lost waiters
+        partner = None
+        match_msg = None
+        async with self.cog._queue_lock:
+            waiting = self.cog.waiting_user
 
-        if waiting is not None and waiting.id == user.id:
-            await interaction.response.send_message(
-                "⏳ You are already waiting for a partner. No time limit — someone will join!",
-                ephemeral=True,
-            )
-            return
-
-        if waiting is not None and waiting.id != user.id:
-            partner = waiting
-            self.cog.waiting_user = None
-            self.cog._set_cooldown(user.id)
-            self.cog._set_cooldown(partner.id)
-
-            await interaction.response.defer()
-
-            try:
-                await interaction.message.edit(
-                    embed=build_panel_embed(None),
-                    view=self,
+            if waiting is not None and waiting.id == user.id:
+                await interaction.response.send_message(
+                    "⏳ You are already waiting for a partner. No time limit — someone will join!",
+                    ephemeral=True,
                 )
-            except (discord.NotFound, discord.HTTPException):
-                pass
+                return
 
-            match_msg = await interaction.followup.send(
-                f"💘 **Match found!** {partner.mention} × {user.mention} — starting the test...",
-                wait=True,
-            )
+            if waiting is not None and waiting.id != user.id:
+                partner = waiting
+                self.cog.waiting_user = None
+                self.cog._waiting_user_id = None
+                self.cog._set_cooldown(user.id)
+                self.cog._set_cooldown(partner.id)
+                self.cog._save_panel_state()
+
+                await interaction.response.defer()
+
+                try:
+                    await interaction.message.edit(
+                        embed=build_panel_embed(None),
+                        view=self,
+                    )
+                except (discord.NotFound, discord.HTTPException):
+                    pass
+
+                match_msg = await interaction.followup.send(
+                    f"💘 **Match found!** {partner.mention} × {user.mention} — starting the test...",
+                    wait=True,
+                )
+            else:
+                # Nobody waiting → join queue (NO time limit)
+                self.cog.waiting_user = user
+                self.cog._waiting_user_id = user.id
+                self.cog._save_panel_state()
+                await interaction.response.defer()
+                try:
+                    await interaction.message.edit(
+                        embed=build_panel_embed(user),
+                        view=self,
+                    )
+                except (discord.NotFound, discord.HTTPException):
+                    pass
+                await interaction.followup.send(
+                    f"✅ {user.mention} stepped up to the machine and is waiting for a partner!\n"
+                    f"*No time limit — stay as long as you want. Use **Cancel Wait** to leave.*",
+                    ephemeral=False,
+                )
+                self.cog._schedule_sticky()
+                return
+
+        # Outside lock: run animation after successful match
+        if partner is not None and match_msg is not None:
             await run_love_test(interaction.channel, partner, user, reply_to=match_msg)
-            return
-
-        # Nobody waiting → join queue (NO time limit)
-        self.cog.waiting_user = user
-        await interaction.response.defer()
-        try:
-            await interaction.message.edit(
-                embed=build_panel_embed(user),
-                view=self,
-            )
-        except (discord.NotFound, discord.HTTPException):
-            pass
-        await interaction.followup.send(
-            f"✅ {user.mention} stepped up to the machine and is waiting for a partner!\n"
-            f"*No time limit — stay as long as you want. Use **Cancel Wait** to leave.*",
-            ephemeral=False,
-        )
+            self.cog._schedule_sticky()
 
     @discord.ui.button(
         label="Cancel Wait",
@@ -539,15 +574,19 @@ class LovePanelView(discord.ui.View):
         row=0,
     )
     async def cancel_wait(self, interaction: discord.Interaction, button: discord.ui.Button):
-        waiting = self.cog.waiting_user
-        if waiting is None or waiting.id != interaction.user.id:
-            await interaction.response.send_message(
-                "❌ You are not currently waiting.",
-                ephemeral=True,
-            )
-            return
+        async with self.cog._queue_lock:
+            waiting = self.cog.waiting_user
+            if waiting is None or waiting.id != interaction.user.id:
+                await interaction.response.send_message(
+                    "❌ You are not currently waiting.",
+                    ephemeral=True,
+                )
+                return
 
-        self.cog.waiting_user = None
+            self.cog.waiting_user = None
+            self.cog._waiting_user_id = None
+            self.cog._save_panel_state()
+
         await interaction.response.defer()
         try:
             await interaction.message.edit(
@@ -560,6 +599,7 @@ class LovePanelView(discord.ui.View):
             f"👋 {interaction.user.mention} left the machine.",
             ephemeral=False,
         )
+        self.cog._schedule_sticky()
 
     @discord.ui.button(
         label="Challenge Someone",
@@ -604,10 +644,13 @@ class LoveProfessor(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.waiting_user: Optional[discord.abc.User] = None
+        self._waiting_user_id: Optional[int] = None  # persisted across restarts (best-effort)
         self._cooldowns: dict[int, float] = {}
         self._panel_view: Optional[LovePanelView] = None
         self._panel_message_id: Optional[int] = None
-        self._sticky_lock = False
+        self._queue_lock = asyncio.Lock()
+        self._sticky_lock = asyncio.Lock()
+        self._sticky_task: Optional[asyncio.Task] = None
         self._load_panel_state()
 
     def _load_panel_state(self) -> None:
@@ -615,9 +658,22 @@ class LoveProfessor(commands.Cog):
         if isinstance(data, dict):
             mid = data.get("message_id")
             self._panel_message_id = int(mid) if mid else None
+            wid = data.get("waiting_user_id")
+            self._waiting_user_id = int(wid) if wid else None
 
     def _save_panel_state(self) -> None:
-        save_json(PANEL_STATE_FILE, {"message_id": self._panel_message_id})
+        wid = None
+        if self.waiting_user is not None:
+            wid = self.waiting_user.id
+        elif self._waiting_user_id is not None:
+            wid = self._waiting_user_id
+        save_json(
+            PANEL_STATE_FILE,
+            {
+                "message_id": self._panel_message_id,
+                "waiting_user_id": wid,
+            },
+        )
 
     def _check_cooldown(self, user_id: int) -> float:
         last = self._cooldowns.get(user_id)
@@ -629,13 +685,104 @@ class LoveProfessor(commands.Cog):
     def _set_cooldown(self, user_id: int) -> None:
         self._cooldowns[user_id] = datetime.now(timezone.utc).timestamp()
 
+    def _schedule_sticky(self) -> None:
+        """Cancel any pending sticky and schedule a new one after STICKY_DELAY_SECONDS."""
+        if self._sticky_task is not None and not self._sticky_task.done():
+            self._sticky_task.cancel()
+        self._sticky_task = asyncio.create_task(self._delayed_sticky())
+
+    async def _delayed_sticky(self) -> None:
+        try:
+            await asyncio.sleep(STICKY_DELAY_SECONDS)
+        except asyncio.CancelledError:
+            return
+        await self._do_sticky_repost()
+
+    async def _do_sticky_repost(self) -> None:
+        """Move the panel to the bottom of the channel if needed."""
+        if not self._panel_message_id:
+            return
+
+        async with self._sticky_lock:
+            try:
+                channel = self.bot.get_channel(ALLOWED_CHANNEL_ID)
+                if channel is None:
+                    try:
+                        channel = await self.bot.fetch_channel(ALLOWED_CHANNEL_ID)
+                    except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                        return
+
+                if not isinstance(channel, discord.TextChannel):
+                    return
+
+                # If panel is already the last message, nothing to do
+                try:
+                    async for last in channel.history(limit=1):
+                        if last.id == self._panel_message_id:
+                            return
+                        break
+                except (discord.Forbidden, discord.HTTPException):
+                    pass
+
+                # Delete old panel
+                try:
+                    old = await channel.fetch_message(self._panel_message_id)
+                    await old.delete()
+                except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                    pass
+
+                # Resolve waiting user for embed (best-effort after restart)
+                waiting = self.waiting_user
+                if waiting is None and self._waiting_user_id is not None:
+                    try:
+                        waiting = await self.bot.fetch_user(self._waiting_user_id)
+                        self.waiting_user = waiting
+                    except (discord.NotFound, discord.HTTPException):
+                        self._waiting_user_id = None
+                        self.waiting_user = None
+
+                view = LovePanelView(self)
+                self._panel_view = view
+                self.bot.add_view(view)
+                new_msg = await channel.send(
+                    embed=build_panel_embed(waiting),
+                    view=view,
+                )
+                self._panel_message_id = new_msg.id
+                self._save_panel_state()
+                logger.debug(
+                    "LoveProfessor sticky panel reposted (msg %s)",
+                    new_msg.id,
+                )
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("LoveProfessor sticky repost failed")
+
     async def cog_load(self) -> None:
         self._panel_view = LovePanelView(self)
         self.bot.add_view(self._panel_view)
-        logger.info("LoveProfessor persistent panel view registered")
+        # Best-effort restore of waiting user after restart
+        if self._waiting_user_id is not None and self.waiting_user is None:
+            try:
+                self.waiting_user = await self.bot.fetch_user(self._waiting_user_id)
+            except Exception:
+                self._waiting_user_id = None
+        logger.info(
+            "LoveProfessor persistent panel view registered (sticky delay=%ss)",
+            STICKY_DELAY_SECONDS,
+        )
+
+    async def cog_unload(self) -> None:
+        if self._sticky_task is not None and not self._sticky_task.done():
+            self._sticky_task.cancel()
+            try:
+                await self._sticky_task
+            except (asyncio.CancelledError, Exception):
+                pass
 
     # ------------------------------------------------------------------
-    # Sticky behaviour — keep panel at the bottom of the channel
+    # Sticky behaviour — delayed re-pin after channel goes quiet
     # ------------------------------------------------------------------
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -645,33 +792,10 @@ class LoveProfessor(commands.Cog):
             return
         if not self._panel_message_id:
             return
-        if self._sticky_lock:
-            return
 
-        self._sticky_lock = True
-        try:
-            channel = message.channel
-            # Delete old panel
-            try:
-                old = await channel.fetch_message(self._panel_message_id)
-                await old.delete()
-            except (discord.NotFound, discord.Forbidden, discord.HTTPException):
-                pass
-
-            # Re-post panel at the bottom
-            view = LovePanelView(self)
-            self._panel_view = view
-            self.bot.add_view(view)
-            new_msg = await channel.send(
-                embed=build_panel_embed(self.waiting_user),
-                view=view,
-            )
-            self._panel_message_id = new_msg.id
-            self._save_panel_state()
-        except Exception:
-            logger.exception("LoveProfessor sticky repost failed")
-        finally:
-            self._sticky_lock = False
+        # Any human message resets the quiet timer → panel only moves after
+        # STICKY_DELAY_SECONDS of no human activity (lets people discuss results).
+        self._schedule_sticky()
 
     # ------------------------------------------------------------------
     # Admin: post the fixed panel
@@ -689,6 +813,10 @@ class LoveProfessor(commands.Cog):
             )
             return
 
+        # Cancel pending sticky while we replace the panel
+        if self._sticky_task is not None and not self._sticky_task.done():
+            self._sticky_task.cancel()
+
         # Delete previous panel if any
         if self._panel_message_id:
             try:
@@ -697,7 +825,10 @@ class LoveProfessor(commands.Cog):
             except Exception:
                 pass
 
-        self.waiting_user = None
+        async with self._queue_lock:
+            self.waiting_user = None
+            self._waiting_user_id = None
+
         view = LovePanelView(self)
         self._panel_view = view
         self.bot.add_view(view)
@@ -739,6 +870,7 @@ class LoveProfessor(commands.Cog):
             wait=True,
         )
         await run_love_test(interaction.channel, human, bot_user, reply_to=match_msg)
+        self._schedule_sticky()
 
     @loveprofessor_panel.error
     @loveprofessor_test.error
