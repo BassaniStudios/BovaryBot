@@ -172,59 +172,51 @@ class Backup(commands.Cog):
         return (1, 0, filename)
 
     async def _find_latest_valid_backup(self, channel: discord.abc.Messageable) -> Optional[tuple[discord.Attachment, str]]:
-        """Find the newest valid .db backup attachment (any filename), newest messages first."""
+        """Find the newest valid .db backup (any filename). Scans at most 25 recent messages."""
         if not hasattr(channel, "history"):
             return None
 
         checked = 0
-        async for message in channel.history(limit=80):
-            checked += 1
-            candidates = [
-                a for a in message.attachments
-                if self._is_backup_candidate(a.filename)
-            ]
-            if not candidates:
-                continue
-
-            # Prefer official names, but accept any valid .db
-            candidates.sort(key=lambda a: self._backup_priority(a.filename), reverse=True)
-            for attachment in candidates:
-                if attachment.size and attachment.size > MAX_DISCORD_FILE_SIZE:
-                    logger.warning("Skipping oversized backup %s (%s bytes)", attachment.filename, attachment.size)
+        try:
+            async for message in channel.history(limit=25):
+                checked += 1
+                candidates = [
+                    a for a in message.attachments
+                    if self._is_backup_candidate(a.filename)
+                ]
+                if not candidates:
                     continue
-                data = None
-                last_err = None
-                for attempt in range(1, 4):  # up to 3 attempts
+
+                candidates.sort(key=lambda a: self._backup_priority(a.filename), reverse=True)
+                for attachment in candidates:
+                    if attachment.size and attachment.size > MAX_DISCORD_FILE_SIZE:
+                        logger.warning(
+                            "Skipping oversized backup %s (%s bytes)",
+                            attachment.filename, attachment.size,
+                        )
+                        continue
+                    data = None
                     try:
                         data = await attachment.read()
-                        break
                     except Exception as e:
-                        last_err = e
-                        logger.warning(
-                            "Download attempt %s/3 failed for %s: %s",
-                            attempt, attachment.filename, e,
+                        logger.warning("Download failed for %s: %s", attachment.filename, e)
+                        continue
+
+                    valid, kv, audit, reason = await self._validate_backup_bytes(data)
+                    if valid:
+                        logger.info(
+                            "Found valid backup %s (KV=%s, audit=%s) after %s message(s)",
+                            attachment.filename, kv, audit, checked,
                         )
-                        if attempt < 3:
-                            import asyncio
-                            await asyncio.sleep(1.5 * attempt)
-                if data is None:
-                    logger.exception(
-                        "Could not download backup attachment %s after retries",
-                        attachment.filename,
-                        exc_info=last_err,
-                    )
-                    continue
+                        return attachment, data
+                    logger.warning("Skipping invalid backup %s: %s", attachment.filename, reason)
+        except Exception:
+            logger.exception("Error scanning backup channel history")
 
-                valid, kv, audit, reason = await self._validate_backup_bytes(data)
-                if valid:
-                    logger.info(
-                        "Found valid backup %s (KV=%s, audit=%s) after checking %s message(s)",
-                        attachment.filename, kv, audit, checked,
-                    )
-                    return attachment, data
-                logger.warning("Skipping invalid backup %s: %s", attachment.filename, reason)
-
-        logger.warning("No valid bovary database backup found in backup channel after checking %s message(s)", checked)
+        logger.warning(
+            "No valid bovary database backup found in backup channel after checking %s message(s)",
+            checked,
+        )
         return None
 
     async def _validate_backup_bytes(self, data: bytes) -> tuple[bool, int, int, str]:
@@ -964,53 +956,92 @@ class Backup(commands.Cog):
             )
             return
 
-        # Path A: direct attachment (preferred)
+        # Path A: direct attachment (preferred — fastest, no channel scan)
         if file is not None:
-            name = (file.filename or "").lower()
-            if not name.endswith(".db"):
-                await interaction.followup.send(
-                    "❌ Attachment must be a `.db` SQLite file.",
-                    ephemeral=True,
-                )
-                return
-            if file.size and file.size > MAX_DISCORD_FILE_SIZE:
-                await interaction.followup.send(
-                    f"❌ File too large ({file.size:,} bytes).",
-                    ephemeral=True,
-                )
-                return
             try:
-                data = await file.read()
-            except Exception as e:
-                await interaction.followup.send(f"❌ Could not read attachment: `{e}`", ephemeral=True)
-                return
+                name = (file.filename or "").lower()
+                if not name.endswith(".db"):
+                    await interaction.followup.send(
+                        "❌ Attachment must be a `.db` SQLite file.",
+                        ephemeral=True,
+                    )
+                    return
+                if file.size and file.size > MAX_DISCORD_FILE_SIZE:
+                    await interaction.followup.send(
+                        f"❌ File too large ({file.size:,} bytes).",
+                        ephemeral=True,
+                    )
+                    return
 
-            valid, kv, audit, reason = await self._validate_backup_bytes(data)
-            if not valid:
                 await interaction.followup.send(
-                    f"❌ Invalid SQLite backup: `{reason}`\n"
-                    "Make sure this is a real bovary/SQLite database file.",
+                    f"📥 Reading attachment `{file.filename}` ({file.size or 0:,} bytes)...",
                     ephemeral=True,
                 )
-                return
+                data = await file.read()
 
-            ok, kv2, audit2, msg = await self._apply_backup_bytes(data, source_name=file.filename)
-            if not ok:
-                await interaction.followup.send(f"❌ Force restore failed.\n`{msg}`", ephemeral=True)
-                return
+                valid, kv, audit, reason = await self._validate_backup_bytes(data)
+                if not valid:
+                    await interaction.followup.send(
+                        f"❌ Invalid SQLite backup: `{reason}`\n"
+                        "Make sure this is a real bovary/SQLite database file.",
+                        ephemeral=True,
+                    )
+                    return
 
-            await self._refresh_stats_memory()
+                ok, kv2, audit2, msg = await self._apply_backup_bytes(
+                    data, source_name=file.filename
+                )
+                if not ok:
+                    await interaction.followup.send(
+                        f"❌ Force restore failed.\n`{msg}`",
+                        ephemeral=True,
+                    )
+                    return
+
+                await self._refresh_stats_memory()
+                await interaction.followup.send(
+                    f"✅ **Force restore complete** from attachment **`{file.filename}`**.\n"
+                    f"KV docs: **{kv2}** · Audit rows: **{audit2}**\n"
+                    f"Local DB: `{sqldb._db_path()}`\n\n"
+                    "If some commands still look empty, restart the Render service once.",
+                    ephemeral=True,
+                )
+            except Exception as e:
+                logger.exception("backup_restore attachment path failed")
+                await interaction.followup.send(
+                    f"❌ Restore error: `{type(e).__name__}: {e}`",
+                    ephemeral=True,
+                )
+            return
+
+        # Path B: house backup channel (hard timeout so Discord does not hang forever)
+        import asyncio
+        await interaction.followup.send(
+            "🔍 Scanning house backup channel for a valid `.db` (max ~45s)...",
+            ephemeral=True,
+        )
+        try:
+            ok, detail, kv, audit = await asyncio.wait_for(
+                self._force_restore_from_channel(),
+                timeout=45.0,
+            )
+        except asyncio.TimeoutError:
             await interaction.followup.send(
-                f"✅ **Force restore complete** from attachment **`{file.filename}`**.\n"
-                f"KV docs: **{kv2}** · Audit rows: **{audit2}**\n"
-                f"Local DB: `{sqldb._db_path()}`\n\n"
-                "If some commands still look empty, restart the Render service once.",
+                "❌ Restore timed out while scanning the backup channel.\n"
+                "Use the **`file`** option instead and attach the `.db` directly:\n"
+                "`/backup_restore confirm:YES file:<your.db>`",
+                ephemeral=True,
+            )
+            return
+        except Exception as e:
+            logger.exception("backup_restore channel path failed")
+            await interaction.followup.send(
+                f"❌ Restore error: `{type(e).__name__}: {e}`\n"
+                "Prefer attaching the file with the `file` option.",
                 ephemeral=True,
             )
             return
 
-        # Path B: house backup channel
-        ok, detail, kv, audit = await self._force_restore_from_channel()
         if ok:
             await interaction.followup.send(
                 f"✅ **Force restore complete.**\n{detail}\n\n"
