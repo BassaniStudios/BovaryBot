@@ -133,6 +133,8 @@ class BovaryBot(commands.Bot):
             "PANEL_ACCESS_ROLE_ID": load_int_env("PANEL_ACCESS_ROLE_ID", 1542169549833773156),
             # Role allowed to call the HTTP API from the web panel
             "STAFF_API_ROLE_ID": load_int_env("STAFF_API_ROLE_ID", 1547647694997037137),
+            # Role allowed to use ONLY /fenrir (FiveMHosts)
+            "FIVEM_HOSTS_ROLE_ID": load_int_env("FIVEM_HOSTS_ROLE_ID", 1537850168999809215),
             "PANEL_URL": os.getenv("PANEL_URL", "https://bovaryclub.github.io/BovaryBot-Panel/"),
             # Panel secret is read only from the environment; never expose or default it in code.
             "PANEL_ACCESS_KEY": os.getenv("PANEL_ACCESS_KEY", ""),
@@ -360,6 +362,9 @@ class BovaryBot(commands.Bot):
           - All slash commands EXCEPT a fixed blacklist
           - No channel restriction (whole server)
 
+        FiveMHosts role:
+          - ONLY /fenrir (nothing else)
+
         Everyone else: blocked on slash (panel buttons still work).
         """
         OWNER_USER_ID = 921803925051572266  # B4ssani — full access
@@ -368,6 +373,9 @@ class BovaryBot(commands.Bot):
             int(self.config.get("CREW_LEADER_ROLE_ID") or 1384173136177791048),  # Host Meet Organizer
             int(self.config.get("STAFF_API_ROLE_ID") or 1547647694997037137),    # Bot Staff API
         }
+        # Role that may ONLY use /fenrir
+        fivem_hosts_role = int(self.config.get("FIVEM_HOSTS_ROLE_ID") or 1537850168999809215)  # FiveMHosts
+        fivem_hosts_allowed = {"fenrir"}
         # Commands special roles may NOT use
         special_denied = {
             "say",
@@ -418,6 +426,14 @@ class BovaryBot(commands.Bot):
                     )
                 return True
 
+            # FiveMHosts — only /fenrir
+            if fivem_hosts_role in role_ids:
+                if command_name in fivem_hosts_allowed or leaf in fivem_hosts_allowed:
+                    return True
+                raise discord.app_commands.CheckFailure(
+                    "Your role can only use the /fenrir command."
+                )
+
             raise discord.app_commands.CheckFailure(
                 "Este slash command é restrito aos cargos autorizados."
             )
@@ -425,10 +441,11 @@ class BovaryBot(commands.Bot):
         self.tree.interaction_check = role_check  # type: ignore[method-assign]
         count = len(list(self.tree.walk_commands()))
         logger.info(
-            "Slash policy: owner=%s Lider=%s special=%s denied=%s | %d commands",
+            "Slash policy: owner=%s Lider=%s special=%s fivem_hosts=%s denied=%s | %d commands",
             OWNER_USER_ID,
             primary_role,
             sorted(special_roles),
+            fivem_hosts_role,
             sorted(special_denied),
             count,
         )
