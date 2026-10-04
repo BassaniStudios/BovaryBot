@@ -62,7 +62,7 @@ class BovaryBot(commands.Bot):
         self._profile_applied = False
 
     def _load_config(self) -> dict:
-        # Canais de mídia com auto-react (✨ 🌟 💥 🎉). Lista atualizada 2026-09-15.
+        # Canais de mídia com auto-react (✨ 🌟 ghost). Lista atualizada 2026-09-15.
         media_default = (
             "1384173879295213689,1384174586345816134,1537555862372094112,"
             "1424515140660760647,1425870476290428978,1532220539257622649,"
@@ -71,7 +71,7 @@ class BovaryBot(commands.Bot):
             "1532045910073147412,1384173136638906403,1533492240343629865,"
             "1533128981774340176,1545100118103949442,1384173137071177753"
         )
-        reactions_default = ["✨", "🌟", "💥", "🎉"]
+        reactions_default = ["✨", "🌟", "<:23778ghost:1554279244689973318>"]
         # Hardcoded defaults are the production Bovary IDs. Prefer setting them
         # explicitly in the environment so other deployments do not accidentally
         # use production channels.
