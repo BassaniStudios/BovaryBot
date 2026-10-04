@@ -207,7 +207,6 @@ class Backup(commands.Cog):
         logger.warning("No valid bovary database backup found in backup channel after checking %s message(s)", checked)
         return None
 
-    @staticmethod
     async def _validate_backup_bytes(self, data: bytes) -> tuple[bool, int, int, str]:
         """Validate a downloaded SQLite database using a temporary file."""
         if len(data) < 100:
@@ -874,17 +873,31 @@ class Backup(commands.Cog):
         if not found:
             return (
                 False,
-                f"No valid `{BACKUP_PREFIX}*{BACKUP_SUFFIX}` found in {getattr(channel, 'mention', channel)}.",
+                (
+                    f"No valid `{BACKUP_PREFIX}YYYYMMDD_HHMMSS{BACKUP_SUFFIX}` found in "
+                    f"{getattr(channel, 'mention', channel)}.\n"
+                    "Upload a file with that exact name pattern, or use the `file` option "
+                    "on `/backup_restore` to attach the .db directly."
+                ),
                 0,
                 0,
             )
 
-        attachment, data, kv, audit = found
+        attachment, data = found
         ok, kv2, audit2, msg = await self._apply_backup_bytes(data, source_name=attachment.filename)
         if not ok:
             return False, msg, 0, 0
 
-        # Best-effort: refresh in-memory stats cog so /topmedia works without full restart
+        await self._refresh_stats_memory()
+        detail = (
+            f"Restored **`{attachment.filename}`** from {channel.mention}\n"
+            f"KV docs: **{kv2}** · Audit rows: **{audit2}**\n"
+            f"Local DB path: `{sqldb._db_path()}`"
+        )
+        return True, detail, kv2, audit2
+
+    async def _refresh_stats_memory(self) -> None:
+        """Best-effort reload of Stats cog in-memory data after DB replace."""
         try:
             stats_cog = self.bot.get_cog("Stats")
             if stats_cog is not None and hasattr(stats_cog, "data"):
@@ -896,68 +909,30 @@ class Backup(commands.Cog):
         except Exception:
             logger.exception("Could not refresh Stats cog after restore")
 
-        detail = (
-            f"Restored **`{attachment.filename}`** from {channel.mention}\n"
-            f"KV docs: **{kv2}** · Audit rows: **{audit2}**\n"
-            f"Local DB path: `{sqldb._db_path()}`"
-        )
-        return True, detail, kv2, audit2
-
-    async def _find_latest_valid_backup(self, channel) -> Optional[tuple]:
-        """Return (attachment, bytes, kv, audit) or None."""
-        if not hasattr(channel, "history"):
-            return None
-        checked = 0
-        try:
-            async for message in channel.history(limit=50):
-                candidates = [
-                    a for a in message.attachments
-                    if a.filename.startswith(BACKUP_PREFIX) and a.filename.endswith(BACKUP_SUFFIX)
-                ]
-                if not candidates:
-                    continue
-                candidates.sort(key=lambda a: self._backup_sort_key(a.filename), reverse=True)
-                for attachment in candidates:
-                    checked += 1
-                    if attachment.size and attachment.size > MAX_DISCORD_FILE_SIZE:
-                        continue
-                    data = None
-                    for attempt in range(1, 4):
-                        try:
-                            data = await attachment.read()
-                            break
-                        except Exception as e:
-                            logger.warning("Download attempt %s for %s failed: %s", attempt, attachment.filename, e)
-                            import asyncio
-                            await asyncio.sleep(1)
-                    if data is None:
-                        continue
-                    valid, kv, audit, reason = await self._validate_backup_bytes(data)
-                    if valid:
-                        return attachment, data, kv, audit
-                    logger.warning("Skipping invalid backup %s: %s", attachment.filename, reason)
-        except Exception:
-            logger.exception("Error scanning backup channel history")
-        return None
-
     @app_commands.command(
         name="backup_restore",
-        description="[LOCKED] Force restore the newest bovary_backup_*.db from the house backup channel",
+        description="[LOCKED] Force restore SQLite from attachment or house backup channel",
     )
     @app_commands.describe(
         confirm="Type YES to confirm overwriting the current local database",
+        file="Optional: attach a .db backup directly (bovary.db or bovary_backup_*.db)",
     )
-    async def backup_restore(self, interaction: discord.Interaction, confirm: str = ""):
-        """Force-restore from the house server backup channel (overwrites local data/bovary.db)."""
+    async def backup_restore(
+        self,
+        interaction: discord.Interaction,
+        confirm: str = "",
+        file: discord.Attachment | None = None,
+    ):
+        """Force-restore from an attached file or from the house backup channel."""
         await interaction.response.defer(ephemeral=True)
 
         if confirm.strip().upper() != "YES":
             await interaction.followup.send(
-                "⚠️ This **overwrites** the current local database with the newest "
-                f"`{BACKUP_PREFIX}*{BACKUP_SUFFIX}` from the house backup channel.\n\n"
-                "Run again with `confirm: YES` to proceed.\n"
-                "Tip: post your own file there first, named e.g. "
-                "`bovary_backup_20261004_142300.db`.",
+                "⚠️ This **overwrites** the current local database.\n\n"
+                "**Option A — attach file:** run again with `confirm: YES` and attach your `.db`\n"
+                f"**Option B — channel:** post `{BACKUP_PREFIX}YYYYMMDD_HHMMSS{BACKUP_SUFFIX}` "
+                "in the house backup channel, then run with `confirm: YES`\n\n"
+                "Example filename: `bovary_backup_20261004_143500.db`",
                 ephemeral=True,
             )
             return
@@ -970,6 +945,52 @@ class Backup(commands.Cog):
             )
             return
 
+        # Path A: direct attachment (preferred)
+        if file is not None:
+            name = (file.filename or "").lower()
+            if not name.endswith(".db"):
+                await interaction.followup.send(
+                    "❌ Attachment must be a `.db` SQLite file.",
+                    ephemeral=True,
+                )
+                return
+            if file.size and file.size > MAX_DISCORD_FILE_SIZE:
+                await interaction.followup.send(
+                    f"❌ File too large ({file.size:,} bytes).",
+                    ephemeral=True,
+                )
+                return
+            try:
+                data = await file.read()
+            except Exception as e:
+                await interaction.followup.send(f"❌ Could not read attachment: `{e}`", ephemeral=True)
+                return
+
+            valid, kv, audit, reason = await self._validate_backup_bytes(data)
+            if not valid:
+                await interaction.followup.send(
+                    f"❌ Invalid SQLite backup: `{reason}`\n"
+                    "Make sure this is a real bovary/SQLite database file.",
+                    ephemeral=True,
+                )
+                return
+
+            ok, kv2, audit2, msg = await self._apply_backup_bytes(data, source_name=file.filename)
+            if not ok:
+                await interaction.followup.send(f"❌ Force restore failed.\n`{msg}`", ephemeral=True)
+                return
+
+            await self._refresh_stats_memory()
+            await interaction.followup.send(
+                f"✅ **Force restore complete** from attachment **`{file.filename}`**.\n"
+                f"KV docs: **{kv2}** · Audit rows: **{audit2}**\n"
+                f"Local DB: `{sqldb._db_path()}`\n\n"
+                "If some commands still look empty, restart the Render service once.",
+                ephemeral=True,
+            )
+            return
+
+        # Path B: house backup channel
         ok, detail, kv, audit = await self._force_restore_from_channel()
         if ok:
             await interaction.followup.send(
@@ -980,7 +1001,7 @@ class Backup(commands.Cog):
             )
         else:
             await interaction.followup.send(
-                f"❌ Force restore failed.\n`{detail}`",
+                f"❌ Force restore failed.\n{detail}",
                 ephemeral=True,
             )
 
