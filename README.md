@@ -1,4 +1,4 @@
-# Bova's Bot — v2.9.0
+# Bova's Bot — v2.11.0
 
 Private bot for **Bovary Club Society**. Developed by **Bassani**.
 
@@ -28,3 +28,9 @@ The member log is driven directly by Discord's native Guild Members Gateway even
 **Required:** enable **Server Members Intent** in the Discord Developer Portal and keep `intents.members = True` in `bot.py`. The configured Info Log channel is `LOG_CHANNEL_ID=1441663299065217114`; the resolver also recovers `#id-info` from the main guild if the stored channel ID became stale.
 
 Join/leave embeds include the member identity, ID, account creation time, join time, server member count, membership duration, roles available at the event, avatar and a UTC timestamp.
+
+
+## FiveM Status (v2.11.0)
+Slash command `/fenrir` shows a rich live status embed for the Fenrir Yakuza server (`cfx.re/join/glm78x`).
+Options: show player list, private or channel visibility.
+Accessible by Lider and secondary staff roles.

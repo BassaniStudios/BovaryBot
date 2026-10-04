@@ -92,7 +92,7 @@ END
 - Member-facing buttons/components are not affected by slash-command role restrictions.
 - Removed all AutoFeed commands/cog/API routes and the AutoFeed panel button.
 - Removed `/bovasay` and `/member_time`.
-- Query/report commands now offer `Somente você` or `Publicar no canal`; public mode posts the result in the command channel as an embed where applicable.
+- Query/report commands now offer `Only you` or `Post in channel`; public mode posts the result in the command channel as an embed where applicable.
 - Roles 1384173136177791048 and 1547647694997037137 can use `/meet`, `/stats`, `/topmedia`, timestamp reminders, `/ping`, `/info`, `/timestamp`, `/help`, `/peak_hours` and `/userinfo` only in the eight approved channels.
 - Name-change logs now go to 1441663299065217114.
 
@@ -144,3 +144,26 @@ END
 - Sync attempt hard-timeout 10 minutes; then gives up until next boot.
 - SKIP_COMMAND_SYNC=true skips registration (bot stays online).
 - Do not set FORCE_COMMAND_RESYNC while rate-limited.
+
+================================================================================
+2026-10-04  —  v2.11.0  FIVE M / FENRIR STATUS
+================================================================================
+- New cog: cogs/fivem_status.py
+- Slash command: /fenrir
+  Options:
+    show_players  (bool, default False) — lista nomes dos players online
+    visibility       — "Only you" | "Post in channel"
+- Embed profissional (cyber style):
+  • Nome do servidor (cores FiveM limpas)
+  • Ícone + banner do servidor (quando disponíveis)
+  • Status ONLINE / OFFLINE
+  • Players atuais / máximo + barra de ocupação
+  • Lista de players opcional (até ~40, com ping)
+  • Link de conexão cfx.re/join/glm78x
+  • Descrição / gametype / mapa quando presentes
+- Servidor alvo fixo: Fenrir Yakuza (code glm78x)
+- Cooldown 15s para proteger a API CFX
+- Disponível para cargos especiais (Host Meet Organizer + Bot Staff API)
+  e Lider — NÃO está na blacklist de comandos locked
+- Fonte de dados: https://servers-frontend.fivem.net/api/servers/single/glm78x
+================================================================================
