@@ -150,24 +150,44 @@ class Backup(commands.Cog):
         except ValueError:
             return (0, stamp)
 
+    @staticmethod
+    def _is_backup_candidate(filename: str) -> bool:
+        """Accept any .db attachment — name no longer has to match bovary_backup_*."""
+        if not filename:
+            return False
+        return filename.lower().endswith(".db")
+
+    @staticmethod
+    def _backup_priority(filename: str) -> tuple:
+        """Prefer official bovary_backup_* names, then bovary.db, then any other .db."""
+        lower = (filename or "").lower()
+        if lower.startswith(BACKUP_PREFIX) and lower.endswith(BACKUP_SUFFIX):
+            stamp = filename[len(BACKUP_PREFIX):-len(BACKUP_SUFFIX)]
+            try:
+                return (3, int(stamp.replace("_", "")), filename)
+            except ValueError:
+                return (3, 0, filename)
+        if lower in ("bovary.db", "data.db", "backup.db"):
+            return (2, 0, filename)
+        return (1, 0, filename)
+
     async def _find_latest_valid_backup(self, channel: discord.abc.Messageable) -> Optional[tuple[discord.Attachment, str]]:
-        """Find the newest valid backup attachment, newest Discord message first."""
+        """Find the newest valid .db backup attachment (any filename), newest messages first."""
         if not hasattr(channel, "history"):
             return None
 
         checked = 0
-        async for message in channel.history(limit=None):
+        async for message in channel.history(limit=80):
             checked += 1
             candidates = [
                 a for a in message.attachments
-                if a.filename.startswith(BACKUP_PREFIX) and a.filename.endswith(BACKUP_SUFFIX)
+                if self._is_backup_candidate(a.filename)
             ]
             if not candidates:
                 continue
 
-            # The first matching message is the newest backup message. If it has
-            # multiple matching attachments, prefer the newest-looking filename.
-            candidates.sort(key=lambda a: self._backup_sort_key(a.filename), reverse=True)
+            # Prefer official names, but accept any valid .db
+            candidates.sort(key=lambda a: self._backup_priority(a.filename), reverse=True)
             for attachment in candidates:
                 if attachment.size and attachment.size > MAX_DISCORD_FILE_SIZE:
                     logger.warning("Skipping oversized backup %s (%s bytes)", attachment.filename, attachment.size)
@@ -874,10 +894,9 @@ class Backup(commands.Cog):
             return (
                 False,
                 (
-                    f"No valid `{BACKUP_PREFIX}YYYYMMDD_HHMMSS{BACKUP_SUFFIX}` found in "
-                    f"{getattr(channel, 'mention', channel)}.\n"
-                    "Upload a file with that exact name pattern, or use the `file` option "
-                    "on `/backup_restore` to attach the .db directly."
+                    f"No valid `.db` backup found in {getattr(channel, 'mention', channel)}.\n"
+                    "Post any SQLite `.db` file there, or use the `file` option on "
+                    "`/backup_restore` to attach it directly (name does not matter)."
                 ),
                 0,
                 0,
