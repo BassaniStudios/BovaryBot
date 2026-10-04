@@ -803,6 +803,22 @@ class Backup(commands.Cog):
         )
         await interaction.response.send_message(text, ephemeral=True)
 
+    @staticmethod
+    def _safe_replace(src: Path, dst: Path) -> None:
+        """Replace dst with src even across filesystems (Render /tmp vs app disk)."""
+        try:
+            os.replace(src, dst)
+        except OSError as e:
+            # errno 18 = EXDEV invalid cross-device link
+            if getattr(e, "errno", None) != 18:
+                raise
+            import shutil
+            shutil.copy2(src, dst)
+            try:
+                src.unlink()
+            except OSError:
+                pass
+
     async def _apply_backup_bytes(self, data: bytes, *, source_name: str = "manual") -> tuple[bool, int, int, str]:
         """
         Write backup bytes to data/bovary.db, closing the live connection first.
@@ -811,8 +827,13 @@ class Backup(commands.Cog):
         path = sqldb._db_path()
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Validate before touching the live file
-        fd, temp_name = tempfile.mkstemp(prefix="bovary-force-restore-", suffix=".db")
+        # Temp file MUST live on the same filesystem as the target DB (Render:
+        # /tmp is often a different mount than /opt/render/project/...).
+        fd, temp_name = tempfile.mkstemp(
+            prefix=".bovary-force-restore-",
+            suffix=".db",
+            dir=str(path.parent),
+        )
         os.close(fd)
         temp_path = Path(temp_name)
         try:
@@ -833,7 +854,7 @@ class Backup(commands.Cog):
                     f"{path.name}.pre_restore_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.bak"
                 )
                 try:
-                    os.replace(path, preserved)
+                    self._safe_replace(path, preserved)
                 except OSError as e:
                     return False, 0, 0, f"could not preserve local DB: {e}"
 
@@ -845,7 +866,7 @@ class Backup(commands.Cog):
                     except OSError:
                         logger.warning("Could not remove sidecar %s", sidecar)
 
-            os.replace(temp_path, path)
+            self._safe_replace(temp_path, path)
 
             # Re-open + schema check
             try:
@@ -854,7 +875,7 @@ class Backup(commands.Cog):
                 logger.exception("Reopen after force restore failed")
                 if preserved and preserved.exists() and not path.exists():
                     try:
-                        os.replace(preserved, path)
+                        self._safe_replace(preserved, path)
                     except Exception:
                         pass
                 return False, 0, 0, f"reopen failed: {e}"
