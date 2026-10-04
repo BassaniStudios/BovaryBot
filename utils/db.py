@@ -117,6 +117,24 @@ def get_connection() -> Any:
         return _conn
 
 
+
+def close_connection() -> None:
+    """Close the global SQLite connection so the next get_connection() reopens the file.
+
+    Required after replacing data/bovary.db on disk (force restore).
+    """
+    global _conn, _remote_mode
+    with _lock:
+        if _conn is not None:
+            try:
+                _conn.close()
+            except Exception:
+                logger.debug("Error closing SQLite connection", exc_info=True)
+            _conn = None
+            # Keep _remote_mode as-is; local reconnect will reset it in get_connection
+            logger.info("SQLite connection closed (will reopen on next use)")
+
+
 def _init_schema(conn: Any) -> None:
     statements = [
         """

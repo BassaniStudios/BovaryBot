@@ -208,7 +208,7 @@ class Backup(commands.Cog):
         return None
 
     @staticmethod
-    async def _validate_backup_bytes(data: bytes) -> tuple[bool, int, int, str]:
+    async def _validate_backup_bytes(self, data: bytes) -> tuple[bool, int, int, str]:
         """Validate a downloaded SQLite database using a temporary file."""
         if len(data) < 100:
             return False, 0, 0, "downloaded file is empty or too small"
@@ -610,11 +610,13 @@ class Backup(commands.Cog):
             description=(
                 f"**Reason:** {reason}\n"
                 f"**Mode:** `{mode}`\n"
+                f"**File:** `{filename}`\n"
                 f"**Size:** {size:,} bytes\n"
                 f"**KV docs:** {kv}\n"
                 f"**Audit rows:** {audit}\n"
                 f"**UTC:** `{ts}`\n\n"
-                f"_{mode_note}_"
+                f"_{mode_note}_\n"
+                f"_Filename uses `bovary_backup_*.db` so auto-restore and `/backup_restore` can find it._"
             ),
             color=discord.Color.from_rgb(180, 80, 255),
             timestamp=datetime.now(timezone.utc),
@@ -780,14 +782,207 @@ class Backup(commands.Cog):
     async def backup_hint(self, interaction: discord.Interaction):
         text = (
             "**Auto-backup + auto-restore is ON.**\n\n"
-            f"• Every **{self._interval_hours():g} hours** the bot posts `bovary.db` to the backup channel.\n"
-            "• Also creates a startup safety backup ~20s after the bot becomes ready.\n"
-            "• After a fresh Render deploy, an empty/new `bovary.db` automatically restores the newest valid backup.\n"
-            "• A local database containing data is never overwritten by automatic recovery.\n"
-            "• Force now: `/backup_now`\n\n"
-            "You no longer need to manually download `bovary.db` before deploying."
+            f"• Every **{self._interval_hours():g} hours** the bot posts a snapshot to the backup channel.\n"
+            "• Files are always named `bovary_backup_YYYYMMDD_HHMMSS.db` (required for restore).\n"
+            "• Startup also creates a safety backup ~20s after ready.\n"
+            "• After a fresh Render deploy, an empty DB auto-restores the newest valid backup.\n"
+            "• A local DB with data is never overwritten by *automatic* recovery.\n"
+            "• Force backup now: `/backup_now`\n"
+            "• Force restore from house server: `/backup_restore` (overwrites local DB)\n"
         )
         await interaction.response.send_message(text, ephemeral=True)
+
+    async def _apply_backup_bytes(self, data: bytes, *, source_name: str = "manual") -> tuple[bool, int, int, str]:
+        """
+        Write backup bytes to data/bovary.db, closing the live connection first.
+        Returns (ok, kv, audit, message).
+        """
+        path = sqldb._db_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Validate before touching the live file
+        fd, temp_name = tempfile.mkstemp(prefix="bovary-force-restore-", suffix=".db")
+        os.close(fd)
+        temp_path = Path(temp_name)
+        try:
+            temp_path.write_bytes(data)
+            valid, kv, audit, reason = self._sqlite_file_status(temp_path)
+            if not valid:
+                return False, 0, 0, f"invalid backup: {reason}"
+
+            # Close open connection so the file can be replaced cleanly
+            try:
+                sqldb.close_connection()
+            except Exception:
+                logger.exception("close_connection failed before force restore")
+
+            preserved = None
+            if path.exists():
+                preserved = path.with_name(
+                    f"{path.name}.pre_restore_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.bak"
+                )
+                try:
+                    os.replace(path, preserved)
+                except OSError as e:
+                    return False, 0, 0, f"could not preserve local DB: {e}"
+
+            for suffix in ("-wal", "-shm"):
+                sidecar = Path(f"{path}{suffix}")
+                if sidecar.exists():
+                    try:
+                        sidecar.unlink()
+                    except OSError:
+                        logger.warning("Could not remove sidecar %s", sidecar)
+
+            os.replace(temp_path, path)
+
+            # Re-open + schema check
+            try:
+                sqldb.get_connection()
+            except Exception as e:
+                logger.exception("Reopen after force restore failed")
+                if preserved and preserved.exists() and not path.exists():
+                    try:
+                        os.replace(preserved, path)
+                    except Exception:
+                        pass
+                return False, 0, 0, f"reopen failed: {e}"
+
+            logger.info(
+                "Force restore OK from %s (KV=%s, audit=%s, path=%s)",
+                source_name, kv, audit, path,
+            )
+            return True, kv, audit, "ok"
+        finally:
+            try:
+                if temp_path.exists():
+                    temp_path.unlink()
+            except OSError:
+                pass
+
+    async def _force_restore_from_channel(self) -> tuple[bool, str, int, int]:
+        """
+        Download the newest valid bovary_backup_*.db from the house backup channel
+        and force-apply it (even if local DB already has data).
+        Returns (ok, detail_message, kv, audit).
+        """
+        channel = await self._get_backup_channel()
+        if not channel:
+            return False, "BACKUP_CHANNEL_ID not configured or channel not found on house server.", 0, 0
+
+        found = await self._find_latest_valid_backup(channel)
+        if not found:
+            return (
+                False,
+                f"No valid `{BACKUP_PREFIX}*{BACKUP_SUFFIX}` found in {getattr(channel, 'mention', channel)}.",
+                0,
+                0,
+            )
+
+        attachment, data, kv, audit = found
+        ok, kv2, audit2, msg = await self._apply_backup_bytes(data, source_name=attachment.filename)
+        if not ok:
+            return False, msg, 0, 0
+
+        # Best-effort: refresh in-memory stats cog so /topmedia works without full restart
+        try:
+            stats_cog = self.bot.get_cog("Stats")
+            if stats_cog is not None and hasattr(stats_cog, "data"):
+                from utils.storage import load_json, default_stats
+                stats_cog.data = load_json("stats.json", default_stats())
+                if hasattr(stats_cog, "_ensure_keys"):
+                    stats_cog._ensure_keys()
+                logger.info("Stats cog in-memory data reloaded after force restore")
+        except Exception:
+            logger.exception("Could not refresh Stats cog after restore")
+
+        detail = (
+            f"Restored **`{attachment.filename}`** from {channel.mention}\n"
+            f"KV docs: **{kv2}** · Audit rows: **{audit2}**\n"
+            f"Local DB path: `{sqldb._db_path()}`"
+        )
+        return True, detail, kv2, audit2
+
+    async def _find_latest_valid_backup(self, channel) -> Optional[tuple]:
+        """Return (attachment, bytes, kv, audit) or None."""
+        if not hasattr(channel, "history"):
+            return None
+        checked = 0
+        try:
+            async for message in channel.history(limit=50):
+                candidates = [
+                    a for a in message.attachments
+                    if a.filename.startswith(BACKUP_PREFIX) and a.filename.endswith(BACKUP_SUFFIX)
+                ]
+                if not candidates:
+                    continue
+                candidates.sort(key=lambda a: self._backup_sort_key(a.filename), reverse=True)
+                for attachment in candidates:
+                    checked += 1
+                    if attachment.size and attachment.size > MAX_DISCORD_FILE_SIZE:
+                        continue
+                    data = None
+                    for attempt in range(1, 4):
+                        try:
+                            data = await attachment.read()
+                            break
+                        except Exception as e:
+                            logger.warning("Download attempt %s for %s failed: %s", attempt, attachment.filename, e)
+                            import asyncio
+                            await asyncio.sleep(1)
+                    if data is None:
+                        continue
+                    valid, kv, audit, reason = await self._validate_backup_bytes(data)
+                    if valid:
+                        return attachment, data, kv, audit
+                    logger.warning("Skipping invalid backup %s: %s", attachment.filename, reason)
+        except Exception:
+            logger.exception("Error scanning backup channel history")
+        return None
+
+    @app_commands.command(
+        name="backup_restore",
+        description="[LOCKED] Force restore the newest bovary_backup_*.db from the house backup channel",
+    )
+    @app_commands.describe(
+        confirm="Type YES to confirm overwriting the current local database",
+    )
+    async def backup_restore(self, interaction: discord.Interaction, confirm: str = ""):
+        """Force-restore from the house server backup channel (overwrites local data/bovary.db)."""
+        await interaction.response.defer(ephemeral=True)
+
+        if confirm.strip().upper() != "YES":
+            await interaction.followup.send(
+                "⚠️ This **overwrites** the current local database with the newest "
+                f"`{BACKUP_PREFIX}*{BACKUP_SUFFIX}` from the house backup channel.\n\n"
+                "Run again with `confirm: YES` to proceed.\n"
+                "Tip: post your own file there first, named e.g. "
+                "`bovary_backup_20261004_142300.db`.",
+                ephemeral=True,
+            )
+            return
+
+        if sqldb.is_remote():
+            await interaction.followup.send(
+                "❌ Force file restore is not available in Turso remote mode "
+                "(data already lives in the cloud).",
+                ephemeral=True,
+            )
+            return
+
+        ok, detail, kv, audit = await self._force_restore_from_channel()
+        if ok:
+            await interaction.followup.send(
+                f"✅ **Force restore complete.**\n{detail}\n\n"
+                "Most data is live immediately. If some commands still look empty, "
+                "restart the Render service once.",
+                ephemeral=True,
+            )
+        else:
+            await interaction.followup.send(
+                f"❌ Force restore failed.\n`{detail}`",
+                ephemeral=True,
+            )
 
 
 async def setup(bot: commands.Bot):

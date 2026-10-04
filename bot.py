@@ -382,6 +382,7 @@ class BovaryBot(commands.Bot):
             "backup_export",
             "backup_hint",
             "backup_now",
+            "backup_restore",
             "cmd_add",
             "cmd_list",
             "cmd_remove",
