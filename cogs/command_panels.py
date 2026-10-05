@@ -155,7 +155,7 @@ class CommandPanels(commands.Cog):
         )
         embed.add_field(
             name="🛠️ Core & Utilities",
-            value="`/ping` `/info` `/timestamp` `/help` `/panel` `/avatar` `/servericon` `/membercount` `/userinfo` `/serverinfo` `/say` `/bova`",
+            value="`/ping` `/info` `/timestamp` `/help` `/panel` `/avatar` `/servericon` `/membercount` `/userinfo` `/serverinfo` `/say` `/sayfile`",
             inline=False,
         )
         embed.add_field(
@@ -180,7 +180,7 @@ class CommandPanels(commands.Cog):
         )
         embed.add_field(
             name="🚫 Removed from the current command set",
-            value="Auto-Role · Welcome DM · `/boost_config` · AutoFeeds · `/bovasay` · `/member_time` (all removed)",
+            value="Auto-Role · Welcome DM · `/boost_config` · AutoFeeds · `/bovasay` · `/member_time` · `/bova` (all removed)",
             inline=False,
         )
         embed.set_footer(text="Bova's Bot · Operations Hub")

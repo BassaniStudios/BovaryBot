@@ -1,6 +1,6 @@
 """
 Bova's Bot — Official private bot of Bovary Club Society.
-Version: 2.11.0
+Version: 2.12.0
 """
 from __future__ import annotations
 
@@ -62,14 +62,16 @@ class BovaryBot(commands.Bot):
         self._profile_applied = False
 
     def _load_config(self) -> dict:
-        # Canais de mídia com auto-react (✨ 🌟 💥 🎉). Lista atualizada 2026-09-15.
+        # Canais de mídia com auto-react (✨ 🌟 💥 🎉). Lista atualizada 2026-10-05.
+        # Canais excluídos de rankings de mídia/reações (pedido do staff):
+        # 1384173136638906401, 1541614511268831313, 1532045910073147412,
+        # 1384173136638906403, 1533492240343629865, 1540532050531061921, 1538739212088516678
         media_default = (
             "1384173879295213689,1384174586345816134,1537555862372094112,"
             "1424515140660760647,1425870476290428978,1532220539257622649,"
             "1531071911499661352,1425669117750284318,1424509207172087849,"
-            "1384173136853078038,1384173136638906401,1541614511268831313,"
-            "1532045910073147412,1384173136638906403,1533492240343629865,"
-            "1533128981774340176,1545100118103949442,1384173137071177753"
+            "1384173136853078038,1533128981774340176,1545100118103949442,"
+            "1384173137071177753"
         )
         reactions_default = ["✨", "🌟", "💥", "🎉"]
         # Hardcoded defaults are the production Bovary IDs. Prefer setting them
@@ -128,6 +130,12 @@ class BovaryBot(commands.Bot):
             "REQUIRED_INVITE_CHANNEL": load_int_env("REQUIRED_INVITE_CHANNEL", 1444094610157600859),
             "CHANNEL_IDS": _channel_list("CHANNEL_IDS", media_default),
             "MEDIA_SCORE_CHANNEL_IDS": _channel_list("MEDIA_SCORE_CHANNEL_IDS", media_default),
+            # Canais que NÃO entram em rankings de mídia / reações / topmedia (scan ao vivo)
+            "EXCLUDE_MEDIA_RANKING_CHANNELS": parse_channel_ids(
+                "1384173136638906401,1541614511268831313,1532045910073147412,"
+                "1384173136638906403,1533492240343629865,1540532050531061921,"
+                "1538739212088516678"
+            ),
             "INVITE_COOLDOWN_SECONDS": load_int_env("INVITE_COOLDOWN_SECONDS", 300) or 300,
             "AUTO_REACTIONS": _reactions_list(),
             "PANEL_ACCESS_ROLE_ID": load_int_env("PANEL_ACCESS_ROLE_ID", 1542169549833773156),

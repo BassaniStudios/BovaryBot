@@ -500,48 +500,84 @@ class Utilities(commands.Cog):
         await ch.send(message[:2000])
         await interaction.response.send_message("✅ Sent.", ephemeral=True)
 
-    def _bova_gif_file(self) -> Optional[discord.File]:
-        """Load the small chat GIF from assets (250x250)."""
-        candidates = [
-            Path(__file__).resolve().parent.parent / "assets" / "bova_embed.gif",
-            Path("assets/bova_embed.gif"),
-            Path(__file__).resolve().parent.parent / "assets" / "bova_chat.gif",
-            Path("assets/bova_chat.gif"),
-        ]
-        for p in candidates:
-            if p.is_file():
-                return discord.File(p, filename="bova.gif")
-        return None
-
-    @app_commands.command(name="bova", description="Post the official Bova's Bot GIF")
-    @app_commands.describe(channel="Channel (optional)")
-    async def bova(
+    @app_commands.command(
+        name="sayfile",
+        description="[LOCKED] Make the bot send an image or video file (no embed), like /say",
+    )
+    @app_commands.describe(
+        file="Image or video to send as the bot",
+        channel="Channel (optional)",
+        caption="Optional text caption above the file",
+    )
+    async def sayfile(
         self,
         interaction: discord.Interaction,
+        file: discord.Attachment,
         channel: Optional[discord.TextChannel] = None,
+        caption: Optional[str] = None,
     ):
         ch = channel or interaction.channel
         if not isinstance(ch, discord.TextChannel):
             await interaction.response.send_message("Canal inválido.", ephemeral=True)
             return
 
-        gif = self._bova_gif_file()
-        if gif is None:
-            # Fallback to hosted URL as plain link if local file missing
-            await ch.send(BOVA_GIF_URL)
-            await interaction.response.send_message("✅ GIF enviado (link).", ephemeral=True)
+        # Basic type check – allow image/* and video/*
+        ct = (file.content_type or "").lower()
+        name = (file.filename or "").lower()
+        allowed_ext = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".mp4", ".mov", ".webm", ".mkv", ".gifv")
+        is_media = ct.startswith(("image/", "video/")) or name.endswith(allowed_ext)
+        if not is_media:
+            await interaction.response.send_message(
+                "Envie apenas imagem ou vídeo (png/jpg/gif/webp/mp4/mov/webm…).",
+                ephemeral=True,
+            )
             return
 
+        # Size soft limit (Discord attachment limit is already enforced by Discord)
+        if file.size and file.size > 25 * 1024 * 1024:
+            await interaction.response.send_message("Arquivo muito grande (máx. ~25 MB).", ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=True)
+        try:
+            data = await file.read()
+            discord_file = discord.File(
+                fp=__import__("io").BytesIO(data),
+                filename=file.filename or "media.bin",
+            )
+            content = (caption or "")[:2000] or None
+            await ch.send(content=content, file=discord_file)
+            await interaction.followup.send("✅ Arquivo enviado como o bot (sem embed).", ephemeral=True)
+        except Exception as e:
+            logger.exception("sayfile failed")
+            await interaction.followup.send(f"Falha ao enviar: {e}", ephemeral=True)
+
+    @app_commands.command(
+        name="bumpy",
+        description="Lembrete / tentativa de bump no Disboard (automação completa não é possível de forma confiável)",
+    )
+    async def bumpy(self, interaction: discord.Interaction):
+        """Disboard exige o comando /bump do bot oficial do Disboard (ou ação no site logado).
+        Um bot de terceiros não consegue invocar slash commands de outros bots nem clicar
+        no botão do site sem browser automation + login (frágil, pesado e contra ToS).
+        Este comando apenas orienta e posta um lembrete.
+        """
         embed = cyber_embed(
-            title="◈ BOVA'S BOT",
-            description="Bova's Bot · SYSTEM ONLINE",
-            color=CYBER_PURPLE,
+            title="◈ Disboard Bump",
+            description=(
+                "**Automação completa do botão /bump no site Disboard não é possível** "
+                "de forma estável e permitida a partir deste bot.\n\n"
+                "O que você pode fazer agora:\n"
+                "1. No Discord, use o comando **`/bump`** do bot oficial do **Disboard** "
+                "(precisa estar no servidor).\n"
+                "2. Ou acesse [disboard.org](https://disboard.org) logado e clique em **Bump** no seu servidor.\n\n"
+                "Cooldown típico do Disboard: **2 horas** entre bumps.\n"
+                "Quando houver API oficial ou método permitido, podemos integrar de verdade."
+            ),
+            color=CYBER_CYAN,
         )
-        embed.set_image(url="attachment://bova.gif")
-        await ch.send(embed=embed, file=gif)
-        await interaction.response.send_message("✅ GIF enviado no embed.", ephemeral=True)
-
-
+        embed.set_footer(text="Bova's Bot · /bumpy (placeholder)")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 async def setup(bot: commands.Bot):

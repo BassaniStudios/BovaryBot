@@ -1,4 +1,4 @@
-# Bova's Bot — v2.11.0 (Turso-ready patch)
+# Bova's Bot — v2.12.0 (Turso-ready patch)
 
 Private bot for **Bovary Club Society**. Developed by **Bassani**.
 

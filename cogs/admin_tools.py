@@ -26,11 +26,20 @@ logger = logging.getLogger("bovary_bot.admin_tools")
 TARGET_AUTOMOD_CHANNEL = 1548153354675556412
 INVITE_LOG_CHANNEL = 1424436722984423529
 MASS_ACTION_LOG_CHANNEL = 1424436722984423529
+# Canais de painéis/minigames (mantidos para referência; ranking agora conta palavras em geral)
 RANKING_CHANNELS = {1553823431349371042, 1531417799300350073}
 MEDIA_CATEGORY_ID = 1384173136853078036
+# Canais excluídos de rankings de mídia / reações
+EXCLUDE_MEDIA_RANKING_CHANNELS = {
+    1384173136638906401, 1541614511268831313, 1532045910073147412,
+    1384173136638906403, 1533492240343629865, 1540532050531061921,
+    1538739212088516678,
+}
 MAX_ACTIVITY_PER_USER = 80
 MAX_AUTOMOD_EVENTS = 250
 MAX_DELETED_PER_USER = 50
+MEDIA_SCAN_DAYS = 7
+MEDIA_HISTORY_LIMIT_PER_CHANNEL = 650  # ~12 canais de midia · equilibrio cobertura x rate limit
 
 
 def now_iso() -> str:
@@ -213,11 +222,19 @@ class AdminTools(commands.Cog):
         if is_media_in_message(message):
             stat["media"] = int(stat.get("media", 0)) + 1
 
-        if message.channel.id in RANKING_CHANNELS:
-            key = str(uid)
-            self._chat_counts[key] = int(self._chat_counts.get(key, 0)) + 1
+        # Chat ranking: soma a quantidade de PALAVRAS usadas (não só contagem de msgs em painéis)
+        content = (message.content or "").strip()
+        if content:
+            word_count = len(content.split())
+            if word_count > 0:
+                key = str(uid)
+                self._chat_counts[key] = int(self._chat_counts.get(key, 0)) + word_count
+                # Also keep a dedicated words field in msg_stats
+                stat["words"] = int(stat.get("words", 0)) + word_count
 
         if is_media_in_message(message):
+            if message.channel.id in EXCLUDE_MEDIA_RANKING_CHANNELS:
+                return
             category_id = getattr(message.channel, "category_id", None)
             if category_id == MEDIA_CATEGORY_ID:
                 key = str(uid)
@@ -446,55 +463,117 @@ class AdminTools(commands.Cog):
         embed = make_embed(title="🛡️ AutoMod — Recent Activity", description="\n".join(lines), color=discord.Color.red())
         await interaction.response.send_message(embed=embed, ephemeral=not is_public(visibility))
 
-    # ── 4. Chat/minigame ranking ────────────────────────────────────────────
+    # ── 4. Chat ranking (por quantidade de palavras) ────────────────────────
 
-    # Chat/minigame ranking
-
-    @app_commands.command(name="chat_ranking", description="Top 10 chat and minigame activity in the configured rooms")
+    @app_commands.command(name="chat_ranking", description="Top 10 membros por quantidade de palavras escritas")
     @app_commands.choices(visibility=VISIBILITY_CHOICES)
     async def chat_ranking(self, interaction: discord.Interaction, visibility: str = "private"):
         pairs = sorted(((int(uid), int(count)) for uid, count in self._chat_counts.items()), key=lambda x: x[1], reverse=True)[:10]
-        pairs = [(uid, count) for uid, count in pairs if interaction.guild.get_member(uid)]
+        pairs = [(uid, count) for uid, count in pairs if interaction.guild and interaction.guild.get_member(uid)]
         if not pairs:
-            await interaction.response.send_message("No tracked activity in the configured chat/minigame channels yet.", ephemeral=not is_public(visibility))
+            await interaction.response.send_message(
+                "Nenhuma atividade de palavras registrada ainda (o contador reinicia após resets do bot).",
+                ephemeral=not is_public(visibility),
+            )
             return
         first_id, first_count = pairs[0]
-        first = interaction.guild.get_member(first_id)
-        lines = [f"**1. {user_name(first)}** — `{first_count}` messages"]
+        first = interaction.guild.get_member(first_id) if interaction.guild else None
+        lines = [f"**1. {user_name(first)}** — `{first_count}` palavras"]
         for idx, (uid, count) in enumerate(pairs[1:], 2):
-            member = interaction.guild.get_member(uid)
+            member = interaction.guild.get_member(uid) if interaction.guild else None
             if member:
-                lines.append(f"**{idx}.** {user_name(member)} — `{count}` messages")
-        embed = make_embed(title="🏆 TOP 10 — Chat & Mini Games", description="\n".join(lines), color=discord.Color.gold())
+                lines.append(f"**{idx}.** {user_name(member)} — `{count}` palavras")
+        embed = make_embed(
+            title="🏆 TOP 10 — Palavras escritas",
+            description="\n".join(lines),
+            color=discord.Color.gold(),
+        )
         if first:
             embed.set_thumbnail(url=first.display_avatar.url)
-            embed.add_field(name="🥇 #1", value=f"**{user_name(first)}**\n`{first_count}` messages", inline=False)
-        embed.set_footer(text="Rooms: 1553823431349371042 · 1531417799300350073")
+            embed.add_field(name="🥇 #1", value=f"**{user_name(first)}**\n`{first_count}` palavras", inline=False)
+        embed.set_footer(text="Contagem de palavras em todas as mensagens (desde o último reset do bot)")
         await send_view(interaction, embed=embed, visibility=visibility)
 
     # ── 6. Media ranking ────────────────────────────────────────────────────
 
-    @app_commands.command(name="media_ranking", description="Top 10 members sending photos and videos in the media category")
+    async def _scan_live_media_uploads(self, guild: discord.Guild) -> Dict[int, int]:
+        """Scan media category channels (excluding blocked ones) for media posts in last 7 days.
+        Returns author_id -> count of media messages.
+        """
+        after = datetime.now(timezone.utc) - timedelta(days=MEDIA_SCAN_DAYS)
+        counts: Dict[int, int] = {}
+        sem = asyncio.Semaphore(3)
+
+        # Collect text channels under the media category that are not excluded
+        channels: List[discord.abc.GuildChannel] = []
+        for ch in guild.text_channels:
+            if getattr(ch, "category_id", None) == MEDIA_CATEGORY_ID and ch.id not in EXCLUDE_MEDIA_RANKING_CHANNELS:
+                channels.append(ch)
+
+        async def scan_one(channel: discord.TextChannel):
+            try:
+                async with sem:
+                    async for message in channel.history(limit=MEDIA_HISTORY_LIMIT_PER_CHANNEL, after=after, oldest_first=False):
+                        if message.author.bot:
+                            continue
+                        if is_media_in_message(message):
+                            counts[message.author.id] = counts.get(message.author.id, 0) + 1
+            except discord.Forbidden:
+                logger.warning("No history permission in media channel %s", channel.id)
+            except Exception:
+                logger.exception("Failed scanning media channel %s", channel.id)
+
+        await asyncio.gather(*(scan_one(c) for c in channels if isinstance(c, discord.TextChannel)))
+        return counts
+
+    @app_commands.command(name="media_ranking", description="Top 10 members by photos/videos posted (last 7 days, live scan)")
     @app_commands.choices(visibility=VISIBILITY_CHOICES)
     async def media_ranking(self, interaction: discord.Interaction, visibility: str = "private"):
-        pairs = sorted(((int(uid), int(count)) for uid, count in self._media_counts.items()), key=lambda x: x[1], reverse=True)[:10]
+        await interaction.response.defer(ephemeral=not is_public(visibility))
+        if not interaction.guild:
+            await interaction.followup.send("Guild only.", ephemeral=True)
+            return
+
+        try:
+            live_counts = await self._scan_live_media_uploads(interaction.guild)
+        except Exception:
+            logger.exception("Live media upload scan failed")
+            live_counts = {}
+
+        if live_counts:
+            pairs = sorted(live_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+            source_note = f"Scan ao vivo · últimos {MEDIA_SCAN_DAYS} dias"
+        else:
+            # Fallback to in-memory counter
+            pairs = sorted(((int(uid), int(count)) for uid, count in self._media_counts.items()), key=lambda x: x[1], reverse=True)[:10]
+            pairs = [(uid, count) for uid, count in pairs if interaction.guild.get_member(uid)]
+            source_note = "Contador em memória (fallback)"
+
         pairs = [(uid, count) for uid, count in pairs if interaction.guild.get_member(uid)]
         if not pairs:
-            await interaction.response.send_message("No media activity recorded in that category yet.", ephemeral=not is_public(visibility))
+            await interaction.followup.send(
+                "Nenhuma mídia encontrada nos últimos 7 dias na categoria de mídia (canais excluídos ignorados).",
+                ephemeral=not is_public(visibility),
+            )
             return
+
         first_id, first_count = pairs[0]
         first = interaction.guild.get_member(first_id)
-        lines = [f"**1. {user_name(first)}** — `{first_count}` media"]
+        lines = [f"**1. {user_name(first)}** — `{first_count}` mídias"]
         for idx, (uid, count) in enumerate(pairs[1:], 2):
             member = interaction.guild.get_member(uid)
             if member:
-                lines.append(f"**{idx}.** {user_name(member)} — `{count}` media")
-        embed = make_embed(title="📸 TOP 10 — Photos & Videos", description="\n".join(lines), color=discord.Color.magenta())
+                lines.append(f"**{idx}.** {user_name(member)} — `{count}` mídias")
+        embed = make_embed(
+            title="📸 TOP 10 — Fotos & Vídeos",
+            description="\n".join(lines),
+            color=discord.Color.magenta(),
+        )
         if first:
             embed.set_thumbnail(url=first.display_avatar.url)
-            embed.add_field(name="🥇 #1", value=f"**{user_name(first)}**\n`{first_count}` photos/videos", inline=False)
-        embed.set_footer(text=f"Category: {MEDIA_CATEGORY_ID}")
-        await send_view(interaction, embed=embed, visibility=visibility)
+            embed.add_field(name="🥇 #1", value=f"**{user_name(first)}**\n`{first_count}` fotos/vídeos", inline=False)
+        embed.set_footer(text=f"{source_note} · categoria {MEDIA_CATEGORY_ID} · canais excluídos ignorados")
+        await interaction.followup.send(embed=embed, ephemeral=not is_public(visibility))
 
     # ── 8. Role diff ─────────────────────────────────────────────────────────
 

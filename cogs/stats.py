@@ -1,8 +1,13 @@
-"""Server activity stats and weekly top media (numbers only, no charts)."""
+"""Server activity stats and weekly top media (numbers only, no charts).
+
+/topmedia agora faz scan ao vivo das reações presentes nas mídias dos últimos 7 dias
+(em vez de depender apenas do contador em memória que se perde em resets).
+"""
 from __future__ import annotations
 
+import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, List, Tuple
 
 import discord
@@ -22,6 +27,8 @@ VISIBILITY_CHOICES = [
 def is_public(visibility: str) -> bool:
     return visibility == "channel"
 STATS_FILE = "stats.json"
+MEDIA_SCAN_DAYS = 7
+MEDIA_HISTORY_LIMIT_PER_CHANNEL = 650  # ~12 canais de midia · equilibrio cobertura x rate limit
 
 
 class Stats(commands.Cog):
@@ -88,7 +95,62 @@ class Stats(commands.Cog):
         return {"message_id": best_id, **best}
 
     def _media_channels(self) -> list:
-        return self.bot.config.get("MEDIA_SCORE_CHANNEL_IDS") or self.bot.config.get("CHANNEL_IDS", [])
+        channels = self.bot.config.get("MEDIA_SCORE_CHANNEL_IDS") or self.bot.config.get("CHANNEL_IDS", [])
+        exclude = set(self.bot.config.get("EXCLUDE_MEDIA_RANKING_CHANNELS") or [])
+        return [c for c in channels if c not in exclude]
+
+    def _excluded_media_channels(self) -> set:
+        return set(self.bot.config.get("EXCLUDE_MEDIA_RANKING_CHANNELS") or [])
+
+    async def _scan_live_media_scores(self, guild: discord.Guild) -> List[Dict[str, Any]]:
+        """Scan allowed media channels for messages with image/video from the last N days
+        and count the reactions currently present on each message.
+        Returns list of dicts sorted by reaction score desc.
+        """
+        after = datetime.now(timezone.utc) - timedelta(days=MEDIA_SCAN_DAYS)
+        channel_ids = self._media_channels()
+        exclude = self._excluded_media_channels()
+        results: List[Dict[str, Any]] = []
+        sem = asyncio.Semaphore(3)  # limit concurrent channel history fetches
+
+        async def scan_channel(ch_id: int):
+            if ch_id in exclude:
+                return
+            channel = guild.get_channel(ch_id)
+            if channel is None or not isinstance(channel, (discord.TextChannel, discord.Thread)):
+                return
+            try:
+                async with sem:
+                    async for message in channel.history(limit=MEDIA_HISTORY_LIMIT_PER_CHANNEL, after=after, oldest_first=False):
+                        if message.author.bot:
+                            continue
+                        if not is_media_in_message(message):
+                            continue
+                        # Total reactions currently on the message (all emoji types)
+                        score = 0
+                        for reaction in message.reactions:
+                            try:
+                                score += reaction.count
+                            except Exception:
+                                pass
+                        if score <= 0:
+                            continue
+                        results.append({
+                            "message_id": str(message.id),
+                            "score": score,
+                            "channel_id": channel.id,
+                            "author_id": message.author.id,
+                            "jump_url": message.jump_url,
+                            "created": message.created_at.replace(tzinfo=timezone.utc).isoformat() if message.created_at.tzinfo is None else message.created_at.isoformat(),
+                        })
+            except discord.Forbidden:
+                logger.warning("No permission to read history in channel %s", ch_id)
+            except Exception:
+                logger.exception("Failed scanning channel %s for live media scores", ch_id)
+
+        await asyncio.gather(*(scan_channel(cid) for cid in channel_ids))
+        results.sort(key=lambda x: x.get("score", 0), reverse=True)
+        return results
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -105,6 +167,8 @@ class Stats(commands.Cog):
 
         media_channels = self._media_channels()
         if media_channels and message.channel.id not in media_channels:
+            return
+        if message.channel.id in self._excluded_media_channels():
             return
 
         if is_media_in_message(message):
@@ -201,31 +265,56 @@ class Stats(commands.Cog):
 
     @app_commands.command(
         name="topmedia",
-        description="Show or post the most reacted media of the period",
+        description="Top media by reactions present on images/videos (last 7 days, live scan)",
     )
     @app_commands.choices(visibility=VISIBILITY_CHOICES)
     @app_commands.describe(post="If true, posts a public highlight message", visibility="How the result should be shown")
     async def topmedia(self, interaction: discord.Interaction, post: bool = False, visibility: str = "private"):
-        top = self.data.get("weekly_top") or self._top_media()
-        if not top:
-            await interaction.response.send_message(
-                "No media scores recorded yet.", ephemeral=not is_public(visibility)
-            )
+        await interaction.response.defer(ephemeral=not is_public(visibility) and not post)
+        if not interaction.guild:
+            await interaction.followup.send("Guild only.", ephemeral=True)
             return
 
+        try:
+            ranked = await self._scan_live_media_scores(interaction.guild)
+        except Exception:
+            logger.exception("Live media scan failed")
+            ranked = []
+
+        if not ranked:
+            # Fallback to in-memory counter if scan found nothing
+            top = self.data.get("weekly_top") or self._top_media()
+            if not top:
+                await interaction.followup.send(
+                    "Nenhuma mídia com reações encontrada nos últimos 7 dias nos canais de mídia.",
+                    ephemeral=not is_public(visibility),
+                )
+                return
+            ranked = [top]
+
+        top = ranked[0]
+        lines = []
+        for i, item in enumerate(ranked[:5], 1):
+            lines.append(
+                f"**{i}.** Score **{item.get('score', 0)}** — <@{item.get('author_id')}> · "
+                f"[Jump]({item.get('jump_url', '#')})"
+            )
+
         embed = make_embed(
-            title="◈ Top Media of the Period",
+            title="◈ Top Media — últimos 7 dias (reações ao vivo)",
             description=(
-                f"**Score:** {top.get('score', 0)} reactions\n"
-                f"**Author:** <@{top.get('author_id')}>\n"
-                f"[Jump to message]({top.get('jump_url', '#')})"
+                f"**#1 Score:** {top.get('score', 0)} reações\n"
+                f"**Autor:** <@{top.get('author_id')}>\n"
+                f"[Ir para a mensagem]({top.get('jump_url', '#')})\n\n"
+                + "\n".join(lines)
             ),
             color=discord.Color.from_rgb(255, 60, 160),
         )
+        embed.set_footer(text=f"Scan ao vivo · {MEDIA_SCAN_DAYS} dias · canais de mídia (excluídos os listados)")
         if post:
-            await interaction.response.send_message(embed=embed)
+            await interaction.followup.send(embed=embed)
         else:
-            await interaction.response.send_message(embed=embed, ephemeral=not is_public(visibility))
+            await interaction.followup.send(embed=embed, ephemeral=not is_public(visibility))
 
 
     @app_commands.command(
