@@ -15,8 +15,8 @@ from utils.helpers import SERVER_TZ, tz_from_offset
 logger = logging.getLogger("bovary_bot.utilities")
 
 VISIBILITY_CHOICES = [
-    app_commands.Choice(name="Somente você", value="private"),
-    app_commands.Choice(name="Publicar no canal", value="channel"),
+    app_commands.Choice(name="Only you", value="private"),
+    app_commands.Choice(name="Post in channel", value="channel"),
 ]
 
 def is_public(visibility: str) -> bool:
@@ -518,7 +518,7 @@ class Utilities(commands.Cog):
     ):
         ch = channel or interaction.channel
         if not isinstance(ch, discord.TextChannel):
-            await interaction.response.send_message("Canal inválido.", ephemeral=True)
+            await interaction.response.send_message("Invalid channel.", ephemeral=True)
             return
 
         # Basic type check – allow image/* and video/*
@@ -528,14 +528,14 @@ class Utilities(commands.Cog):
         is_media = ct.startswith(("image/", "video/")) or name.endswith(allowed_ext)
         if not is_media:
             await interaction.response.send_message(
-                "Envie apenas imagem ou vídeo (png/jpg/gif/webp/mp4/mov/webm…).",
+                "Please send only an image or video (png/jpg/gif/webp/mp4/mov/webm…).",
                 ephemeral=True,
             )
             return
 
         # Size soft limit (Discord attachment limit is already enforced by Discord)
         if file.size and file.size > 25 * 1024 * 1024:
-            await interaction.response.send_message("Arquivo muito grande (máx. ~25 MB).", ephemeral=True)
+            await interaction.response.send_message("File too large (max ~25 MB).", ephemeral=True)
             return
 
         await interaction.response.defer(ephemeral=True)
@@ -547,36 +547,35 @@ class Utilities(commands.Cog):
             )
             content = (caption or "")[:2000] or None
             await ch.send(content=content, file=discord_file)
-            await interaction.followup.send("✅ Arquivo enviado como o bot (sem embed).", ephemeral=True)
+            await interaction.followup.send("✅ File sent as the bot (no embed).", ephemeral=True)
         except Exception as e:
             logger.exception("sayfile failed")
-            await interaction.followup.send(f"Falha ao enviar: {e}", ephemeral=True)
+            await interaction.followup.send(f"Failed to send: {e}", ephemeral=True)
 
     @app_commands.command(
         name="bumpy",
-        description="Lembrete / tentativa de bump no Disboard (automação completa não é possível de forma confiável)",
+        description="Disboard bump reminder (full site automation is not reliably possible)",
     )
     async def bumpy(self, interaction: discord.Interaction):
-        """Disboard exige o comando /bump do bot oficial do Disboard (ou ação no site logado).
-        Um bot de terceiros não consegue invocar slash commands de outros bots nem clicar
-        no botão do site sem browser automation + login (frágil, pesado e contra ToS).
-        Este comando apenas orienta e posta um lembrete.
+        """Disboard requires the official Disboard bot /bump command (or the website button while logged in).
+        Third-party bots cannot invoke other bots' slash commands or click the site button without
+        browser automation + login (fragile, heavy, and against ToS). This command only guides the user.
         """
         embed = cyber_embed(
             title="◈ Disboard Bump",
             description=(
-                "**Automação completa do botão /bump no site Disboard não é possível** "
-                "de forma estável e permitida a partir deste bot.\n\n"
-                "O que você pode fazer agora:\n"
-                "1. No Discord, use o comando **`/bump`** do bot oficial do **Disboard** "
-                "(precisa estar no servidor).\n"
-                "2. Ou acesse [disboard.org](https://disboard.org) logado e clique em **Bump** no seu servidor.\n\n"
-                "Cooldown típico do Disboard: **2 horas** entre bumps.\n"
-                "Quando houver API oficial ou método permitido, podemos integrar de verdade."
+                "**Full automation of the Disboard /bump button is not possible** "
+                "in a stable and allowed way from this bot.\n\n"
+                "What you can do now:\n"
+                "1. In Discord, use the **`/bump`** command from the official **Disboard** bot "
+                "(it must be in the server).\n"
+                "2. Or open [disboard.org](https://disboard.org) while logged in and click **Bump** on your server.\n\n"
+                "Typical Disboard cooldown: **2 hours** between bumps.\n"
+                "If an official API or allowed method becomes available, we can integrate it properly."
             ),
             color=CYBER_CYAN,
         )
-        embed.set_footer(text="Bova's Bot · /bumpy (placeholder)")
+        embed.set_footer(text="Bova's Bot · /bumpy")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 

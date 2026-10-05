@@ -62,16 +62,12 @@ class BovaryBot(commands.Bot):
         self._profile_applied = False
 
     def _load_config(self) -> dict:
-        # Canais de mídia com auto-react (✨ 🌟 💥 🎉). Lista atualizada 2026-10-05.
-        # Canais excluídos de rankings de mídia/reações (pedido do staff):
-        # 1384173136638906401, 1541614511268831313, 1532045910073147412,
-        # 1384173136638906403, 1533492240343629865, 1540532050531061921, 1538739212088516678
+        # Media channels for auto-react + ranking scans (updated 2026-10-05).
         media_default = (
-            "1384173879295213689,1384174586345816134,1537555862372094112,"
-            "1424515140660760647,1425870476290428978,1532220539257622649,"
+            "1384173879295213689,1384174586345816134,1424515140660760647,"
+            "1537555862372094112,1425870476290428978,1532220539257622649,"
             "1531071911499661352,1425669117750284318,1424509207172087849,"
-            "1384173136853078038,1533128981774340176,1545100118103949442,"
-            "1384173137071177753"
+            "1384173136853078038"
         )
         reactions_default = ["✨", "🌟", "💥", "🎉"]
         # Hardcoded defaults are the production Bovary IDs. Prefer setting them
@@ -124,17 +120,22 @@ class BovaryBot(commands.Bot):
             "TIMESTAMP_REMINDER_TEXT": os.getenv("TIMESTAMP_REMINDER_TEXT", ""),
             "DM_AUTO_RESPONSE_TEXT": os.getenv(
                 "DM_AUTO_RESPONSE_TEXT",
-                "Olá! Sua mensagem foi recebida. Nossa equipe foi notificada e responderá assim que possível.",
+                "Hello! Your message was received. Our team has been notified and will reply as soon as possible.",
             ),
             "CREW_LEADER_ROLE_ID": load_int_env("CREW_LEADER_ROLE_ID", 1384173136177791048),
             "REQUIRED_INVITE_CHANNEL": load_int_env("REQUIRED_INVITE_CHANNEL", 1444094610157600859),
             "CHANNEL_IDS": _channel_list("CHANNEL_IDS", media_default),
             "MEDIA_SCORE_CHANNEL_IDS": _channel_list("MEDIA_SCORE_CHANNEL_IDS", media_default),
-            # Canais que NÃO entram em rankings de mídia / reações / topmedia (scan ao vivo)
+            # Channels ignored by media/reaction ranking scans
             "EXCLUDE_MEDIA_RANKING_CHANNELS": parse_channel_ids(
-                "1384173136638906401,1541614511268831313,1532045910073147412,"
-                "1384173136638906403,1533492240343629865,1540532050531061921,"
-                "1538739212088516678"
+                "1384173137662574739,1548153354675556412,1548188378623778847,"
+                "1424436722984423529,1444740208208908338"
+            ),
+            # Channels used for chat word-count ranking
+            "CHAT_RANKING_CHANNEL_IDS": parse_channel_ids(
+                "1384173137071177752,1425230894641451059,1542185824173424650,"
+                "1384173137071177757,1444094610157600859,1553823431349371042,"
+                "1531417799300350073,1554302868293554196"
             ),
             "INVITE_COOLDOWN_SECONDS": load_int_env("INVITE_COOLDOWN_SECONDS", 300) or 300,
             "AUTO_REACTIONS": _reactions_list(),

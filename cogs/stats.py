@@ -1,7 +1,7 @@
 """Server activity stats and weekly top media (numbers only, no charts).
 
-/topmedia agora faz scan ao vivo das reações presentes nas mídias dos últimos 7 dias
-(em vez de depender apenas do contador em memória que se perde em resets).
+/topmedia runs a live scan of reactions currently present on media from the last 7 days
+(instead of relying only on the in-memory counter, which is lost on resets).
 """
 from __future__ import annotations
 
@@ -20,15 +20,15 @@ from utils.storage import load_json, save_json, default_stats
 logger = logging.getLogger("bovary_bot.stats")
 
 VISIBILITY_CHOICES = [
-    app_commands.Choice(name="Somente você", value="private"),
-    app_commands.Choice(name="Publicar no canal", value="channel"),
+    app_commands.Choice(name="Only you", value="private"),
+    app_commands.Choice(name="Post in channel", value="channel"),
 ]
 
 def is_public(visibility: str) -> bool:
     return visibility == "channel"
 STATS_FILE = "stats.json"
 MEDIA_SCAN_DAYS = 7
-MEDIA_HISTORY_LIMIT_PER_CHANNEL = 650  # ~12 canais de midia · equilibrio cobertura x rate limit
+MEDIA_HISTORY_LIMIT_PER_CHANNEL = 650  # ~10 media channels · coverage vs rate-limit balance
 
 
 class Stats(commands.Cog):
@@ -286,31 +286,25 @@ class Stats(commands.Cog):
             top = self.data.get("weekly_top") or self._top_media()
             if not top:
                 await interaction.followup.send(
-                    "Nenhuma mídia com reações encontrada nos últimos 7 dias nos canais de mídia.",
+                    "No media with reactions found in the last 7 days in the media channels.",
                     ephemeral=not is_public(visibility),
                 )
                 return
             ranked = [top]
 
-        top = ranked[0]
         lines = []
-        for i, item in enumerate(ranked[:5], 1):
+        for i, item in enumerate(ranked[:10], 1):
             lines.append(
-                f"**{i}.** Score **{item.get('score', 0)}** — <@{item.get('author_id')}> · "
+                f"**{i}.** **{item.get('score', 0)}** reactions — <@{item.get('author_id')}> · "
                 f"[Jump]({item.get('jump_url', '#')})"
             )
 
         embed = make_embed(
-            title="◈ Top Media — últimos 7 dias (reações ao vivo)",
-            description=(
-                f"**#1 Score:** {top.get('score', 0)} reações\n"
-                f"**Autor:** <@{top.get('author_id')}>\n"
-                f"[Ir para a mensagem]({top.get('jump_url', '#')})\n\n"
-                + "\n".join(lines)
-            ),
+            title="◈ Top Media — last 7 days (live reactions)",
+            description="\n".join(lines),
             color=discord.Color.from_rgb(255, 60, 160),
         )
-        embed.set_footer(text=f"Scan ao vivo · {MEDIA_SCAN_DAYS} dias · canais de mídia (excluídos os listados)")
+        embed.set_footer(text=f"Live scan · last {MEDIA_SCAN_DAYS} days · media channels only")
         if post:
             await interaction.followup.send(embed=embed)
         else:
