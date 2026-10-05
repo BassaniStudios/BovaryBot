@@ -299,11 +299,27 @@ class Stats(commands.Cog):
                 f"[Jump]({item.get('jump_url', '#')})"
             )
 
+        top = ranked[0]
         embed = make_embed(
             title="◈ Top Media — last 7 days (live reactions)",
             description="\n".join(lines),
             color=discord.Color.from_rgb(255, 60, 160),
         )
+        # Show #1 avatar as thumbnail (same style as media_ranking / chat_ranking)
+        top_author = interaction.guild.get_member(int(top.get("author_id") or 0)) if interaction.guild else None
+        if top_author is not None:
+            embed.set_thumbnail(url=top_author.display_avatar.url)
+            embed.add_field(
+                name="🥇 #1",
+                value=f"**{top_author.display_name}**\n`{top.get('score', 0)}` reactions",
+                inline=False,
+            )
+        elif top.get("author_id"):
+            embed.add_field(
+                name="🥇 #1",
+                value=f"<@{top.get('author_id')}>\n`{top.get('score', 0)}` reactions",
+                inline=False,
+            )
         embed.set_footer(text=f"Live scan · last {MEDIA_SCAN_DAYS} days · media channels only")
         if post:
             await interaction.followup.send(embed=embed)
