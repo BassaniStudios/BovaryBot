@@ -1,11 +1,17 @@
 """
-Nitro Raffles — persistent pinned panel where members pick a number (1–200).
+Nitro Raffles — sticky panel (Love Professor style) where members pick a number (1–200).
 One winning number is fixed (145). 12-hour cooldown per user.
-When someone hits the winning number the panel button is disabled and the
-embed stays pinned waiting for staff.
+When someone hits the winning number the panel button is disabled; the embed
+stays as a sticky "sticker" at the bottom of the chat waiting for staff.
+
+Sticky behaviour (same pattern as Love Professor):
+- No native Discord pin
+- After human activity (or result messages), wait STICKY_DELAY_SECONDS of quiet
+- Then delete the old panel message and re-send it at the bottom of the channel
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from datetime import datetime, timezone
@@ -25,6 +31,10 @@ WINNING_NUMBER = 145
 MIN_NUMBER = 1
 MAX_NUMBER = 200
 COOLDOWN_SECONDS = 12 * 60 * 60  # 12 hours
+
+# Delay before sticky panel is moved back to the bottom of the channel.
+# Gives people time to comment on results without the panel jumping constantly.
+STICKY_DELAY_SECONDS = 90
 
 # ── Assets ────────────────────────────────────────────────────────────────
 MAIN_IMAGE = "https://ik.imagekit.io/BassaniStudios/321213211232112.jpg"
@@ -88,7 +98,6 @@ class NitroRaffleView(discord.ui.View):
         super().__init__(timeout=None)
         self.cog = cog
         self.channel_id = channel_id
-        # Disable button when raffle already has a winner
         for item in self.children:
             if isinstance(item, discord.ui.Button) and item.custom_id == "nitroraffle:try":
                 item.disabled = not active
@@ -113,10 +122,7 @@ class NitroRaffleView(discord.ui.View):
         if remaining > 0:
             hours = int(remaining // 3600)
             mins = int((remaining % 3600) // 60)
-            if hours > 0:
-                time_str = f"{hours}h {mins}m"
-            else:
-                time_str = f"{mins}m"
+            time_str = f"{hours}h {mins}m" if hours else f"{mins}m"
             await interaction.response.send_message(
                 f"⏳ You can try again in **{time_str}**.",
                 ephemeral=True,
@@ -131,8 +137,14 @@ class NitroRaffles(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.data: Dict[str, Any] = load_json(FILE, {"panels": {}, "cooldowns": {}})
+        # Per-channel sticky tasks & locks (Love Professor pattern, multi-channel)
+        self._sticky_tasks: Dict[int, asyncio.Task] = {}
+        self._sticky_locks: Dict[int, asyncio.Lock] = {}
 
     def cog_unload(self):
+        for task in list(self._sticky_tasks.values()):
+            if task is not None and not task.done():
+                task.cancel()
         self._save()
 
     def _save(self):
@@ -140,6 +152,11 @@ class NitroRaffles(commands.Cog):
 
     def _panel(self, channel_id: int) -> Optional[Dict]:
         return self.data.get("panels", {}).get(str(channel_id))
+
+    def _get_lock(self, channel_id: int) -> asyncio.Lock:
+        if channel_id not in self._sticky_locks:
+            self._sticky_locks[channel_id] = asyncio.Lock()
+        return self._sticky_locks[channel_id]
 
     def _check_cooldown(self, user_id: int) -> float:
         last = self.data.get("cooldowns", {}).get(str(user_id))
@@ -205,7 +222,133 @@ class NitroRaffles(commands.Cog):
         embed.set_footer(text="Bova's Bot · Nitro Raffles · Winner")
         return embed
 
-    # ── Core logic ────────────────────────────────────────────────────────
+    def _embed_for_panel(self, panel: Dict) -> discord.Embed:
+        """Build the correct embed for the current panel state."""
+        if panel.get("active", True):
+            return self._build_active_embed()
+        winner_id = panel.get("winner_id")
+        number = panel.get("winner_number", WINNING_NUMBER)
+        if winner_id:
+            user = self.bot.get_user(winner_id)
+            if user is None:
+                # Fallback closed embed without avatar fetch (async not available here)
+                embed = discord.Embed(
+                    title="NITRO RAFFLES — WINNER!",
+                    description=(
+                        f"🎉 The lucky number **{number}** was found!\n\n"
+                        "This raffle is now closed.\n"
+                        "Staff will contact the winner shortly."
+                    ),
+                    color=NITRO_WIN_COLOR,
+                    timestamp=_utc_now(),
+                )
+                embed.set_image(url=MAIN_IMAGE)
+                embed.set_footer(text="Bova's Bot · Nitro Raffles · Closed")
+                return embed
+            return self._build_closed_embed(user, number)
+        return self._build_active_embed()
+
+    # ── Sticky system (Love Professor pattern) ────────────────────────────
+    def _schedule_sticky(self, channel_id: int) -> None:
+        """Cancel any pending sticky and schedule a new one after STICKY_DELAY_SECONDS."""
+        old = self._sticky_tasks.get(channel_id)
+        if old is not None and not old.done():
+            old.cancel()
+        self._sticky_tasks[channel_id] = asyncio.create_task(
+            self._delayed_sticky(channel_id)
+        )
+
+    async def _delayed_sticky(self, channel_id: int) -> None:
+        try:
+            await asyncio.sleep(STICKY_DELAY_SECONDS)
+            await self._do_sticky_repost(channel_id)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("NitroRaffles delayed sticky failed for channel %s", channel_id)
+
+    async def _do_sticky_repost(self, channel_id: int) -> None:
+        """Move the panel to the bottom of the channel if needed (no native pin)."""
+        panel = self._panel(channel_id)
+        if not panel or not panel.get("message_id"):
+            return
+
+        async with self._get_lock(channel_id):
+            try:
+                channel = self.bot.get_channel(channel_id)
+                if channel is None:
+                    try:
+                        channel = await self.bot.fetch_channel(channel_id)
+                    except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                        return
+
+                if not isinstance(
+                    channel,
+                    (discord.TextChannel, discord.VoiceChannel, discord.Thread),
+                ):
+                    return
+
+                # If panel is already the last message, nothing to do
+                try:
+                    async for last in channel.history(limit=1):
+                        if last.id == panel["message_id"]:
+                            return
+                        break
+                except (discord.Forbidden, discord.HTTPException):
+                    pass
+
+                # Delete old panel
+                try:
+                    old = await channel.fetch_message(panel["message_id"])
+                    await old.delete()
+                except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                    pass
+
+                active = bool(panel.get("active", True))
+                view = NitroRaffleView(self, channel_id, active=active)
+                self.bot.add_view(view)
+
+                # Prefer full closed embed with winner avatar when possible
+                embed = self._build_active_embed()
+                if not active and panel.get("winner_id"):
+                    try:
+                        winner = self.bot.get_user(panel["winner_id"])
+                        if winner is None:
+                            winner = await self.bot.fetch_user(panel["winner_id"])
+                        embed = self._build_closed_embed(
+                            winner, panel.get("winner_number", WINNING_NUMBER)
+                        )
+                    except Exception:
+                        embed = self._embed_for_panel(panel)
+                else:
+                    embed = self._embed_for_panel(panel)
+
+                new_msg = await channel.send(embed=embed, view=view)
+                panel["message_id"] = new_msg.id
+                self._save()
+                logger.debug(
+                    "NitroRaffles sticky panel reposted in %s (msg %s)",
+                    channel_id,
+                    new_msg.id,
+                )
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("NitroRaffles sticky repost failed in %s", channel_id)
+
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        """Any human message in a raffle channel resets the quiet timer."""
+        if message.author.bot:
+            return
+        if not message.guild:
+            return
+        panel = self._panel(message.channel.id)
+        if not panel or not panel.get("message_id"):
+            return
+        self._schedule_sticky(message.channel.id)
+
+    # ── Core entry logic ──────────────────────────────────────────────────
     async def process_entry(self, interaction: discord.Interaction, channel_id: int, number: int):
         panel = self._panel(channel_id)
         if not panel or not panel.get("active", True):
@@ -215,7 +358,6 @@ class NitroRaffles(commands.Cog):
             )
             return
 
-        # Re-check cooldown (race safety)
         remaining = self._check_cooldown(interaction.user.id)
         if remaining > 0:
             hours = int(remaining // 3600)
@@ -229,7 +371,6 @@ class NitroRaffles(commands.Cog):
 
         self._set_cooldown(interaction.user.id)
 
-        # Record entry
         panel.setdefault("entries", {})[str(interaction.user.id)] = {
             "number": number,
             "at": _utc_now().isoformat(),
@@ -240,7 +381,6 @@ class NitroRaffles(commands.Cog):
         user = interaction.user
 
         if number == WINNING_NUMBER:
-            # ── WIN ──────────────────────────────────────────────────────
             panel["active"] = False
             panel["winner_id"] = user.id
             panel["winner_number"] = number
@@ -252,11 +392,10 @@ class NitroRaffles(commands.Cog):
                 ephemeral=True,
             )
 
-            # Public win announcement
             win_embed = self._build_win_announce_embed(user, number)
             await channel.send(content=f"🎊 {user.mention}", embed=win_embed)
 
-            # Update + disable the pinned panel
+            # Update current panel message in place (button disabled), then schedule sticky
             try:
                 msg = await channel.fetch_message(panel["message_id"])
                 closed_embed = self._build_closed_embed(user, number)
@@ -264,8 +403,9 @@ class NitroRaffles(commands.Cog):
                 await msg.edit(embed=closed_embed, view=closed_view)
             except Exception:
                 logger.exception("Failed to update raffle panel after win")
+
+            self._schedule_sticky(channel_id)
         else:
-            # ── MISS ─────────────────────────────────────────────────────
             await interaction.response.send_message(
                 f"You picked **{number}**. Check the channel for the result.",
                 ephemeral=True,
@@ -283,12 +423,19 @@ class NitroRaffles(commands.Cog):
             result_embed.set_thumbnail(url=user.display_avatar.url)
             result_embed.set_footer(text="Bova's Bot · Nitro Raffles")
             await channel.send(embed=result_embed)
+            # After result is posted, wait for quiet then bring panel back to bottom
+            self._schedule_sticky(channel_id)
 
     async def _post_panel(self, channel: discord.abc.Messageable, *, reset: bool = False) -> discord.Message:
         channel_id = channel.id
         existing = self._panel(channel_id)
 
-        # Remove old message if any
+        # Cancel pending sticky while we replace the panel
+        old_task = self._sticky_tasks.get(channel_id)
+        if old_task is not None and not old_task.done():
+            old_task.cancel()
+
+        # Delete old panel message if any
         if existing and existing.get("message_id"):
             try:
                 old = await channel.fetch_message(existing["message_id"])
@@ -298,48 +445,51 @@ class NitroRaffles(commands.Cog):
 
         active = True
         if existing and not reset and not existing.get("active", True):
-            # Keep closed state if not resetting
             active = False
+
+        if reset:
+            active = True
 
         view = NitroRaffleView(self, channel_id, active=active)
         if active:
             embed = self._build_active_embed()
         else:
             winner_id = existing.get("winner_id") if existing else None
-            winner = None
             if winner_id:
-                winner = self.bot.get_user(winner_id) or await self.bot.fetch_user(winner_id)
-            if winner:
-                embed = self._build_closed_embed(winner, existing.get("winner_number", WINNING_NUMBER))
+                try:
+                    winner = self.bot.get_user(winner_id) or await self.bot.fetch_user(winner_id)
+                    embed = self._build_closed_embed(
+                        winner, existing.get("winner_number", WINNING_NUMBER)
+                    )
+                except Exception:
+                    embed = self._build_active_embed()
+                    active = True
+                    view = NitroRaffleView(self, channel_id, active=True)
             else:
                 embed = self._build_active_embed()
                 active = True
                 view = NitroRaffleView(self, channel_id, active=True)
 
         msg = await channel.send(embed=embed, view=view)
+        # NO native pin — sticky system keeps it at the bottom
 
-        # Pin
-        try:
-            await msg.pin(reason="Nitro Raffles panel")
-        except Exception:
-            logger.warning("Could not pin raffle panel in %s", channel_id)
-
-        # Persist
         self.data.setdefault("panels", {})[str(channel_id)] = {
             "message_id": msg.id,
-            "guild_id": getattr(channel, "guild", None) and channel.guild.id,
+            "guild_id": getattr(getattr(channel, "guild", None), "id", None),
             "active": active,
             "winning_number": WINNING_NUMBER,
             "winner_id": None if active else (existing.get("winner_id") if existing else None),
             "winner_number": None if active else (existing.get("winner_number") if existing else None),
-            "entries": {} if reset or active else (existing.get("entries") if existing else {}),
+            "entries": {} if (reset or active) else (existing.get("entries") if existing else {}),
             "created_at": _utc_now().isoformat(),
         }
         if reset:
-            self.data["panels"][str(channel_id)]["entries"] = {}
-            self.data["panels"][str(channel_id)]["winner_id"] = None
-            self.data["panels"][str(channel_id)]["winner_number"] = None
-            self.data["panels"][str(channel_id)]["active"] = True
+            p = self.data["panels"][str(channel_id)]
+            p["entries"] = {}
+            p["winner_id"] = None
+            p["winner_number"] = None
+            p["active"] = True
+            p.pop("won_at", None)
 
         self._save()
         self.bot.add_view(view, message_id=msg.id)
@@ -348,18 +498,23 @@ class NitroRaffles(commands.Cog):
     # ── Slash commands (all LOCKED via bot role_check) ────────────────────
     @app_commands.command(
         name="nitroraffles",
-        description="[LOCKED] Post the Nitro Raffles panel in this channel (pinned)",
+        description="[LOCKED] Post the Nitro Raffles sticky panel in this channel",
     )
     async def nitroraffles(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         ch = interaction.channel
         if not isinstance(ch, (discord.TextChannel, discord.VoiceChannel, discord.Thread)):
-            await interaction.followup.send("This command only works in text-capable channels.", ephemeral=True)
+            await interaction.followup.send(
+                "This command only works in text-capable channels.",
+                ephemeral=True,
+            )
             return
         try:
             msg = await self._post_panel(ch, reset=True)
             await interaction.followup.send(
-                f"✅ Nitro Raffles panel posted and pinned in {ch.mention}.\nMessage ID: `{msg.id}`",
+                f"✅ Nitro Raffles sticky panel posted in {ch.mention}.\n"
+                f"Message ID: `{msg.id}`\n"
+                f"_Panel auto-returns to the bottom after ~{STICKY_DELAY_SECONDS}s of quiet chat._",
                 ephemeral=True,
             )
         except Exception as e:
@@ -385,15 +540,19 @@ class NitroRaffles(commands.Cog):
             f"**Winning number:** `{panel.get('winning_number', WINNING_NUMBER)}`",
             f"**Total attempts:** **{len(entries)}**",
             f"**Panel message:** `{panel.get('message_id')}`",
+            f"**Sticky delay:** `{STICKY_DELAY_SECONDS}s`",
         ]
         if panel.get("winner_id"):
-            lines.append(f"**Winner:** <@{panel['winner_id']}> (number `{panel.get('winner_number')}`)")
+            lines.append(
+                f"**Winner:** <@{panel['winner_id']}> (number `{panel.get('winner_number')}`)"
+            )
             if panel.get("won_at"):
                 lines.append(f"**Won at:** `{panel['won_at']}`")
 
-        # Recent entries (last 10)
         if entries:
-            recent = sorted(entries.items(), key=lambda x: x[1].get("at", ""), reverse=True)[:10]
+            recent = sorted(
+                entries.items(), key=lambda x: x[1].get("at", ""), reverse=True
+            )[:10]
             entry_lines = [
                 f"• <@{uid}> → `{info.get('number')}` ({info.get('at', '?')[:16]})"
                 for uid, info in recent
@@ -410,18 +569,21 @@ class NitroRaffles(commands.Cog):
 
     @app_commands.command(
         name="nitroraffles_reset",
-        description="[LOCKED] Reset the raffle in this channel (new panel, clear winner & entries)",
+        description="[LOCKED] Reset the raffle in this channel (new sticky panel, clear winner & entries)",
     )
     async def nitroraffles_reset(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         ch = interaction.channel
         if not isinstance(ch, (discord.TextChannel, discord.VoiceChannel, discord.Thread)):
-            await interaction.followup.send("This command only works in text-capable channels.", ephemeral=True)
+            await interaction.followup.send(
+                "This command only works in text-capable channels.",
+                ephemeral=True,
+            )
             return
         try:
             msg = await self._post_panel(ch, reset=True)
             await interaction.followup.send(
-                f"✅ Raffle reset. New panel pinned in {ch.mention}.\nMessage ID: `{msg.id}`",
+                f"✅ Raffle reset. New sticky panel in {ch.mention}.\nMessage ID: `{msg.id}`",
                 ephemeral=True,
             )
         except Exception as e:
@@ -433,14 +595,19 @@ class NitroRaffles(commands.Cog):
         description="[LOCKED] Test the win announcement embed (does not affect real raffle)",
     )
     async def nitroraffles_test(self, interaction: discord.Interaction):
-        """Posts a sample win embed as if the invoker won — for visual testing only."""
         await interaction.response.defer(ephemeral=True)
         embed = self._build_win_announce_embed(interaction.user, WINNING_NUMBER)
         await interaction.channel.send(
             content=f"🧪 **TEST** — sample win announcement (not a real win)\n{interaction.user.mention}",
             embed=embed,
         )
-        await interaction.followup.send("✅ Test win embed posted in channel.", ephemeral=True)
+        # Bring panel back after quiet
+        if self._panel(interaction.channel_id):
+            self._schedule_sticky(interaction.channel_id)
+        await interaction.followup.send(
+            "✅ Test win embed posted in channel.",
+            ephemeral=True,
+        )
 
     async def cog_load(self):
         """Re-register persistent views after restart."""
@@ -453,8 +620,13 @@ class NitroRaffles(commands.Cog):
                 view = NitroRaffleView(self, ch_id, active=active)
                 self.bot.add_view(view, message_id=panel["message_id"])
             except Exception:
-                logger.exception("Failed to re-register raffle view for channel %s", ch_id_str)
-        logger.info("NitroRaffles persistent views registered")
+                logger.exception(
+                    "Failed to re-register raffle view for channel %s", ch_id_str
+                )
+        logger.info(
+            "NitroRaffles persistent views registered (sticky delay=%ss)",
+            STICKY_DELAY_SECONDS,
+        )
 
 
 async def setup(bot: commands.Bot):
