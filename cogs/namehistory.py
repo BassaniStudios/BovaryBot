@@ -64,6 +64,9 @@ class NameHistory(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
+        # Only persist snapshot for name history — do NOT post a public
+        # "Member registered" embed. Join notifications already go to
+        # LOG_CHANNEL_ID via WebLogs ("New Member Joined").
         entry = self._ensure_member(member)
         # Refresh snapshot
         entry["username"] = str(member)
@@ -71,25 +74,6 @@ class NameHistory(commands.Cog):
         entry["avatar_url"] = str(member.display_avatar.url) if member.display_avatar else None
         entry["last_join"] = _now_iso()
         self._save()
-
-        channel = self._bot_room()
-        if channel:
-            embed = make_embed(
-                title="📥 Member registered",
-                description=(
-                    f"**User:** {member.mention}\n"
-                    f"**ID:** `{member.id}`\n"
-                    f"**Username:** `{member}`\n"
-                    f"**Display name:** `{member.display_name}`"
-                ),
-                color=discord.Color.green(),
-            )
-            if member.display_avatar:
-                embed.set_thumbnail(url=member.display_avatar.url)
-            try:
-                await channel.send(embed=embed)
-            except Exception:
-                logger.exception("Failed to log member register")
 
     @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member):

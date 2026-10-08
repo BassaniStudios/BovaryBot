@@ -167,8 +167,28 @@ class WebLogs(commands.Cog):
             return int(cid)
         return DEFAULT_MSG_LOG_ID
 
+    def _ignore_ids(self) -> set:
+        """Channel IDs whose message delete/edit events must NOT be logged.
+
+        Includes:
+        - IGNORE_CHANNEL_ID from config/env (legacy single ID)
+        - Hardcoded room 1445557812129435748 (requested ignore for msg log)
+        """
+        ids: set = set()
+        cfg = self.bot.config.get("IGNORE_CHANNEL_ID")
+        if cfg:
+            try:
+                ids.add(int(cfg))
+            except (TypeError, ValueError):
+                pass
+        # Always ignore this room for message delete/edit logging
+        ids.add(1445557812129435748)
+        return ids
+
     def _ignore_id(self) -> Optional[int]:
-        return self.bot.config.get("IGNORE_CHANNEL_ID")
+        """Backward-compatible single-ID helper (first configured ignore, if any)."""
+        ids = self._ignore_ids()
+        return next(iter(ids), None) if ids else None
 
     async def _resolve_msg_log(self) -> Optional[discord.abc.Messageable]:
         """
@@ -409,11 +429,11 @@ class WebLogs(commands.Cog):
             self._backfill_done = True
             return
 
-        ignore = self._ignore_id()
+        ignore_ids = self._ignore_ids()
         whitelist = set(self._backfill_channel_ids())
         channels: List[discord.TextChannel] = []
         for ch in guild.text_channels:
-            if ignore and ch.id == ignore:
+            if ch.id in ignore_ids:
                 continue
             if whitelist and ch.id not in whitelist:
                 continue
@@ -1175,6 +1195,9 @@ class WebLogs(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
+        # Don't waste cache slots on channels we never log
+        if message.channel and message.channel.id in self._ignore_ids():
+            return
         self._cache_put(message)
 
     async def _send_delete_embed(
@@ -1272,7 +1295,7 @@ class WebLogs(commands.Cog):
             return
         if message.author and message.author.bot:
             return
-        if message.channel and message.channel.id == self._ignore_id():
+        if message.channel and message.channel.id in self._ignore_ids():
             return
         # Mark FIRST so concurrent on_raw_message_delete skips (avoids double embed)
         if message.id in self._delete_logged:
@@ -1330,7 +1353,7 @@ class WebLogs(commands.Cog):
             return
         if self._is_casa_guild_id(payload.guild_id):
             return
-        if payload.channel_id == self._ignore_id():
+        if payload.channel_id in self._ignore_ids():
             return
         # Already handled by on_message_delete (or a previous raw) → skip
         if payload.message_id in self._delete_logged:
@@ -1383,7 +1406,7 @@ class WebLogs(commands.Cog):
             return
         if before.content == after.content and before.attachments == after.attachments:
             return
-        if before.channel and before.channel.id == self._ignore_id():
+        if before.channel and before.channel.id in self._ignore_ids():
             return
 
         before_c = (before.content or "").strip() or "*empty*"
