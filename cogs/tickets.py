@@ -181,8 +181,11 @@ class Tickets(commands.Cog):
     @app_commands.command(name="ticket_panel", description="Post the easy Ticket / Suggestions / Report panel")
     async def ticket_panel(self, interaction: discord.Interaction, channel: Optional[discord.TextChannel] = None):
         ch = channel or interaction.channel
-        if not isinstance(ch, discord.TextChannel):
-            await interaction.response.send_message("Text channel only.", ephemeral=True)
+        if not isinstance(
+            ch,
+            (discord.TextChannel, discord.VoiceChannel, discord.StageChannel, discord.Thread),
+        ):
+            await interaction.response.send_message("This channel does not support messages.", ephemeral=True)
             return
         embed = discord.Embed(
             title=f"📚 {self.config.get('panel_title', 'Support')}",

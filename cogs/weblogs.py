@@ -592,9 +592,12 @@ class WebLogs(commands.Cog):
         kind: Optional[app_commands.Choice[str]] = None,
     ):
         """Posts sample member-log embeds in the channel where the command is executed."""
-        if not interaction.guild or not isinstance(interaction.channel, discord.TextChannel):
+        if not interaction.guild or not isinstance(
+            interaction.channel,
+            (discord.TextChannel, discord.VoiceChannel, discord.StageChannel, discord.Thread),
+        ):
             await interaction.response.send_message(
-                "❌ Use this command inside a text channel of the server.",
+                "❌ Use this command inside a text-capable channel of the server.",
                 ephemeral=True,
             )
             return

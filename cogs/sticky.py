@@ -31,8 +31,12 @@ class Sticky(commands.Cog):
     async def sticky_set(self, interaction: discord.Interaction, content: str):
         await interaction.response.defer(ephemeral=True)
         ch = interaction.channel
-        if not isinstance(ch, discord.TextChannel):
-            await interaction.followup.send("Text channels only.", ephemeral=True)
+        # Allow TextChannel, VoiceChannel text chat, StageChannel and Thread
+        if not isinstance(
+            ch,
+            (discord.TextChannel, discord.VoiceChannel, discord.StageChannel, discord.Thread),
+        ):
+            await interaction.followup.send("This channel does not support messages.", ephemeral=True)
             return
         # Delete old sticky if any
         old = self._entry(ch.id)
@@ -54,8 +58,11 @@ class Sticky(commands.Cog):
     @app_commands.command(name="sticky_clear", description="Remove sticky from this channel")
     async def sticky_clear(self, interaction: discord.Interaction):
         ch = interaction.channel
-        if not isinstance(ch, discord.TextChannel):
-            await interaction.response.send_message("Text channels only.", ephemeral=True)
+        if not isinstance(
+            ch,
+            (discord.TextChannel, discord.VoiceChannel, discord.StageChannel, discord.Thread),
+        ):
+            await interaction.response.send_message("This channel does not support messages.", ephemeral=True)
             return
         entry = self._entry(ch.id)
         if entry and entry.get("message_id"):
