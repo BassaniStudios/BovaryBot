@@ -1,6 +1,6 @@
 """
-Nitro Raffles — sticky panel (Love Professor style) where members pick a number (1–200).
-One winning number is fixed (145). 12-hour cooldown per user.
+Nitro Raffles — sticky panel (Love Professor style) where members pick a number.
+Staff configures max numbers (up to 999), winning number, and cooldown when posting.
 When someone hits the winning number the panel button is disabled; the embed
 stays as a sticky "sticker" at the bottom of the chat waiting for staff.
 
@@ -26,23 +26,22 @@ from utils.storage import load_json, save_json
 logger = logging.getLogger("bovary_bot.nitroraffles")
 FILE = "nitroraffles.json"
 
-# ── Raffle rules ──────────────────────────────────────────────────────────
-WINNING_NUMBER = 145
+# ── Defaults / limits ─────────────────────────────────────────────────────
+DEFAULT_MAX_NUMBER = 200
+DEFAULT_WINNING_NUMBER = 145
+DEFAULT_COOLDOWN_HOURS = 12.0
 MIN_NUMBER = 1
-MAX_NUMBER = 200
-COOLDOWN_SECONDS = 12 * 60 * 60  # 12 hours
+HARD_MAX_NUMBERS = 999  # absolute ceiling for the number list size
 
 # Delay before sticky panel is moved back to the bottom of the channel.
-# Gives people time to comment on results without the panel jumping constantly.
 STICKY_DELAY_SECONDS = 90
 
 # ── Assets ────────────────────────────────────────────────────────────────
 MAIN_IMAGE = "https://ik.imagekit.io/BassaniStudios/321213211232112.jpg"
 THUMB_IMAGE = "https://ik.imagekit.io/BassaniStudios/Emblema%20Neon%20Retr%C3%B4%20BOVARY%20Club.png"
 
-# Nitro-inspired purple / pink
-NITRO_COLOR = discord.Color.from_rgb(245, 73, 148)  # pink-magenta
-NITRO_WIN_COLOR = discord.Color.from_rgb(88, 101, 242)  # blurple
+NITRO_COLOR = discord.Color.from_rgb(245, 73, 148)
+NITRO_WIN_COLOR = discord.Color.from_rgb(88, 101, 242)
 
 
 def _now_ts() -> float:
@@ -53,21 +52,144 @@ def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-# ── Modal ─────────────────────────────────────────────────────────────────
-class NumberModal(discord.ui.Modal, title="Try your luck"):
-    number_input = discord.ui.TextInput(
-        label="Pick a number (1 – 200)",
-        placeholder="Enter a number between 1 and 200",
+def _fmt_cooldown(seconds: float) -> str:
+    """Human-readable cooldown duration."""
+    if seconds >= 3600:
+        h = seconds / 3600
+        if h == int(h):
+            return f"{int(h)} hour{'s' if int(h) != 1 else ''}"
+        return f"{h:.1f} hours"
+    if seconds >= 60:
+        m = int(seconds // 60)
+        return f"{m} minute{'s' if m != 1 else ''}"
+    return f"{int(seconds)} second{'s' if int(seconds) != 1 else ''}"
+
+
+# ── Setup modal (staff configures raffle before posting) ──────────────────
+class RaffleSetupModal(discord.ui.Modal, title="Nitro Raffles — Setup"):
+    max_numbers = discord.ui.TextInput(
+        label="How many numbers? (1 – 999)",
+        placeholder="e.g. 200",
+        default=str(DEFAULT_MAX_NUMBER),
         min_length=1,
         max_length=3,
         required=True,
         style=discord.TextStyle.short,
     )
+    winning_number = discord.ui.TextInput(
+        label="Winning number",
+        placeholder="e.g. 145  (must be within 1 … max)",
+        default=str(DEFAULT_WINNING_NUMBER),
+        min_length=1,
+        max_length=3,
+        required=True,
+        style=discord.TextStyle.short,
+    )
+    cooldown_hours = discord.ui.TextInput(
+        label="Cooldown in hours (per person)",
+        placeholder="e.g. 12   or  0.5 for 30 minutes",
+        default=str(int(DEFAULT_COOLDOWN_HOURS)),
+        min_length=1,
+        max_length=6,
+        required=True,
+        style=discord.TextStyle.short,
+    )
 
-    def __init__(self, cog: "NitroRaffles", channel_id: int):
+    def __init__(self, cog: "NitroRaffles", channel: discord.abc.Messageable, *, reset: bool):
+        super().__init__()
+        self.cog = cog
+        self.channel = channel
+        self.reset = reset
+
+    async def on_submit(self, interaction: discord.Interaction):
+        # ── Validate max numbers ──────────────────────────────────────────
+        try:
+            max_n = int((self.max_numbers.value or "").strip())
+        except ValueError:
+            await interaction.response.send_message(
+                "❌ **How many numbers** must be a whole number.",
+                ephemeral=True,
+            )
+            return
+        if max_n < 1 or max_n > HARD_MAX_NUMBERS:
+            await interaction.response.send_message(
+                f"❌ Number list size must be between **1** and **{HARD_MAX_NUMBERS}**.",
+                ephemeral=True,
+            )
+            return
+
+        # ── Validate winning number ───────────────────────────────────────
+        try:
+            win_n = int((self.winning_number.value or "").strip())
+        except ValueError:
+            await interaction.response.send_message(
+                "❌ **Winning number** must be a whole number.",
+                ephemeral=True,
+            )
+            return
+        if win_n < MIN_NUMBER or win_n > max_n:
+            await interaction.response.send_message(
+                f"❌ Winning number must be between **{MIN_NUMBER}** and **{max_n}**.",
+                ephemeral=True,
+            )
+            return
+
+        # ── Validate cooldown (hours) ─────────────────────────────────────
+        try:
+            hours = float((self.cooldown_hours.value or "").strip().replace(",", "."))
+        except ValueError:
+            await interaction.response.send_message(
+                "❌ **Cooldown** must be a number (hours). Example: `12` or `0.5`.",
+                ephemeral=True,
+            )
+            return
+        if hours <= 0 or hours > 720:  # up to 30 days
+            await interaction.response.send_message(
+                "❌ Cooldown must be greater than **0** and at most **720** hours.",
+                ephemeral=True,
+            )
+            return
+        cooldown_seconds = hours * 3600
+
+        await interaction.response.defer(ephemeral=True)
+        try:
+            msg = await self.cog._post_panel(
+                self.channel,
+                reset=self.reset,
+                max_number=max_n,
+                winning_number=win_n,
+                cooldown_seconds=cooldown_seconds,
+            )
+            await interaction.followup.send(
+                f"✅ Nitro Raffles sticky panel posted in {self.channel.mention}.\n"
+                f"• Numbers: **1 – {max_n}**\n"
+                f"• Winning number: set (hidden from public)\n"
+                f"• Cooldown: **{_fmt_cooldown(cooldown_seconds)}**\n"
+                f"• Message ID: `{msg.id}`\n"
+                f"_Panel auto-returns to the bottom after ~{STICKY_DELAY_SECONDS}s of quiet chat._",
+                ephemeral=True,
+            )
+        except Exception as e:
+            logger.exception("nitroraffles setup panel failed")
+            await interaction.followup.send(f"❌ Failed: {e}", ephemeral=True)
+
+
+# ── Player number modal ───────────────────────────────────────────────────
+class NumberModal(discord.ui.Modal, title="Try your luck"):
+    def __init__(self, cog: "NitroRaffles", channel_id: int, max_number: int):
         super().__init__()
         self.cog = cog
         self.channel_id = channel_id
+        self.max_number = max_number
+        self.number_input = discord.ui.TextInput(
+            label=f"Pick a number (1 – {max_number})",
+            placeholder=f"Enter a number between 1 and {max_number}",
+            min_length=1,
+            max_length=len(str(max_number)),
+            required=True,
+            style=discord.TextStyle.short,
+        )
+        self.add_item(self.number_input)
 
     async def on_submit(self, interaction: discord.Interaction):
         raw = (self.number_input.value or "").strip()
@@ -75,14 +197,14 @@ class NumberModal(discord.ui.Modal, title="Try your luck"):
             number = int(raw)
         except ValueError:
             await interaction.response.send_message(
-                "Please enter a valid whole number between 1 and 200.",
+                f"Please enter a valid whole number between 1 and {self.max_number}.",
                 ephemeral=True,
             )
             return
 
-        if number < MIN_NUMBER or number > MAX_NUMBER:
+        if number < MIN_NUMBER or number > self.max_number:
             await interaction.response.send_message(
-                f"Number must be between **{MIN_NUMBER}** and **{MAX_NUMBER}**.",
+                f"Number must be between **{MIN_NUMBER}** and **{self.max_number}**.",
                 ephemeral=True,
             )
             return
@@ -118,7 +240,7 @@ class NitroRaffleView(discord.ui.View):
             )
             return
 
-        remaining = self.cog._check_cooldown(interaction.user.id)
+        remaining = self.cog._check_cooldown(interaction.user.id, panel)
         if remaining > 0:
             hours = int(remaining // 3600)
             mins = int((remaining % 3600) // 60)
@@ -129,7 +251,10 @@ class NitroRaffleView(discord.ui.View):
             )
             return
 
-        await interaction.response.send_modal(NumberModal(self.cog, self.channel_id))
+        max_n = int(panel.get("max_number", DEFAULT_MAX_NUMBER))
+        await interaction.response.send_modal(
+            NumberModal(self.cog, self.channel_id, max_n)
+        )
 
 
 # ── Cog ───────────────────────────────────────────────────────────────────
@@ -137,7 +262,6 @@ class NitroRaffles(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.data: Dict[str, Any] = load_json(FILE, {"panels": {}, "cooldowns": {}})
-        # Per-channel sticky tasks & locks (Love Professor pattern, multi-channel)
         self._sticky_tasks: Dict[int, asyncio.Task] = {}
         self._sticky_locks: Dict[int, asyncio.Lock] = {}
 
@@ -158,12 +282,15 @@ class NitroRaffles(commands.Cog):
             self._sticky_locks[channel_id] = asyncio.Lock()
         return self._sticky_locks[channel_id]
 
-    def _check_cooldown(self, user_id: int) -> float:
+    def _check_cooldown(self, user_id: int, panel: Optional[Dict] = None) -> float:
         last = self.data.get("cooldowns", {}).get(str(user_id))
         if last is None:
             return 0.0
+        cooldown_sec = float(
+            (panel or {}).get("cooldown_seconds", DEFAULT_COOLDOWN_HOURS * 3600)
+        )
         elapsed = _now_ts() - float(last)
-        remaining = COOLDOWN_SECONDS - elapsed
+        remaining = cooldown_sec - elapsed
         return max(0.0, remaining)
 
     def _set_cooldown(self, user_id: int):
@@ -171,13 +298,16 @@ class NitroRaffles(commands.Cog):
         self._save()
 
     # ── Embed builders ────────────────────────────────────────────────────
-    def _build_active_embed(self) -> discord.Embed:
+    def _build_active_embed(self, panel: Optional[Dict] = None) -> discord.Embed:
+        max_n = int((panel or {}).get("max_number", DEFAULT_MAX_NUMBER))
+        cd_sec = float((panel or {}).get("cooldown_seconds", DEFAULT_COOLDOWN_HOURS * 3600))
+        cd_text = _fmt_cooldown(cd_sec)
         embed = discord.Embed(
             title="NITRO RAFFLES",
             description=(
-                "Pick a number between **1** and **200**.\n"
+                f"Pick a number between **1** and **{max_n}**.\n"
                 "If you choose the lucky number, you win a **Discord Nitro**!\n\n"
-                "One attempt every **12 hours**.\n"
+                f"One attempt every **{cd_text}**.\n"
                 "Good luck — may the odds be in your favour. ✨"
             ),
             color=NITRO_COLOR,
@@ -188,7 +318,9 @@ class NitroRaffles(commands.Cog):
         embed.set_footer(text="Bova's Bot · Nitro Raffles")
         return embed
 
-    def _build_closed_embed(self, winner: discord.Member | discord.User, number: int) -> discord.Embed:
+    def _build_closed_embed(
+        self, winner: discord.Member | discord.User, number: int
+    ) -> discord.Embed:
         embed = discord.Embed(
             title="NITRO RAFFLES — WINNER!",
             description=(
@@ -204,7 +336,9 @@ class NitroRaffles(commands.Cog):
         embed.set_footer(text="Bova's Bot · Nitro Raffles · Closed")
         return embed
 
-    def _build_win_announce_embed(self, winner: discord.Member | discord.User, number: int) -> discord.Embed:
+    def _build_win_announce_embed(
+        self, winner: discord.Member | discord.User, number: int
+    ) -> discord.Embed:
         embed = discord.Embed(
             title="🎊 NITRO WINNER! 🎊",
             description=(
@@ -223,15 +357,13 @@ class NitroRaffles(commands.Cog):
         return embed
 
     def _embed_for_panel(self, panel: Dict) -> discord.Embed:
-        """Build the correct embed for the current panel state."""
         if panel.get("active", True):
-            return self._build_active_embed()
+            return self._build_active_embed(panel)
         winner_id = panel.get("winner_id")
-        number = panel.get("winner_number", WINNING_NUMBER)
+        number = panel.get("winning_number", DEFAULT_WINNING_NUMBER)
         if winner_id:
             user = self.bot.get_user(winner_id)
             if user is None:
-                # Fallback closed embed without avatar fetch (async not available here)
                 embed = discord.Embed(
                     title="NITRO RAFFLES — WINNER!",
                     description=(
@@ -246,11 +378,10 @@ class NitroRaffles(commands.Cog):
                 embed.set_footer(text="Bova's Bot · Nitro Raffles · Closed")
                 return embed
             return self._build_closed_embed(user, number)
-        return self._build_active_embed()
+        return self._build_active_embed(panel)
 
-    # ── Sticky system (Love Professor pattern) ────────────────────────────
+    # ── Sticky system ─────────────────────────────────────────────────────
     def _schedule_sticky(self, channel_id: int) -> None:
-        """Cancel any pending sticky and schedule a new one after STICKY_DELAY_SECONDS."""
         old = self._sticky_tasks.get(channel_id)
         if old is not None and not old.done():
             old.cancel()
@@ -265,10 +396,11 @@ class NitroRaffles(commands.Cog):
         except asyncio.CancelledError:
             raise
         except Exception:
-            logger.exception("NitroRaffles delayed sticky failed for channel %s", channel_id)
+            logger.exception(
+                "NitroRaffles delayed sticky failed for channel %s", channel_id
+            )
 
     async def _do_sticky_repost(self, channel_id: int) -> None:
-        """Move the panel to the bottom of the channel if needed (no native pin)."""
         panel = self._panel(channel_id)
         if not panel or not panel.get("message_id"):
             return
@@ -288,7 +420,6 @@ class NitroRaffles(commands.Cog):
                 ):
                     return
 
-                # If panel is already the last message, nothing to do
                 try:
                     async for last in channel.history(limit=1):
                         if last.id == panel["message_id"]:
@@ -297,7 +428,6 @@ class NitroRaffles(commands.Cog):
                 except (discord.Forbidden, discord.HTTPException):
                     pass
 
-                # Delete old panel
                 try:
                     old = await channel.fetch_message(panel["message_id"])
                     await old.delete()
@@ -308,15 +438,14 @@ class NitroRaffles(commands.Cog):
                 view = NitroRaffleView(self, channel_id, active=active)
                 self.bot.add_view(view)
 
-                # Prefer full closed embed with winner avatar when possible
-                embed = self._build_active_embed()
+                embed = self._build_active_embed(panel)
                 if not active and panel.get("winner_id"):
                     try:
                         winner = self.bot.get_user(panel["winner_id"])
                         if winner is None:
                             winner = await self.bot.fetch_user(panel["winner_id"])
                         embed = self._build_closed_embed(
-                            winner, panel.get("winner_number", WINNING_NUMBER)
+                            winner, panel.get("winning_number", DEFAULT_WINNING_NUMBER)
                         )
                     except Exception:
                         embed = self._embed_for_panel(panel)
@@ -338,7 +467,6 @@ class NitroRaffles(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        """Any human message in a raffle channel resets the quiet timer."""
         if message.author.bot:
             return
         if not message.guild:
@@ -349,7 +477,9 @@ class NitroRaffles(commands.Cog):
         self._schedule_sticky(message.channel.id)
 
     # ── Core entry logic ──────────────────────────────────────────────────
-    async def process_entry(self, interaction: discord.Interaction, channel_id: int, number: int):
+    async def process_entry(
+        self, interaction: discord.Interaction, channel_id: int, number: int
+    ):
         panel = self._panel(channel_id)
         if not panel or not panel.get("active", True):
             await interaction.response.send_message(
@@ -358,13 +488,21 @@ class NitroRaffles(commands.Cog):
             )
             return
 
-        remaining = self._check_cooldown(interaction.user.id)
+        remaining = self._check_cooldown(interaction.user.id, panel)
         if remaining > 0:
             hours = int(remaining // 3600)
             mins = int((remaining % 3600) // 60)
             time_str = f"{hours}h {mins}m" if hours else f"{mins}m"
             await interaction.response.send_message(
                 f"⏳ You can try again in **{time_str}**.",
+                ephemeral=True,
+            )
+            return
+
+        max_n = int(panel.get("max_number", DEFAULT_MAX_NUMBER))
+        if number < MIN_NUMBER or number > max_n:
+            await interaction.response.send_message(
+                f"Number must be between **{MIN_NUMBER}** and **{max_n}**.",
                 ephemeral=True,
             )
             return
@@ -379,8 +517,11 @@ class NitroRaffles(commands.Cog):
 
         channel = interaction.channel
         user = interaction.user
+        winning = int(panel.get("winning_number", DEFAULT_WINNING_NUMBER))
+        cd_sec = float(panel.get("cooldown_seconds", DEFAULT_COOLDOWN_HOURS * 3600))
+        cd_text = _fmt_cooldown(cd_sec)
 
-        if number == WINNING_NUMBER:
+        if number == winning:
             panel["active"] = False
             panel["winner_id"] = user.id
             panel["winner_number"] = number
@@ -395,7 +536,6 @@ class NitroRaffles(commands.Cog):
             win_embed = self._build_win_announce_embed(user, number)
             await channel.send(content=f"🎊 {user.mention}", embed=win_embed)
 
-            # Update current panel message in place (button disabled), then schedule sticky
             try:
                 msg = await channel.fetch_message(panel["message_id"])
                 closed_embed = self._build_closed_embed(user, number)
@@ -415,7 +555,7 @@ class NitroRaffles(commands.Cog):
                 description=(
                     f"{user.mention} picked **`{number}`**.\n"
                     "Better luck next time! ✨\n"
-                    f"_You can try again in 12 hours._"
+                    f"_You can try again in {cd_text}._"
                 ),
                 color=discord.Color.from_rgb(120, 120, 140),
                 timestamp=_utc_now(),
@@ -423,19 +563,24 @@ class NitroRaffles(commands.Cog):
             result_embed.set_thumbnail(url=user.display_avatar.url)
             result_embed.set_footer(text="Bova's Bot · Nitro Raffles")
             await channel.send(embed=result_embed)
-            # After result is posted, wait for quiet then bring panel back to bottom
             self._schedule_sticky(channel_id)
 
-    async def _post_panel(self, channel: discord.abc.Messageable, *, reset: bool = False) -> discord.Message:
+    async def _post_panel(
+        self,
+        channel: discord.abc.Messageable,
+        *,
+        reset: bool = False,
+        max_number: int = DEFAULT_MAX_NUMBER,
+        winning_number: int = DEFAULT_WINNING_NUMBER,
+        cooldown_seconds: float = DEFAULT_COOLDOWN_HOURS * 3600,
+    ) -> discord.Message:
         channel_id = channel.id
         existing = self._panel(channel_id)
 
-        # Cancel pending sticky while we replace the panel
         old_task = self._sticky_tasks.get(channel_id)
         if old_task is not None and not old_task.done():
             old_task.cancel()
 
-        # Delete old panel message if any
         if existing and existing.get("message_id"):
             try:
                 old = await channel.fetch_message(existing["message_id"])
@@ -444,53 +589,28 @@ class NitroRaffles(commands.Cog):
                 pass
 
         active = True
-        if existing and not reset and not existing.get("active", True):
-            active = False
-
-        if reset:
-            active = True
-
-        view = NitroRaffleView(self, channel_id, active=active)
-        if active:
-            embed = self._build_active_embed()
-        else:
-            winner_id = existing.get("winner_id") if existing else None
-            if winner_id:
-                try:
-                    winner = self.bot.get_user(winner_id) or await self.bot.fetch_user(winner_id)
-                    embed = self._build_closed_embed(
-                        winner, existing.get("winner_number", WINNING_NUMBER)
-                    )
-                except Exception:
-                    embed = self._build_active_embed()
-                    active = True
-                    view = NitroRaffleView(self, channel_id, active=True)
-            else:
-                embed = self._build_active_embed()
-                active = True
-                view = NitroRaffleView(self, channel_id, active=True)
+        view = NitroRaffleView(self, channel_id, active=True)
+        panel_cfg = {
+            "max_number": max_number,
+            "winning_number": winning_number,
+            "cooldown_seconds": cooldown_seconds,
+        }
+        embed = self._build_active_embed(panel_cfg)
 
         msg = await channel.send(embed=embed, view=view)
-        # NO native pin — sticky system keeps it at the bottom
 
         self.data.setdefault("panels", {})[str(channel_id)] = {
             "message_id": msg.id,
             "guild_id": getattr(getattr(channel, "guild", None), "id", None),
-            "active": active,
-            "winning_number": WINNING_NUMBER,
-            "winner_id": None if active else (existing.get("winner_id") if existing else None),
-            "winner_number": None if active else (existing.get("winner_number") if existing else None),
-            "entries": {} if (reset or active) else (existing.get("entries") if existing else {}),
+            "active": True,
+            "max_number": max_number,
+            "winning_number": winning_number,
+            "cooldown_seconds": cooldown_seconds,
+            "winner_id": None,
+            "winner_number": None,
+            "entries": {},
             "created_at": _utc_now().isoformat(),
         }
-        if reset:
-            p = self.data["panels"][str(channel_id)]
-            p["entries"] = {}
-            p["winner_id"] = None
-            p["winner_number"] = None
-            p["active"] = True
-            p.pop("won_at", None)
-
         self._save()
         self.bot.add_view(view, message_id=msg.id)
         return msg
@@ -498,28 +618,79 @@ class NitroRaffles(commands.Cog):
     # ── Slash commands (all LOCKED via bot role_check) ────────────────────
     @app_commands.command(
         name="nitroraffles",
-        description="[LOCKED] Post the Nitro Raffles sticky panel in this channel",
+        description="[LOCKED] Configure & post the Nitro Raffles sticky panel in this channel",
     )
     async def nitroraffles(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
         ch = interaction.channel
         if not isinstance(ch, (discord.TextChannel, discord.VoiceChannel, discord.Thread)):
-            await interaction.followup.send(
+            await interaction.response.send_message(
                 "This command only works in text-capable channels.",
                 ephemeral=True,
             )
             return
-        try:
-            msg = await self._post_panel(ch, reset=True)
-            await interaction.followup.send(
-                f"✅ Nitro Raffles sticky panel posted in {ch.mention}.\n"
-                f"Message ID: `{msg.id}`\n"
-                f"_Panel auto-returns to the bottom after ~{STICKY_DELAY_SECONDS}s of quiet chat._",
+        await interaction.response.send_modal(
+            RaffleSetupModal(self, ch, reset=True)
+        )
+
+    @app_commands.command(
+        name="nitroraffles_reset",
+        description="[LOCKED] Reset the raffle (new setup modal — clears winner & entries)",
+    )
+    async def nitroraffles_reset(self, interaction: discord.Interaction):
+        ch = interaction.channel
+        if not isinstance(ch, (discord.TextChannel, discord.VoiceChannel, discord.Thread)):
+            await interaction.response.send_message(
+                "This command only works in text-capable channels.",
                 ephemeral=True,
             )
-        except Exception as e:
-            logger.exception("nitroraffles panel failed")
-            await interaction.followup.send(f"❌ Failed: {e}", ephemeral=True)
+            return
+        # Pre-fill modal with existing config if any
+        panel = self._panel(ch.id)
+        modal = RaffleSetupModal(self, ch, reset=True)
+        if panel:
+            modal.max_numbers.default = str(
+                panel.get("max_number", DEFAULT_MAX_NUMBER)
+            )
+            modal.winning_number.default = str(
+                panel.get("winning_number", DEFAULT_WINNING_NUMBER)
+            )
+            cd_h = float(panel.get("cooldown_seconds", DEFAULT_COOLDOWN_HOURS * 3600)) / 3600
+            modal.cooldown_hours.default = (
+                str(int(cd_h)) if cd_h == int(cd_h) else f"{cd_h:.2f}".rstrip("0").rstrip(".")
+            )
+        await interaction.response.send_modal(modal)
+
+    @app_commands.command(
+        name="nitroraffles_reset_cooldown",
+        description="[LOCKED] Reset all player cooldowns so everyone can try again",
+    )
+    async def nitroraffles_reset_cooldown(self, interaction: discord.Interaction):
+        count = len(self.data.get("cooldowns") or {})
+        self.data["cooldowns"] = {}
+        self._save()
+
+        await interaction.response.send_message(
+            f"✅ Cooldown reset for **{count}** player(s). Everyone can try again now.",
+            ephemeral=True,
+        )
+
+        # Public notice in the channel
+        embed = discord.Embed(
+            title="⏰ Cooldown Reset",
+            description=(
+                "The **Nitro Raffles** cooldown has been reset by staff.\n"
+                "Everyone can **Try your luck** again! 💎"
+            ),
+            color=NITRO_COLOR,
+            timestamp=_utc_now(),
+        )
+        embed.set_footer(text="Bova's Bot · Nitro Raffles")
+        try:
+            await interaction.channel.send(embed=embed)
+            if self._panel(interaction.channel_id):
+                self._schedule_sticky(interaction.channel_id)
+        except Exception:
+            logger.exception("Failed to post cooldown reset notice")
 
     @app_commands.command(
         name="nitroraffles_result",
@@ -535,9 +706,13 @@ class NitroRaffles(commands.Cog):
             return
 
         entries = panel.get("entries") or {}
+        max_n = panel.get("max_number", DEFAULT_MAX_NUMBER)
+        cd_sec = float(panel.get("cooldown_seconds", DEFAULT_COOLDOWN_HOURS * 3600))
         lines = [
             f"**Status:** {'🟢 Active' if panel.get('active', True) else '🔒 Closed'}",
-            f"**Winning number:** `{panel.get('winning_number', WINNING_NUMBER)}`",
+            f"**Number range:** `1 – {max_n}`",
+            f"**Winning number:** `{panel.get('winning_number', DEFAULT_WINNING_NUMBER)}`",
+            f"**Cooldown:** **{_fmt_cooldown(cd_sec)}**",
             f"**Total attempts:** **{len(entries)}**",
             f"**Panel message:** `{panel.get('message_id')}`",
             f"**Sticky delay:** `{STICKY_DELAY_SECONDS}s`",
@@ -548,6 +723,9 @@ class NitroRaffles(commands.Cog):
             )
             if panel.get("won_at"):
                 lines.append(f"**Won at:** `{panel['won_at']}`")
+
+        active_cds = len(self.data.get("cooldowns") or {})
+        lines.append(f"**Players on cooldown:** **{active_cds}**")
 
         if entries:
             recent = sorted(
@@ -568,41 +746,24 @@ class NitroRaffles(commands.Cog):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(
-        name="nitroraffles_reset",
-        description="[LOCKED] Reset the raffle in this channel (new sticky panel, clear winner & entries)",
-    )
-    async def nitroraffles_reset(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
-        ch = interaction.channel
-        if not isinstance(ch, (discord.TextChannel, discord.VoiceChannel, discord.Thread)):
-            await interaction.followup.send(
-                "This command only works in text-capable channels.",
-                ephemeral=True,
-            )
-            return
-        try:
-            msg = await self._post_panel(ch, reset=True)
-            await interaction.followup.send(
-                f"✅ Raffle reset. New sticky panel in {ch.mention}.\nMessage ID: `{msg.id}`",
-                ephemeral=True,
-            )
-        except Exception as e:
-            logger.exception("nitroraffles_reset failed")
-            await interaction.followup.send(f"❌ Failed: {e}", ephemeral=True)
-
-    @app_commands.command(
         name="nitroraffles_test",
         description="[LOCKED] Test the win announcement embed (does not affect real raffle)",
     )
     async def nitroraffles_test(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
-        embed = self._build_win_announce_embed(interaction.user, WINNING_NUMBER)
+        panel = self._panel(interaction.channel_id)
+        win_n = int(
+            (panel or {}).get("winning_number", DEFAULT_WINNING_NUMBER)
+        )
+        embed = self._build_win_announce_embed(interaction.user, win_n)
         await interaction.channel.send(
-            content=f"🧪 **TEST** — sample win announcement (not a real win)\n{interaction.user.mention}",
+            content=(
+                f"🧪 **TEST** — sample win announcement (not a real win)\n"
+                f"{interaction.user.mention}"
+            ),
             embed=embed,
         )
-        # Bring panel back after quiet
-        if self._panel(interaction.channel_id):
+        if panel:
             self._schedule_sticky(interaction.channel_id)
         await interaction.followup.send(
             "✅ Test win embed posted in channel.",
@@ -610,7 +771,6 @@ class NitroRaffles(commands.Cog):
         )
 
     async def cog_load(self):
-        """Re-register persistent views after restart."""
         for ch_id_str, panel in self.data.get("panels", {}).items():
             if not panel.get("message_id"):
                 continue

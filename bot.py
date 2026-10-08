@@ -407,6 +407,7 @@ class BovaryBot(commands.Bot):
             "nitroraffles_panel",
             "nitroraffles_result",
             "nitroraffles_reset",
+            "nitroraffles_reset_cooldown",
             "nitroraffles_test",
         }
 

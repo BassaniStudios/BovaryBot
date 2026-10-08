@@ -56,7 +56,7 @@ class CategoryHub(discord.ui.View):
                 "📅 Meets",
                 (
                     "**Meets (staff)**\n`/meet` — announce a car meet + reminders\n\n"
-                    "**Nitro Raffles (staff)**\n`/nitroraffles` `/nitroraffles_result` `/nitroraffles_reset` `/nitroraffles_test`"
+                    "**Nitro Raffles (staff)**\n`/nitroraffles` `/nitroraffles_result` `/nitroraffles_reset` `/nitroraffles_reset_cooldown` `/nitroraffles_test`"
                 ),
                 0x00DCAF,
             ),
