@@ -410,44 +410,7 @@ def api_namehistory():
 
 
 
-@app.post("/api/poll")
-@require_auth
-def api_poll():
-    """Create a poll from the web panel (Sesh-style fields)."""
-    data = request.get_json(force=True, silent=True) or {}
-    actor = getattr(request, "bova_actor_id", None)
-
-    async def _create():
-        cog = _bot.get_cog("Polls")
-        if not cog:
-            raise RuntimeError("Polls cog not loaded")
-        channel_id = int(data["channel_id"])
-        ch = _bot.get_channel(channel_id)
-        if not ch:
-            ch = await _bot.fetch_channel(channel_id)
-        options = data.get("options") or []
-        if isinstance(options, str):
-            options = [o.strip() for o in options.replace("\n", ",").split(",") if o.strip()]
-        poll = await cog.create_poll(
-            channel=ch,
-            title=data.get("title") or "Poll",
-            options=options,
-            description=data.get("description") or "",
-            single=bool(data.get("single_vote") or data.get("single")),
-            hours=float(data["hours"]) if data.get("hours") else None,
-            color=data.get("color") or "#B450FF",
-            author_id=actor,
-        )
-        return {"ok": True, "id": poll["id"], "message_id": poll["message_id"]}
-
-    try:
-        result = _run(_create())
-        log_action(actor_id=actor, action="api_poll", detail={"title": data.get("title"), "channel_id": data.get("channel_id")}, success=True)
-        return jsonify(result)
-    except Exception as e:
-        logger.exception("api_poll")
-        log_action(actor_id=actor, action="api_poll", detail={"error": str(e)}, success=False)
-        return jsonify({"error": str(e)}), 500
+# /api/poll removed — Polls system discontinued (replaced by Nitro Raffles)
 
 
 @app.get("/api/audit")

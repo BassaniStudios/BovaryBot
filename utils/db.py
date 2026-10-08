@@ -340,6 +340,7 @@ _JSON_CANDIDATES = [
     "lastfm.json",
     "cooldowns.json",
     "weblogs.json",
+    "nitroraffles.json",
 ]
 
 

@@ -493,8 +493,13 @@ class Utilities(commands.Cog):
         message: str,
         channel: Optional[discord.TextChannel] = None,
     ):
+        # Allow TextChannel, VoiceChannel (text chat), StageChannel and Thread
+        # so /say works when used inside a voice channel's text chat
         ch = channel or interaction.channel
-        if not isinstance(ch, discord.TextChannel):
+        if not isinstance(
+            ch,
+            (discord.TextChannel, discord.VoiceChannel, discord.StageChannel, discord.Thread),
+        ):
             await interaction.response.send_message("Invalid channel.", ephemeral=True)
             return
         await ch.send(message[:2000])
@@ -516,8 +521,13 @@ class Utilities(commands.Cog):
         channel: Optional[discord.TextChannel] = None,
         caption: Optional[str] = None,
     ):
+        # Allow TextChannel, VoiceChannel (text chat), StageChannel and Thread
+        # so /sayfile works when used inside a voice channel's text chat
         ch = channel or interaction.channel
-        if not isinstance(ch, discord.TextChannel):
+        if not isinstance(
+            ch,
+            (discord.TextChannel, discord.VoiceChannel, discord.StageChannel, discord.Thread),
+        ):
             await interaction.response.send_message("Invalid channel.", ephemeral=True)
             return
 

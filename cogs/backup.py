@@ -43,6 +43,7 @@ KV_NAMES = {
     "timestamp_reminder_config": "timestamp_reminder_config",
     "timestamp_reminders": "timestamp_reminders",
     "dm_inbox": "dm_inbox",
+    "nitroraffles": "nitroraffles",
 }
 
 BACKUP_PREFIX = "bovary_backup_"

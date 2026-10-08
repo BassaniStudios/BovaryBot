@@ -403,6 +403,11 @@ class BovaryBot(commands.Bot):
             "purge",
             "sync_commands",
             "weblogs_config",
+            "nitroraffles",
+            "nitroraffles_panel",
+            "nitroraffles_result",
+            "nitroraffles_reset",
+            "nitroraffles_test",
         }
 
         async def role_check(interaction: discord.Interaction) -> bool:

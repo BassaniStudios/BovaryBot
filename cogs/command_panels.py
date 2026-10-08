@@ -49,15 +49,14 @@ class CategoryHub(discord.ui.View):
             ephemeral=True,
         )
 
-    @discord.ui.button(label="Meets & Polls", style=discord.ButtonStyle.primary, emoji="📅", custom_id="hub_meets", row=0)
+    @discord.ui.button(label="Meets", style=discord.ButtonStyle.primary, emoji="📅", custom_id="hub_meets", row=0)
     async def meets(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message(
             embed=_embed(
-                "📅 Meets & Polls",
+                "📅 Meets",
                 (
                     "**Meets (staff)**\n`/meet` — announce a car meet + reminders\n\n"
-                    "**Polls (staff)**\n`/poll` `/poll_end` `/poll_list`\n"
-                    "Or use the **web panel → Polls** tab."
+                    "**Nitro Raffles (staff)**\n`/nitroraffles` `/nitroraffles_result` `/nitroraffles_reset` `/nitroraffles_test`"
                 ),
                 0x00DCAF,
             ),
@@ -160,7 +159,7 @@ class CommandPanels(commands.Cog):
         )
         embed.add_field(
             name="📅 Community Operations",
-            value="`/invitepanel` · `/meet` · `/poll` `/poll_end` `/poll_list` · `/ticket_panel` `/ticket_setup` `/ticket_list` · birthdays",
+            value="`/invitepanel` · `/meet` · `/nitroraffles` · `/ticket_panel` `/ticket_setup` `/ticket_list` · birthdays",
             inline=False,
         )
         embed.add_field(
