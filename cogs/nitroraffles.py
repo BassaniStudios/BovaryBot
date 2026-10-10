@@ -1,6 +1,7 @@
 """
 Nitro Raffles — sticky panel (Love Professor style) where members pick a number.
-Staff configures max numbers (up to 999), winning number, and cooldown when posting.
+Staff configures max numbers (up to 999), winning number, cooldown, prize name,
+and optional custom image when posting.
 When someone hits the winning number the panel button is disabled; the embed
 stays as a sticky "sticker" at the bottom of the chat waiting for staff.
 
@@ -9,6 +10,7 @@ Sticky behaviour (same pattern as Love Professor):
 - After human activity (or result messages), wait STICKY_DELAY_SECONDS of quiet
 - Then delete the old panel message and re-send it at the bottom of the channel
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -30,6 +32,7 @@ FILE = "nitroraffles.json"
 DEFAULT_MAX_NUMBER = 200
 DEFAULT_WINNING_NUMBER = 145
 DEFAULT_COOLDOWN_HOURS = 12.0
+DEFAULT_PRIZE_NAME = "Discord Nitro"
 MIN_NUMBER = 1
 HARD_MAX_NUMBERS = 999  # absolute ceiling for the number list size
 
@@ -42,6 +45,25 @@ THUMB_IMAGE = "https://ik.imagekit.io/BassaniStudios/Emblema%20Neon%20Retr%C3%B4
 
 NITRO_COLOR = discord.Color.from_rgb(245, 73, 148)
 NITRO_WIN_COLOR = discord.Color.from_rgb(88, 101, 242)
+
+
+def _resolve_image_url(panel: Optional[Dict] = None) -> str:
+    """Return custom image URL from panel if valid, otherwise the default MAIN_IMAGE."""
+    if panel:
+        raw = (panel.get("image_url") or "").strip()
+        if raw.startswith(("http://", "https://")):
+            return raw
+    return MAIN_IMAGE
+
+
+def _prize_name(panel: Optional[Dict] = None) -> str:
+    """Prize display name stored on the panel (falls back to Discord Nitro)."""
+    if panel:
+        name = (panel.get("prize_name") or "").strip()
+        if name:
+            return name
+    return DEFAULT_PRIZE_NAME
+
 
 
 def _now_ts() -> float:
@@ -92,6 +114,24 @@ class RaffleSetupModal(discord.ui.Modal, title="Nitro Raffles — Setup"):
         min_length=1,
         max_length=6,
         required=True,
+        style=discord.TextStyle.short,
+    )
+    prize_name = discord.ui.TextInput(
+        label="Prize name (what is awarded)",
+        placeholder="e.g. Discord Nitro · Nitro Classic 1m · Steam Gift",
+        default=DEFAULT_PRIZE_NAME,
+        min_length=1,
+        max_length=80,
+        required=True,
+        style=discord.TextStyle.short,
+    )
+    image_url = discord.ui.TextInput(
+        label="Image URL (leave empty = default)",
+        placeholder="https://…  or leave blank for the default Nitro art",
+        default="",
+        min_length=0,
+        max_length=300,
+        required=False,
         style=discord.TextStyle.short,
     )
 
@@ -151,6 +191,25 @@ class RaffleSetupModal(discord.ui.Modal, title="Nitro Raffles — Setup"):
             return
         cooldown_seconds = hours * 3600
 
+        # ── Prize name ────────────────────────────────────────────────────
+        prize = (self.prize_name.value or "").strip() or DEFAULT_PRIZE_NAME
+        if len(prize) > 80:
+            await interaction.response.send_message(
+                "❌ Prize name must be at most **80** characters.",
+                ephemeral=True,
+            )
+            return
+
+        # ── Optional custom image URL ─────────────────────────────────────
+        img_raw = (self.image_url.value or "").strip()
+        if img_raw and not img_raw.startswith(("http://", "https://")):
+            await interaction.response.send_message(
+                "❌ Image URL must start with `http://` or `https://` (or leave empty for default).",
+                ephemeral=True,
+            )
+            return
+        image_url = img_raw or None  # None → use MAIN_IMAGE default
+
         await interaction.response.defer(ephemeral=True)
         try:
             msg = await self.cog._post_panel(
@@ -159,12 +218,17 @@ class RaffleSetupModal(discord.ui.Modal, title="Nitro Raffles — Setup"):
                 max_number=max_n,
                 winning_number=win_n,
                 cooldown_seconds=cooldown_seconds,
+                prize_name=prize,
+                image_url=image_url,
             )
+            img_note = "custom" if image_url else "default"
             await interaction.followup.send(
-                f"✅ Nitro Raffles sticky panel posted in {self.channel.mention}.\n"
+                f"✅ Raffles sticky panel posted in {self.channel.mention}.\n"
+                f"• Prize: **{prize}**\n"
                 f"• Numbers: **1 – {max_n}**\n"
                 f"• Winning number: set (hidden from public)\n"
                 f"• Cooldown: **{_fmt_cooldown(cooldown_seconds)}**\n"
+                f"• Image: **{img_note}**\n"
                 f"• Message ID: `{msg.id}`\n"
                 f"_Panel auto-returns to the bottom after ~{STICKY_DELAY_SECONDS}s of quiet chat._",
                 ephemeral=True,
@@ -172,6 +236,7 @@ class RaffleSetupModal(discord.ui.Modal, title="Nitro Raffles — Setup"):
         except Exception as e:
             logger.exception("nitroraffles setup panel failed")
             await interaction.followup.send(f"❌ Failed: {e}", ephemeral=True)
+
 
 
 # ── Player number modal ───────────────────────────────────────────────────
@@ -302,11 +367,12 @@ class NitroRaffles(commands.Cog):
         max_n = int((panel or {}).get("max_number", DEFAULT_MAX_NUMBER))
         cd_sec = float((panel or {}).get("cooldown_seconds", DEFAULT_COOLDOWN_HOURS * 3600))
         cd_text = _fmt_cooldown(cd_sec)
+        prize = _prize_name(panel)
         embed = discord.Embed(
             title="NITRO RAFFLES",
             description=(
                 f"Pick a number between **1** and **{max_n}**.\n"
-                "If you choose the lucky number, you win a **Discord Nitro**!\n\n"
+                f"If you choose the lucky number, you win a **{prize}**!\n\n"
                 f"One attempt every **{cd_text}**.\n"
                 "Good luck — may the odds be in your favour. ✨"
             ),
@@ -314,17 +380,22 @@ class NitroRaffles(commands.Cog):
             timestamp=_utc_now(),
         )
         embed.set_thumbnail(url=THUMB_IMAGE)
-        embed.set_image(url=MAIN_IMAGE)
+        embed.set_image(url=_resolve_image_url(panel))
         embed.set_footer(text="Bova's Bot · Nitro Raffles")
         return embed
 
     def _build_closed_embed(
-        self, winner: discord.Member | discord.User, number: int
+        self,
+        winner: discord.Member | discord.User,
+        number: int,
+        panel: Optional[Dict] = None,
     ) -> discord.Embed:
+        prize = _prize_name(panel)
         embed = discord.Embed(
             title="NITRO RAFFLES — WINNER!",
             description=(
                 f"🎉 **{winner.display_name}** picked the lucky number **{number}**!\n\n"
+                f"Prize: **{prize}**\n"
                 "This raffle is now closed.\n"
                 "Staff will contact the winner shortly."
             ),
@@ -332,19 +403,23 @@ class NitroRaffles(commands.Cog):
             timestamp=_utc_now(),
         )
         embed.set_thumbnail(url=winner.display_avatar.url)
-        embed.set_image(url=MAIN_IMAGE)
+        embed.set_image(url=_resolve_image_url(panel))
         embed.set_footer(text="Bova's Bot · Nitro Raffles · Closed")
         return embed
 
     def _build_win_announce_embed(
-        self, winner: discord.Member | discord.User, number: int
+        self,
+        winner: discord.Member | discord.User,
+        number: int,
+        panel: Optional[Dict] = None,
     ) -> discord.Embed:
+        prize = _prize_name(panel)
         embed = discord.Embed(
-            title="🎊 NITRO WINNER! 🎊",
+            title="🎊 WINNER! 🎊",
             description=(
                 f"✨💎 **CONGRATULATIONS {winner.mention}!** 💎✨\n\n"
                 f"You picked the lucky number **`{number}`**!\n\n"
-                "🎁 You just won a **Discord Nitro**!\n"
+                f"🎁 You just won a **{prize}**!\n"
                 "Staff will reach out to deliver your prize.\n\n"
                 "🎉🔥🚀💎✨🎊"
             ),
@@ -352,7 +427,7 @@ class NitroRaffles(commands.Cog):
             timestamp=_utc_now(),
         )
         embed.set_thumbnail(url=winner.display_avatar.url)
-        embed.set_image(url=MAIN_IMAGE)
+        embed.set_image(url=_resolve_image_url(panel))
         embed.set_footer(text="Bova's Bot · Nitro Raffles · Winner")
         return embed
 
@@ -364,21 +439,24 @@ class NitroRaffles(commands.Cog):
         if winner_id:
             user = self.bot.get_user(winner_id)
             if user is None:
+                prize = _prize_name(panel)
                 embed = discord.Embed(
                     title="NITRO RAFFLES — WINNER!",
                     description=(
                         f"🎉 The lucky number **{number}** was found!\n\n"
+                        f"Prize: **{prize}**\n"
                         "This raffle is now closed.\n"
                         "Staff will contact the winner shortly."
                     ),
                     color=NITRO_WIN_COLOR,
                     timestamp=_utc_now(),
                 )
-                embed.set_image(url=MAIN_IMAGE)
+                embed.set_image(url=_resolve_image_url(panel))
                 embed.set_footer(text="Bova's Bot · Nitro Raffles · Closed")
                 return embed
-            return self._build_closed_embed(user, number)
+            return self._build_closed_embed(user, number, panel)
         return self._build_active_embed(panel)
+
 
     # ── Sticky system ─────────────────────────────────────────────────────
     def _schedule_sticky(self, channel_id: int) -> None:
@@ -533,18 +611,19 @@ class NitroRaffles(commands.Cog):
                 ephemeral=True,
             )
 
-            win_embed = self._build_win_announce_embed(user, number)
+            win_embed = self._build_win_announce_embed(user, number, panel)
             await channel.send(content=f"🎊 {user.mention}", embed=win_embed)
 
             try:
                 msg = await channel.fetch_message(panel["message_id"])
-                closed_embed = self._build_closed_embed(user, number)
+                closed_embed = self._build_closed_embed(user, number, panel)
                 closed_view = NitroRaffleView(self, channel_id, active=False)
                 await msg.edit(embed=closed_embed, view=closed_view)
             except Exception:
                 logger.exception("Failed to update raffle panel after win")
 
             self._schedule_sticky(channel_id)
+
         else:
             await interaction.response.send_message(
                 f"You picked **{number}**. Check the channel for the result.",
@@ -573,6 +652,8 @@ class NitroRaffles(commands.Cog):
         max_number: int = DEFAULT_MAX_NUMBER,
         winning_number: int = DEFAULT_WINNING_NUMBER,
         cooldown_seconds: float = DEFAULT_COOLDOWN_HOURS * 3600,
+        prize_name: str = DEFAULT_PRIZE_NAME,
+        image_url: Optional[str] = None,
     ) -> discord.Message:
         channel_id = channel.id
         existing = self._panel(channel_id)
@@ -588,12 +669,13 @@ class NitroRaffles(commands.Cog):
             except Exception:
                 pass
 
-        active = True
         view = NitroRaffleView(self, channel_id, active=True)
         panel_cfg = {
             "max_number": max_number,
             "winning_number": winning_number,
             "cooldown_seconds": cooldown_seconds,
+            "prize_name": prize_name or DEFAULT_PRIZE_NAME,
+            "image_url": image_url or "",
         }
         embed = self._build_active_embed(panel_cfg)
 
@@ -606,6 +688,8 @@ class NitroRaffles(commands.Cog):
             "max_number": max_number,
             "winning_number": winning_number,
             "cooldown_seconds": cooldown_seconds,
+            "prize_name": prize_name or DEFAULT_PRIZE_NAME,
+            "image_url": image_url or "",
             "winner_id": None,
             "winner_number": None,
             "entries": {},
@@ -614,6 +698,7 @@ class NitroRaffles(commands.Cog):
         self._save()
         self.bot.add_view(view, message_id=msg.id)
         return msg
+
 
     # ── Slash commands (all LOCKED via bot role_check) ────────────────────
     @app_commands.command(
@@ -658,7 +743,12 @@ class NitroRaffles(commands.Cog):
             modal.cooldown_hours.default = (
                 str(int(cd_h)) if cd_h == int(cd_h) else f"{cd_h:.2f}".rstrip("0").rstrip(".")
             )
+            modal.prize_name.default = str(
+                panel.get("prize_name") or DEFAULT_PRIZE_NAME
+            )
+            modal.image_url.default = str(panel.get("image_url") or "")
         await interaction.response.send_modal(modal)
+
 
     @app_commands.command(
         name="nitroraffles_reset_cooldown",
@@ -708,15 +798,20 @@ class NitroRaffles(commands.Cog):
         entries = panel.get("entries") or {}
         max_n = panel.get("max_number", DEFAULT_MAX_NUMBER)
         cd_sec = float(panel.get("cooldown_seconds", DEFAULT_COOLDOWN_HOURS * 3600))
+        prize = _prize_name(panel)
+        img = (panel.get("image_url") or "").strip() or "(default)"
         lines = [
             f"**Status:** {'🟢 Active' if panel.get('active', True) else '🔒 Closed'}",
+            f"**Prize:** **{prize}**",
             f"**Number range:** `1 – {max_n}`",
             f"**Winning number:** `{panel.get('winning_number', DEFAULT_WINNING_NUMBER)}`",
             f"**Cooldown:** **{_fmt_cooldown(cd_sec)}**",
+            f"**Image:** `{img}`",
             f"**Total attempts:** **{len(entries)}**",
             f"**Panel message:** `{panel.get('message_id')}`",
             f"**Sticky delay:** `{STICKY_DELAY_SECONDS}s`",
         ]
+
         if panel.get("winner_id"):
             lines.append(
                 f"**Winner:** <@{panel['winner_id']}> (number `{panel.get('winner_number')}`)"
@@ -755,7 +850,8 @@ class NitroRaffles(commands.Cog):
         win_n = int(
             (panel or {}).get("winning_number", DEFAULT_WINNING_NUMBER)
         )
-        embed = self._build_win_announce_embed(interaction.user, win_n)
+        embed = self._build_win_announce_embed(interaction.user, win_n, panel)
+
         await interaction.channel.send(
             content=(
                 f"🧪 **TEST** — sample win announcement (not a real win)\n"
