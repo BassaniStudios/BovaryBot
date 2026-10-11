@@ -36,6 +36,25 @@ _migrated = False
 _remote_mode = False
 
 
+def _row_val(row: Any, key: str, idx: int = 0, default: Any = None) -> Any:
+    """Read a column from a DB row that may be sqlite3.Row OR a plain tuple (Turso/libsql).
+
+    Local sqlite3 uses row_factory=Row (dict-like by name).
+    Turso/libsql often returns tuples, so string indexing raises TypeError.
+    Always prefer name, then fall back to positional index.
+    """
+    if row is None:
+        return default
+    try:
+        return row[key]
+    except Exception:
+        pass
+    try:
+        return row[idx]
+    except Exception:
+        return default
+
+
 def is_remote() -> bool:
     """True when connected (or configured) for Turso remote SQLite."""
     return _remote_mode or bool(
@@ -199,12 +218,9 @@ def kv_get(key: str, default: Any = None) -> Any:
         if row is None:
             return default if default is not None else {}
         try:
-            try:
-                raw = row["value"]
-            except Exception:
-                raw = row[0]
+            raw = _row_val(row, "value", 0)
             return json.loads(raw)
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, TypeError):
             logger.warning("Corrupt KV value for key=%s", key)
             return default if default is not None else {}
 
@@ -239,7 +255,7 @@ def kv_keys() -> List[str]:
     with _lock:
         conn = get_connection()
         rows = conn.execute("SELECT key FROM kv_store ORDER BY key").fetchall()
-        return [r["key"] for r in rows]
+        return [_row_val(r, "key", 0, "") for r in rows]
 
 
 def _normalize_key(name: str) -> str:
@@ -301,25 +317,17 @@ def audit_recent(limit: int = 50) -> List[Dict[str, Any]]:
         ).fetchall()
         out = []
         for r in rows:
-            def _get(row, key, idx):
-                try:
-                    return row[key]
-                except Exception:
-                    try:
-                        return row[idx]
-                    except Exception:
-                        return None
             try:
-                detail = json.loads(_get(r, "detail", 5) or "{}")
+                detail = json.loads(_row_val(r, "detail", 5, "{}") or "{}")
             except (json.JSONDecodeError, TypeError):
                 detail = {}
             out.append(
                 {
-                    "ts": _get(r, "ts", 0),
-                    "actor_id": _get(r, "actor_id", 1),
-                    "action": _get(r, "action", 2),
-                    "source": _get(r, "source", 3),
-                    "success": bool(_get(r, "success", 4)),
+                    "ts": _row_val(r, "ts", 0),
+                    "actor_id": _row_val(r, "actor_id", 1),
+                    "action": _row_val(r, "action", 2),
+                    "source": _row_val(r, "source", 3),
+                    "success": bool(_row_val(r, "success", 4, 0)),
                     "detail": detail,
                 }
             )
@@ -358,7 +366,8 @@ def migrate_json_to_sql(force: bool = False) -> int:
         flag = conn.execute(
             "SELECT value FROM meta WHERE key = 'json_migrated'"
         ).fetchone()
-        if flag and flag["value"] == "1" and not force:
+        # Turso/libsql returns tuples; local sqlite3.Row supports ["value"].
+        if flag is not None and str(_row_val(flag, "value", 0, "")) == "1" and not force:
             _migrated = True
             return 0
 
@@ -399,7 +408,8 @@ def migrate_json_to_sql(force: bool = False) -> int:
                 with open(audit_path, "r", encoding="utf-8") as f:
                     adata = json.load(f)
                 entries = adata.get("entries") or []
-                count_before = conn.execute("SELECT COUNT(*) AS c FROM audit_log").fetchone()["c"]
+                count_row = conn.execute("SELECT COUNT(*) AS c FROM audit_log").fetchone()
+                count_before = int(_row_val(count_row, "c", 0, 0) or 0)
                 if count_before == 0 and entries:
                     for e in entries[-2000:]:
                         conn.execute(
@@ -447,18 +457,8 @@ def db_stats() -> Dict[str, Any]:
         conn = get_connection()
         row_k = conn.execute("SELECT COUNT(*) AS c FROM kv_store").fetchone()
         row_a = conn.execute("SELECT COUNT(*) AS c FROM audit_log").fetchone()
-        def _count(row):
-            if row is None:
-                return 0
-            try:
-                return int(row["c"])
-            except Exception:
-                try:
-                    return int(row[0])
-                except Exception:
-                    return 0
-        keys = _count(row_k)
-        audits = _count(row_a)
+        keys = int(_row_val(row_k, "c", 0, 0) or 0)
+        audits = int(_row_val(row_a, "c", 0, 0) or 0)
         size = 0
         path = _db_path()
         if not is_remote() and path.exists():
