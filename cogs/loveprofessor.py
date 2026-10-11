@@ -29,6 +29,9 @@ logger = logging.getLogger("bovary_bot.loveprofessor")
 # Config
 # ---------------------------------------------------------------------------
 LOGO_URL = "https://ik.imagekit.io/BassaniStudios/TheLoveProfessor-GTAO-ArcadeGameLogo.webp"
+# Local animated GIF used ONLY on the main sticky panel (results still use LOGO_URL)
+PANEL_GIF_PATH = "assets/theloveprofessor.gif"
+PANEL_GIF_FILENAME = "theloveprofessor.gif"
 ALLOWED_CHANNEL_ID = 1553823431349371042
 COOLDOWN_SECONDS = 90
 CHALLENGE_TIMEOUT = 600  # 10 minutes — plenty of time to accept
@@ -38,16 +41,26 @@ STICKY_DELAY_SECONDS = 90  # between 60–120 as requested
 PANEL_STATE_FILE = "loveprofessor_panel.json"
 
 LEVEL_COLORS = [
-    discord.Color.from_rgb(100, 180, 255),   # 1 Ice Cold
-    discord.Color.from_rgb(120, 160, 220),   # 2 Cold Shoulder
-    discord.Color.from_rgb(140, 180, 200),   # 3 Thaw Out
-    discord.Color.from_rgb(180, 200, 160),   # 4 Clammy
-    discord.Color.from_rgb(220, 200, 100),   # 5 Warmer
-    discord.Color.from_rgb(255, 180, 80),    # 6 Flushed
-    discord.Color.from_rgb(255, 120, 60),    # 7 Getting Steamy
-    discord.Color.from_rgb(255, 70, 40),     # 8 Burning Loins
-    discord.Color.from_rgb(255, 40, 60),     # 9 Hot n' Heavy
-    discord.Color.from_rgb(255, 20, 100),    # 10 Sizzlin'
+    discord.Color.from_rgb(80, 140, 255),    # 1  Ice Cold
+    discord.Color.from_rgb(90, 150, 240),    # 2  Frozen Solid
+    discord.Color.from_rgb(100, 160, 230),   # 3  Cold as Hell
+    discord.Color.from_rgb(110, 170, 220),   # 4  Heartless
+    discord.Color.from_rgb(120, 180, 210),   # 5  Thaw Out
+    discord.Color.from_rgb(140, 190, 200),   # 6  Chilly Business
+    discord.Color.from_rgb(160, 200, 180),   # 7  Clammy
+    discord.Color.from_rgb(190, 200, 140),   # 8  Slightly Toasty
+    discord.Color.from_rgb(220, 200, 100),   # 9  Flushed
+    discord.Color.from_rgb(255, 220, 60),    # 10 Burning Touch   (yellow start)
+    discord.Color.from_rgb(255, 200, 50),    # 11 Steamy Situation
+    discord.Color.from_rgb(255, 180, 40),    # 12 Burning Loins
+    discord.Color.from_rgb(255, 160, 30),    # 13 Dangerously Hot
+    discord.Color.from_rgb(255, 140, 20),    # 14 Hot n' Heavy
+    discord.Color.from_rgb(255, 120, 10),    # 15 Filthy Chemistry (yellow end)
+    discord.Color.from_rgb(255, 100, 20),    # 16 Sizzlin'        (orange start)
+    discord.Color.from_rgb(255, 80, 30),     # 17 Hellfire Chemistry
+    discord.Color.from_rgb(255, 60, 40),     # 18 Point of No Return
+    discord.Color.from_rgb(255, 40, 50),     # 19 Certified Freakshow (orange end)
+    discord.Color.from_rgb(255, 20, 60),     # 20 The Final Thrust (red)
 ]
 
 # Dark arcade cabinet color
@@ -60,71 +73,141 @@ RESULTS = [
         "name": "Ice Cold",
         "emoji": "🧊",
         "bar": 1,
-        "quote": "You two share the same emotional temperature as a body in the morgue freezer. Congrats — the mutual hatred is professional-grade.",
+        "quote": "Hotter than an iceberg in winter — morgue freezer temperature. Are you two even alive?",
         "color_idx": 0,
     },
     {
-        "name": "Cold Shoulder",
+        "name": "Frozen Solid",
         "emoji": "🥶",
         "bar": 2,
-        "quote": "They gave you the cold shoulder so hard you almost caught emotional pneumonia. Recommendation: stop texting 'hey' at 3 a.m.",
+        "quote": "Not even global warming can save this romantic disaster.",
         "color_idx": 1,
+    },
+    {
+        "name": "Cold as Hell",
+        "emoji": "🥶",
+        "bar": 3,
+        "quote": "Pure ice. Not even the devil could melt this.",
+        "color_idx": 2,
+    },
+    {
+        "name": "Heartless",
+        "emoji": "💔",
+        "bar": 4,
+        "quote": "The heart barely beats, feels nothing, and probably already blocked you.",
+        "color_idx": 3,
     },
     {
         "name": "Thaw Out",
         "emoji": "❄️",
-        "bar": 3,
-        "quote": "The ice is melting… very slowly. Like an ex who still sends memes once in a while. Nobody's impressed.",
-        "color_idx": 2,
+        "bar": 5,
+        "quote": "The ice is melting… extremely slowly. Like a shy couple on a first date.",
+        "color_idx": 4,
+    },
+    {
+        "name": "Chilly Business",
+        "emoji": "❄️",
+        "bar": 6,
+        "quote": "The temperature dropped so fast there wasn't even time to get embarrassed.",
+        "color_idx": 5,
     },
     {
         "name": "Clammy",
         "emoji": "😓",
-        "bar": 4,
-        "quote": "Your chemistry is about as good as sweaty hands on a first date. Uncomfortable, sticky, and everyone's pretending it's fine.",
-        "color_idx": 3,
+        "bar": 7,
+        "quote": "Sweaty-hand first-date chemistry mixed with butterflies of pure anxiety.",
+        "color_idx": 6,
     },
     {
-        "name": "Warmer",
-        "emoji": "🌤️",
-        "bar": 5,
-        "quote": "It's heating up… like coffee left in the microwave. Still drinkable, but nobody's going to be impressed.",
-        "color_idx": 4,
+        "name": "Slightly Toasty",
+        "emoji": "🍞",
+        "bar": 8,
+        "quote": "There's a spark… but someone left the bread in the toaster too long.",
+        "color_idx": 7,
     },
     {
         "name": "Flushed",
         "emoji": "😳",
-        "bar": 6,
-        "quote": "You two are red. Not from lust. From second-hand embarrassment. Congrats — even the Professor finds this awkward.",
-        "color_idx": 5,
+        "bar": 9,
+        "quote": "Red from embarrassment… or is it something else?",
+        "color_idx": 8,
     },
     {
-        "name": "Getting Steamy",
+        "name": "Burning Touch",
+        "emoji": "🔥",
+        "bar": 10,
+        "quote": "Almost can't pretend they don't want it anymore. There, I said it.",
+        "color_idx": 9,
+    },
+    {
+        "name": "Steamy Situation",
         "emoji": "♨️",
-        "bar": 7,
-        "quote": "Steam is rising. Someone opened the bathroom window after a shower and now the mirror is fogged up with unmet expectations.",
-        "color_idx": 6,
+        "bar": 11,
+        "quote": "Things are heating up, but the intentions are still under investigation.",
+        "color_idx": 10,
     },
     {
         "name": "Burning Loins",
         "emoji": "🔥",
-        "bar": 8,
-        "quote": "The loins are on fire. Literally. Someone call the fire department before this turns into a workplace incident.",
-        "color_idx": 7,
+        "bar": 12,
+        "quote": "Is someone on fire… or did summer arrive early?",
+        "color_idx": 11,
+    },
+    {
+        "name": "Dangerously Hot",
+        "emoji": "🔥",
+        "bar": 13,
+        "quote": "The tension is so high even the air conditioner turned on a fan.",
+        "color_idx": 12,
     },
     {
         "name": "Hot n' Heavy",
         "emoji": "❤️‍🔥",
-        "bar": 9,
-        "quote": "Heavy and hot. Like that 2 a.m. 'we need to talk' conversation. Sex? Maybe. Guaranteed trauma? Absolutely.",
-        "color_idx": 8,
+        "bar": 14,
+        "quote": "Sex? Maybe. Guaranteed trauma. Forbidden and addictive at the same time.",
+        "color_idx": 13,
+    },
+    {
+        "name": "Filthy Chemistry",
+        "emoji": "😈",
+        "bar": 15,
+        "quote": "This stopped being flirting a while ago. We all know where this is going… hehehe.",
+        "color_idx": 14,
     },
     {
         "name": "Sizzlin'",
         "emoji": "🌶️",
-        "bar": 10,
-        "quote": "You're frying. The love is so hot the Professor almost melted the circuit board. Get a room before the cops show up.",
-        "color_idx": 9,
+        "bar": 16,
+        "quote": "Extremely hot, but everything is under control… (lie — it's burning from the inside).",
+        "color_idx": 15,
+    },
+    {
+        "name": "Hellfire Chemistry",
+        "emoji": "🔥💋",
+        "bar": 17,
+        "quote": "An attraction so hot that Hell called asking who stole their fire.",
+        "color_idx": 16,
+    },
+    {
+        "name": "Point of No Return",
+        "emoji": "🖤🔥",
+        "bar": 18,
+        "quote": "No going back after this. Everyone already knows. No point pretending anymore.",
+        "color_idx": 17,
+    },
+    {
+        "name": "Certified Freakshow",
+        "emoji": "😈🔥",
+        "bar": 19,
+        "quote": "Get the kids out of the room. These two are already sweating.",
+        "color_idx": 18,
+    },
+    {
+        "name": "The Final Thrust",
+        "emoji": "⚰️🌶️",
+        "bar": 20,
+        "quote": "**Final phase unlocked.** The filth level has exceeded my terms of service. The bed is on fire, the neighbors called the cops because of the screams — but the screams weren't from the TV. The windows are fogged up. It got so hot that the Devil called the fire department.",
+        "color_idx": 19,
     },
 ]
 
@@ -133,9 +216,15 @@ RESULTS = [
 # Helpers — arcade visual
 # ---------------------------------------------------------------------------
 def _meter_blocks(level: int) -> str:
-    """Emoji-style meter — more readable than pure ASCII."""
-    filled = max(0, min(level, 10))
-    empty = 10 - filled
+    """20-block love meter.
+    Blocks 1-9: cold (blue-ish feel via overall color)
+    Blocks 10-15: yellow zone
+    Blocks 16-19: orange zone
+    Block 20: red
+    """
+    filled = max(0, min(level, 20))
+    empty = 20 - filled
+    # Use solid blocks; color is mainly carried by the embed
     return "▰" * filled + "▱" * empty
 
 
@@ -154,12 +243,12 @@ def build_result_embed(
     if anim_step is not None:
         meter = _meter_blocks(anim_step)
         machine = (
-            "╔══════════════════════════════╗\n"
-            "║     THE LOVE PROFESSOR       ║\n"
-            "║   ░░ ANALYZING CHEMISTRY ░░  ║\n"
-            "╠══════════════════════════════╣\n"
-            f"║  {meter}  ║\n"
-            "╚══════════════════════════════╝"
+            "╔════════════════════════════════════════╗\n"
+            "║        THE LOVE PROFESSOR              ║\n"
+            "║     ░░ ANALYZING CHEMISTRY ░░          ║\n"
+            "╠════════════════════════════════════════╣\n"
+            f"║ {meter} ║\n"
+            "╚════════════════════════════════════════╝"
         )
         embed = discord.Embed(
             title="💘 THE LOVE PROFESSOR",
@@ -183,7 +272,7 @@ def build_result_embed(
             f"**{user1.mention}**  ×  **{user2.mention}**\n\n"
             f"> ### ❝ {result['quote']} ❞\n\n"
             f"**LOVE METER**\n"
-            f"`{meter}`  **{result['bar']}/10**"
+            f"`{meter}`  **{result['bar']}/20**"
         ),
         color=color,
         timestamp=datetime.now(timezone.utc),
@@ -193,46 +282,60 @@ def build_result_embed(
     return embed
 
 
-def build_panel_embed(waiting_user: Optional[discord.abc.User] = None) -> discord.Embed:
+def build_panel_embed(
+    waiting_user: Optional[discord.abc.User] = None,
+    *,
+    anonymous: bool = False,
+) -> discord.Embed:
     if waiting_user:
-        status = f"⏳ **WAITING** — {waiting_user.mention} is at the machine"
-        tip = "Click **Play Now** to join them and start the test!"
+        if anonymous:
+            status = "⏳ **WAITING** — Someone is at the machine **anonymously** 🕵️"
+            tip = "Click **Play Now** or **Anonymous** to join them and start the test!"
+        else:
+            status = f"⏳ **WAITING** — {waiting_user.mention} is at the machine"
+            tip = "Click **Play Now** or **Anonymous** to join them and start the test!"
         color = ARCADE_GOLD
     else:
         status = "🟢 **READY** — Insert player"
-        tip = "Click **Play Now** to step up to the machine."
+        tip = "Click **Play Now** or **Anonymous** to step up to the machine."
         color = ARCADE_PINK
-
-    cabinet = (
-        "╔════════════════════════════════╗\n"
-        "║                                ║\n"
-        "║      THE LOVE PROFESSOR        ║\n"
-        "║   ─────────────────────────    ║\n"
-        "║    BFF or basically platonic?  ║\n"
-        "║    Grab the vibrating handle.  ║\n"
-        "║                                ║\n"
-        "║   Ice Cold  ←——————→  Sizzlin' ║\n"
-        "║                                ║\n"
-        "╚════════════════════════════════╝"
-    )
 
     embed = discord.Embed(
         title="💘 THE LOVE PROFESSOR",
         description=(
-            f"{_arcade_frame(cabinet)}\n"
             f"{status}\n\n"
             f"{tip}\n\n"
             f"**🎮 Play Now** — join queue / match with whoever is waiting\n"
+            f"**🕵️ Anonymous** — play without revealing your name until the result\n"
             f"**🚪 Cancel Wait** — leave the queue\n"
             f"**💘 Challenge Someone** — pick a specific person"
         ),
         color=color,
     )
-    embed.set_image(url=LOGO_URL)
+    # GIF is attached as a file when the panel message is sent/edited
+    embed.set_image(url=f"attachment://{PANEL_GIF_FILENAME}")
     embed.set_footer(
         text=f"◆ ARCADE · THE LOVE PROFESSOR · PANEL RE-PINS AFTER ~{STICKY_DELAY_SECONDS}s QUIET ◆"
     )
     return embed
+
+
+def _panel_file() -> discord.File:
+    """Return a fresh File object for the panel GIF (required on every send/edit)."""
+    import os
+    # Try several common locations relative to this file / cwd
+    candidates = [
+        os.path.join(os.path.dirname(os.path.dirname(__file__)), PANEL_GIF_PATH),
+        os.path.join(os.path.dirname(__file__), "..", PANEL_GIF_PATH),
+        PANEL_GIF_PATH,
+        os.path.join("assets", PANEL_GIF_FILENAME),
+    ]
+    for path in candidates:
+        if os.path.isfile(path):
+            return discord.File(path, filename=PANEL_GIF_FILENAME)
+    raise FileNotFoundError(
+        f"Panel GIF not found. Looked in: {candidates}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -478,14 +581,13 @@ class LovePanelView(discord.ui.View):
         super().__init__(timeout=None)
         self.cog = cog
 
-    @discord.ui.button(
-        label="Play Now",
-        style=discord.ButtonStyle.success,
-        emoji="🎮",
-        custom_id="loveprofessor:play",
-        row=0,
-    )
-    async def play_now(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def _handle_join(
+        self,
+        interaction: discord.Interaction,
+        *,
+        anonymous: bool,
+    ) -> None:
+        """Shared logic for Play Now and Anonymous buttons."""
         if interaction.channel_id != ALLOWED_CHANNEL_ID:
             await interaction.response.send_message(
                 "❌ The Love Professor only works in the arcade channel.",
@@ -505,9 +607,10 @@ class LovePanelView(discord.ui.View):
             )
             return
 
-        # Serialize queue access to prevent double-match / lost waiters
         partner = None
         match_msg = None
+        was_anonymous = False
+
         async with self.cog._queue_lock:
             waiting = self.cog.waiting_user
 
@@ -519,9 +622,12 @@ class LovePanelView(discord.ui.View):
                 return
 
             if waiting is not None and waiting.id != user.id:
+                # Match found
                 partner = waiting
+                was_anonymous = self.cog.waiting_anonymous
                 self.cog.waiting_user = None
                 self.cog._waiting_user_id = None
+                self.cog.waiting_anonymous = False
                 self.cog._set_cooldown(user.id)
                 self.cog._set_cooldown(partner.id)
                 self.cog._save_panel_state()
@@ -531,33 +637,54 @@ class LovePanelView(discord.ui.View):
                 try:
                     await interaction.message.edit(
                         embed=build_panel_embed(None),
+                        attachments=[_panel_file()],
                         view=self,
                     )
                 except (discord.NotFound, discord.HTTPException):
                     pass
 
-                match_msg = await interaction.followup.send(
-                    f"💘 **Match found!** {partner.mention} × {user.mention} — starting the test...",
-                    wait=True,
-                )
+                # Reveal both names (anonymous is revealed on match)
+                if was_anonymous or anonymous:
+                    match_msg = await interaction.followup.send(
+                        f"💘 **Match found!** {partner.mention} × {user.mention} "
+                        f"— starting the test...\n"
+                        f"*🕵️ Anonymous player revealed!*",
+                        wait=True,
+                    )
+                else:
+                    match_msg = await interaction.followup.send(
+                        f"💘 **Match found!** {partner.mention} × {user.mention} — starting the test...",
+                        wait=True,
+                    )
             else:
-                # Nobody waiting → join queue (NO time limit)
+                # Nobody waiting → join queue
                 self.cog.waiting_user = user
                 self.cog._waiting_user_id = user.id
+                self.cog.waiting_anonymous = anonymous
                 self.cog._save_panel_state()
                 await interaction.response.defer()
                 try:
                     await interaction.message.edit(
-                        embed=build_panel_embed(user),
+                        embed=build_panel_embed(user, anonymous=anonymous),
+                        attachments=[_panel_file()],
                         view=self,
                     )
                 except (discord.NotFound, discord.HTTPException):
                     pass
-                await interaction.followup.send(
-                    f"✅ {user.mention} stepped up to the machine and is waiting for a partner!\n"
-                    f"*No time limit — stay as long as you want. Use **Cancel Wait** to leave.*",
-                    ephemeral=False,
-                )
+
+                if anonymous:
+                    await interaction.followup.send(
+                        f"✅ Someone stepped up to the machine **anonymously** and is waiting for a partner!\n"
+                        f"*🕵️ Your identity will only be revealed when the test starts.*\n"
+                        f"*No time limit — use **Cancel Wait** to leave.*",
+                        ephemeral=False,
+                    )
+                else:
+                    await interaction.followup.send(
+                        f"✅ {user.mention} stepped up to the machine and is waiting for a partner!\n"
+                        f"*No time limit — stay as long as you want. Use **Cancel Wait** to leave.*",
+                        ephemeral=False,
+                    )
                 self.cog._schedule_sticky()
                 return
 
@@ -565,6 +692,26 @@ class LovePanelView(discord.ui.View):
         if partner is not None and match_msg is not None:
             await run_love_test(interaction.channel, partner, user, reply_to=match_msg)
             self.cog._schedule_sticky()
+
+    @discord.ui.button(
+        label="Play Now",
+        style=discord.ButtonStyle.success,
+        emoji="🎮",
+        custom_id="loveprofessor:play",
+        row=0,
+    )
+    async def play_now(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._handle_join(interaction, anonymous=False)
+
+    @discord.ui.button(
+        label="Anonymous",
+        style=discord.ButtonStyle.primary,
+        emoji="🕵️",
+        custom_id="loveprofessor:anonymous",
+        row=0,
+    )
+    async def anonymous(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._handle_join(interaction, anonymous=True)
 
     @discord.ui.button(
         label="Cancel Wait",
@@ -585,12 +732,14 @@ class LovePanelView(discord.ui.View):
 
             self.cog.waiting_user = None
             self.cog._waiting_user_id = None
+            self.cog.waiting_anonymous = False
             self.cog._save_panel_state()
 
         await interaction.response.defer()
         try:
             await interaction.message.edit(
                 embed=build_panel_embed(None),
+                attachments=[_panel_file()],
                 view=self,
             )
         except (discord.NotFound, discord.HTTPException):
@@ -645,6 +794,7 @@ class LoveProfessor(commands.Cog):
         self.bot = bot
         self.waiting_user: Optional[discord.abc.User] = None
         self._waiting_user_id: Optional[int] = None  # persisted across restarts (best-effort)
+        self.waiting_anonymous: bool = False
         self._cooldowns: dict[int, float] = {}
         self._panel_view: Optional[LovePanelView] = None
         self._panel_message_id: Optional[int] = None
@@ -660,6 +810,7 @@ class LoveProfessor(commands.Cog):
             self._panel_message_id = int(mid) if mid else None
             wid = data.get("waiting_user_id")
             self._waiting_user_id = int(wid) if wid else None
+            self.waiting_anonymous = bool(data.get("waiting_anonymous", False))
 
     def _save_panel_state(self) -> None:
         wid = None
@@ -672,6 +823,7 @@ class LoveProfessor(commands.Cog):
             {
                 "message_id": self._panel_message_id,
                 "waiting_user_id": wid,
+                "waiting_anonymous": self.waiting_anonymous if wid else False,
             },
         )
 
@@ -745,7 +897,8 @@ class LoveProfessor(commands.Cog):
                 self._panel_view = view
                 self.bot.add_view(view)
                 new_msg = await channel.send(
-                    embed=build_panel_embed(waiting),
+                    embed=build_panel_embed(waiting, anonymous=self.waiting_anonymous),
+                    file=_panel_file(),
                     view=view,
                 )
                 self._panel_message_id = new_msg.id
@@ -828,13 +981,18 @@ class LoveProfessor(commands.Cog):
         async with self._queue_lock:
             self.waiting_user = None
             self._waiting_user_id = None
+            self.waiting_anonymous = False
 
         view = LovePanelView(self)
         self._panel_view = view
         self.bot.add_view(view)
 
         embed = build_panel_embed(None)
-        await interaction.response.send_message(embed=embed, view=view)
+        await interaction.response.send_message(
+            embed=embed,
+            file=_panel_file(),
+            view=view,
+        )
         msg = await interaction.original_response()
         self._panel_message_id = msg.id
         self._save_panel_state()
