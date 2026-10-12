@@ -1,4 +1,17 @@
-# Bova's Bot — v2.12.0 (Turso-ready patch)
+# Bova's Bot — v2.13.0
+
+Private bot for **Bovary Club Society**. Developed by **Bassani**.
+
+## What's new in 2.13.0
+- **Anti-spam honeypot** (`cogs/antispam.py`)
+  - Channel `ANTISPAM_CHANNEL_ID` (default `1559213282638827590`)
+  - Any message → immediate **native Discord timeout (7 days)**
+  - Immune: bots, owner (`921803925051572266`), crew-leader role, Administrators
+  - Public embed in honeypot + detailed staff log in WebLogs
+  - Slash (LOCKED): `/antispam`, `/antispam_toggle`, `/antispam_status`
+
+---
+# Legacy header note (v2.12.0 Turso-ready patch)
 
 Private bot for **Bovary Club Society**. Developed by **Bassani**.
 

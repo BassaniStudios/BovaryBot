@@ -1,6 +1,6 @@
 """
 Bova's Bot — Official private bot of Bovary Club Society.
-Version: 2.12.0
+Version: 2.13.0
 """
 from __future__ import annotations
 
@@ -144,6 +144,8 @@ class BovaryBot(commands.Bot):
             "STAFF_API_ROLE_ID": load_int_env("STAFF_API_ROLE_ID", 1547647694997037137),
             # Role allowed to use ONLY /fenrir (FiveMHosts)
             "FIVEM_HOSTS_ROLE_ID": load_int_env("FIVEM_HOSTS_ROLE_ID", 1537850168999809215),
+            # Anti-spam honeypot channel (any message → 7-day native timeout)
+            "ANTISPAM_CHANNEL_ID": _chan("ANTISPAM_CHANNEL_ID", 1559213282638827590),
             "PANEL_URL": os.getenv("PANEL_URL", "https://bovaryclub.github.io/BovaryBot-Panel/"),
             # Panel secret is read only from the environment; never expose or default it in code.
             "PANEL_ACCESS_KEY": os.getenv("PANEL_ACCESS_KEY", ""),
@@ -409,6 +411,9 @@ class BovaryBot(commands.Bot):
             "nitroraffles_reset",
             "nitroraffles_reset_cooldown",
             "nitroraffles_test",
+            "antispam",
+            "antispam_toggle",
+            "antispam_status",
         }
 
         async def role_check(interaction: discord.Interaction) -> bool:
