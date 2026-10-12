@@ -4,7 +4,7 @@ HTTP API for the web panel — runs in the same process as the bot.
 Security:
   - Header X-API-Key must match PANEL_ACCESS_KEY from the environment
   - Header X-Discord-User-Id must be a member with STAFF_API_ROLE_ID (or admin)
-  - CORS restricted to PANEL / CORS_ORIGIN
+  - CORS allows any origin (auth is header-based; PANEL_URL / CORS_ORIGIN still logged)
   - Simple per-IP rate limit
   - Every authenticated action is written to audit log (who / what / when)
 """
@@ -40,13 +40,20 @@ RATE_WINDOW = 60  # seconds
 def init_api(bot) -> None:
     global _bot
     _bot = bot
-    origins = []
+    # Collect known panel origins (PANEL_URL / CORS_ORIGIN) for logging.
+    # Auth is header-based (X-API-Key + X-Discord-User-Id), never cookies, so
+    # reflecting any Origin is safe and required: otherwise a panel hosted on
+    # another domain (or opened as file:// / localhost) gets browser
+    # "Failed to fetch" with no Access-Control-Allow-Origin.
+    origins: list[str] = []
     cors = os.getenv("CORS_ORIGIN", "").strip()
     panel = (bot.config.get("PANEL_URL") if bot else "") or os.getenv("PANEL_URL", "")
     if cors:
-        origins.append(cors)
+        for part in cors.split(","):
+            part = part.strip()
+            if part:
+                origins.append(part)
     if panel:
-        # allow github pages origin
         try:
             from urllib.parse import urlparse
             p = urlparse(panel)
@@ -54,21 +61,22 @@ def init_api(bot) -> None:
                 origins.append(f"{p.scheme}://{p.netloc}")
         except Exception:
             pass
-    # The panel authenticates with explicit headers (X-API-Key / X-Discord-User-Id)
-    # and does not use browser credentials/cookies. Allowing cross-origin requests is
-    # therefore safe at the transport layer; the API itself remains protected by
-    # require_auth on all private endpoints. Explicit CORS_ORIGIN / PANEL_URL values
-    # are still logged for visibility.
-    cors_origins = origins or ["*"]
+    # Always allow any origin: flask-cors with origins="*" sends
+    # Access-Control-Allow-Origin: * on every response (including preflight).
+    # Known panel origins are still logged so operators can verify config.
     CORS(
         app,
-        origins=cors_origins,
+        resources={r"/*": {"origins": "*"}},
         supports_credentials=False,
         allow_headers=["Content-Type", "X-API-Key", "X-Discord-User-Id", "Authorization"],
-        methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
         expose_headers=["Content-Type"],
+        automatic_options=True,
     )
-    logger.info("API CORS origins: %s", cors_origins)
+    logger.info(
+        "API CORS: allow any origin (*) · configured panel origins: %s",
+        origins or "(none)",
+    )
 
 
 def start_api(bot, host: str = "0.0.0.0", port: Optional[int] = None) -> None:
