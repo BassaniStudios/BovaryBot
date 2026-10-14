@@ -38,45 +38,55 @@ COLOR_INFO = discord.Color.from_rgb(52, 152, 219)
 COLOR_ADMIN = discord.Color.from_rgb(155, 89, 182)
 COLOR_CASINO = discord.Color.from_rgb(212, 175, 55)   # luxurious gold
 COLOR_CONSTRUCTION = discord.Color.from_rgb(149, 165, 166)
+COLOR_PURPLE = discord.Color.from_rgb(142, 68, 173)
+COLOR_ORANGE = discord.Color.from_rgb(230, 126, 34)
+COLOR_LILAC = discord.Color.from_rgb(155, 89, 182)
+COLOR_LIGHT_BLUE = discord.Color.from_rgb(133, 193, 233)
 
-# ── Default general shop (pets, badges, consumables — cars moved to Benny's) ──
-DEFAULT_SHOP: List[Dict[str, Any]] = [
-    {"id": "pet_cat", "name": "🐱 Pet Cat", "price": 500, "type": "pet", "desc": "A cute cat that follows you.", "emoji": "🐱"},
-    {"id": "pet_dog", "name": "🐶 Loyal Dog", "price": 800, "type": "pet", "desc": "Man's best friend (and Bova's).", "emoji": "🐶"},
-    {"id": "pet_dragon", "name": "🐉 Mini Dragon", "price": 5000, "type": "pet", "desc": "A legendary pocket dragon.", "emoji": "🐉"},
-    {"id": "pet_fenrir", "name": "🐺 Fenrir Pup", "price": 3500, "type": "pet", "desc": "Pup of the Fenrir Yakuza wolf.", "emoji": "🐺"},
-    {"id": "badge_gold", "name": "⚜️ Gold Badge", "price": 3000, "type": "badge", "desc": "Symbol of prestige.", "emoji": "⚜️"},
-    {"id": "badge_yakuza", "name": "🩸 Yakuza Badge", "price": 8000, "type": "badge", "desc": "Respect of the Fenrir family.", "emoji": "🩸"},
-    {"id": "badge_bova", "name": "👑 Bova Badge", "price": 15000, "type": "badge", "desc": "Official club badge.", "emoji": "👑"},
-    {"id": "item_coffee", "name": "☕ Bova's Coffee", "price": 50, "type": "consumable", "desc": "Restores energy (cosmetic).", "emoji": "☕"},
-    {"id": "item_chip", "name": "🎰 Casino Chip", "price": 200, "type": "consumable", "desc": "Collectible item.", "emoji": "🎰"},
-]
+# ── Default general shop (removed from member panel — empty for compatibility) ──
+DEFAULT_SHOP: List[Dict[str, Any]] = []
 
 # ── Benny's Original Motor Workshop (cars) ──
 BENNYS_SOUTHERN: List[Dict[str, Any]] = [
-    {"id": "car_banshee", "name": "🏎️ Banshee", "price": 9000, "type": "car", "desc": "Classic sports car.", "emoji": "🏎️", "dealer": "southern"},
-    {"id": "car_infernus", "name": "🔥 Infernus", "price": 14000, "type": "car", "desc": "Italian supercar.", "emoji": "🔥", "dealer": "southern"},
-    {"id": "car_cheetah", "name": "🐆 Cheetah", "price": 11000, "type": "car", "desc": "Fast and sleek.", "emoji": "🐆", "dealer": "southern"},
-    {"id": "car_green_sabre", "name": "🟢 Green Sabre", "price": 6500, "type": "car", "desc": "Muscle classic.", "emoji": "🟢", "dealer": "southern"},
-    {"id": "car_pfister_comet", "name": "☄️ Pfister Comet", "price": 8500, "type": "car", "desc": "German precision.", "emoji": "☄️", "dealer": "southern"},
-    {"id": "car_zentorno", "name": "⚡ Zentorno", "price": 22000, "type": "car", "desc": "Hypercar legend.", "emoji": "⚡", "dealer": "southern"},
-    {"id": "car_cognoscenti", "name": "🖤 Cognoscenti", "price": 7500, "type": "car", "desc": "Luxury sedan.", "emoji": "🖤", "dealer": "southern"},
+    {"id": "car_vigero", "name": "🚗 Vigero", "price": 5500, "type": "car", "desc": "Classic muscle coupe.", "emoji": "🚗", "dealer": "southern"},
+    {"id": "car_sultan", "name": "🏎️ Sultan", "price": 8000, "type": "car", "desc": "Tunable sports sedan.", "emoji": "🏎️", "dealer": "southern"},
+    {"id": "car_peyote", "name": "🚘 Peyote", "price": 4500, "type": "car", "desc": "Vintage convertible classic.", "emoji": "🚘", "dealer": "southern"},
+    {"id": "car_baller", "name": "🚙 Baller", "price": 9500, "type": "car", "desc": "Luxury SUV.", "emoji": "🚙", "dealer": "southern"},
+    {"id": "car_issi", "name": "🚕 Issi", "price": 3500, "type": "car", "desc": "Compact city car.", "emoji": "🚕", "dealer": "southern"},
+    {"id": "car_panto", "name": "🚙 Panto", "price": 2800, "type": "car", "desc": "Tiny city runabout.", "emoji": "🚙", "dealer": "southern"},
+    {"id": "car_tailgater", "name": "🚗 Tailgater", "price": 7200, "type": "car", "desc": "Executive sedan.", "emoji": "🚗", "dealer": "southern"},
 ]
 
 BENNYS_LEGENDARY: List[Dict[str, Any]] = [
-    {"id": "car_kuruma", "name": "🛡️ Karin Kuruma", "price": 18000, "type": "car", "desc": "Armored sports sedan.", "emoji": "🛡️", "dealer": "legendary"},
-    {"id": "car_jesterrr", "name": "🏁 JesterRR", "price": 16000, "type": "car", "desc": "Race-ready Jester.", "emoji": "🏁", "dealer": "legendary"},
-    {"id": "car_bodhi", "name": "🛻 Bodhi", "price": 5500, "type": "car", "desc": "Off-road beast.", "emoji": "🛻", "dealer": "legendary"},
-    {"id": "car_coquette_classic", "name": "🚘 Coquette Classic", "price": 12000, "type": "car", "desc": "Timeless classic.", "emoji": "🚘", "dealer": "legendary"},
+    {"id": "car_entity_xf", "name": "⚡ Entity XF", "price": 20000, "type": "car", "desc": "Hypercar masterpiece.", "emoji": "⚡", "dealer": "legendary"},
+    {"id": "car_zentorno", "name": "🔥 Zentorno", "price": 22000, "type": "car", "desc": "Hypercar legend.", "emoji": "🔥", "dealer": "legendary"},
+    {"id": "car_coquette_d1", "name": "🏁 Coquette D1", "price": 16000, "type": "car", "desc": "Classic racing coupe.", "emoji": "🏁", "dealer": "legendary"},
+    {"id": "car_ztype", "name": "🚘 Z-Type", "price": 14000, "type": "car", "desc": "Vintage luxury classic.", "emoji": "🚘", "dealer": "legendary"},
+    {"id": "car_zion_cabrio", "name": "🌞 Zion Cabrio", "price": 11000, "type": "car", "desc": "Stylish convertible.", "emoji": "🌞", "dealer": "legendary"},
+    {"id": "car_dubsta_6x6", "name": "🛻 Dubsta 6x6", "price": 18000, "type": "car", "desc": "Six-wheel off-road beast.", "emoji": "🛻", "dealer": "legendary"},
+    {"id": "car_kamacho", "name": "🚙 Kamacho", "price": 13500, "type": "car", "desc": "Rugged off-road truck.", "emoji": "🚙", "dealer": "legendary"},
+    {"id": "car_patriot", "name": "🛡️ Patriot", "price": 10000, "type": "car", "desc": "Military-inspired SUV.", "emoji": "🛡️", "dealer": "legendary"},
+]
+
+# ── Lost MC Shop (motorcycles — part of Benny's) ──
+BENNYS_LOST_MC: List[Dict[str, Any]] = [
+    {"id": "bike_daemon", "name": "🏍️ Daemon", "price": 6500, "type": "motorcycle", "desc": "Classic chopper.", "emoji": "🏍️", "dealer": "lost_mc"},
+    {"id": "bike_nemesis", "name": "🏍️ Nemesis", "price": 7200, "type": "motorcycle", "desc": "Aggressive street bike.", "emoji": "🏍️", "dealer": "lost_mc"},
+    {"id": "bike_sanctus", "name": "☠️ Sanctus", "price": 15000, "type": "motorcycle", "desc": "Custom Lost MC chopper.", "emoji": "☠️", "dealer": "lost_mc"},
+    {"id": "bike_pcj600", "name": "🏍️ PCJ-600", "price": 4800, "type": "motorcycle", "desc": "Sporty street motorcycle.", "emoji": "🏍️", "dealer": "lost_mc"},
+    {"id": "bike_ruffian", "name": "🏍️ Ruffian", "price": 5500, "type": "motorcycle", "desc": "Fast street fighter.", "emoji": "🏍️", "dealer": "lost_mc"},
+    {"id": "bike_sanchez", "name": "🏍️ Sanchez", "price": 4200, "type": "motorcycle", "desc": "Dirt bike legend.", "emoji": "🏍️", "dealer": "lost_mc"},
+    {"id": "bike_hakuchou", "name": "🏍️ Hakuchou", "price": 12000, "type": "motorcycle", "desc": "High-speed sports bike.", "emoji": "🏍️", "dealer": "lost_mc"},
 ]
 
 # ── Warstock Cache & Carry (military) ──
 WARSTOCK_ITEMS: List[Dict[str, Any]] = [
-    {"id": "mil_rhino", "name": "🛡️ Rhino Tank", "price": 150000, "type": "military", "desc": "Heavy armor tank.", "emoji": "🛡️"},
+    {"id": "mil_rhino", "name": "🛡️ Rhino Tank", "price": 185000, "type": "military", "desc": "Heavy armor tank.", "emoji": "🛡️"},
     {"id": "mil_insurgent", "name": "🚙 Insurgent", "price": 45000, "type": "military", "desc": "Armored off-road.", "emoji": "🚙"},
-    {"id": "mil_buzzard", "name": "🚁 Buzzard Attack Heli", "price": 120000, "type": "military", "desc": "Attack helicopter.", "emoji": "🚁"},
+    {"id": "mil_buzzard", "name": "🚁 Buzzard Attack Heli", "price": 145000, "type": "military", "desc": "Attack helicopter.", "emoji": "🚁"},
     {"id": "mil_barracks", "name": "🚛 Barracks", "price": 25000, "type": "military", "desc": "Troop transport.", "emoji": "🚛"},
-    {"id": "mil_apc", "name": "🛡️ APC", "price": 90000, "type": "military", "desc": "Armored personnel carrier.", "emoji": "🛡️"},
+    {"id": "mil_apc", "name": "🛡️ APC", "price": 110000, "type": "military", "desc": "Armored personnel carrier.", "emoji": "🛡️"},
+    {"id": "mil_submarine", "name": "🚢 Kosatka Submarine", "price": 48000, "type": "military", "desc": "Permanent submarine. Required to access Cayo Perico Heist.", "emoji": "🚢"},
 ]
 
 # ── Elitas Travel (aircraft) ──
@@ -90,49 +100,162 @@ ELITAS_ITEMS: List[Dict[str, Any]] = [
 
 # ── DockTease (boats) ──
 DOCKTEASE_ITEMS: List[Dict[str, Any]] = [
-    {"id": "boat_seashark", "name": "🚤 Seashark", "price": 5000, "type": "boat", "desc": "Jet ski fun.", "emoji": "🚤"},
-    {"id": "boat_dinghy", "name": "🛶 Dinghy", "price": 3500, "type": "boat", "desc": "Small inflatable.", "emoji": "🛶"},
-    {"id": "boat_speeder", "name": "🚤 Speeder", "price": 18000, "type": "boat", "desc": "Fast motorboat.", "emoji": "🚤"},
-    {"id": "boat_marquis", "name": "🛥️ Marquis", "price": 45000, "type": "boat", "desc": "Luxury yacht tender.", "emoji": "🛥️"},
-    {"id": "boat_yacht", "name": "🛳️ Galaxy Super Yacht", "price": 500000, "type": "boat", "desc": "Ultra-exclusive luxury yacht. The ultimate flex.", "emoji": "🛳️"},
+    {"id": "boat_seashark", "name": "🚤 Seashark", "price": 4500, "type": "boat", "desc": "Jet ski fun.", "emoji": "🚤"},
+    {"id": "boat_dinghy", "name": "🛶 Dinghy", "price": 3200, "type": "boat", "desc": "Small inflatable.", "emoji": "🛶"},
+    {"id": "boat_suntrap", "name": "⛵ Suntrap", "price": 6500, "type": "boat", "desc": "Small leisure boat.", "emoji": "⛵"},
+    {"id": "boat_jetmax", "name": "🚤 Jetmax", "price": 12000, "type": "boat", "desc": "High-speed runabout.", "emoji": "🚤"},
+    {"id": "boat_speeder", "name": "🚤 Speeder", "price": 16000, "type": "boat", "desc": "Fast motorboat.", "emoji": "🚤"},
+    {"id": "boat_squalo", "name": "🛥️ Squalo", "price": 22000, "type": "boat", "desc": "Sleek performance boat.", "emoji": "🛥️"},
+    {"id": "boat_tropic", "name": "⛵ Tropic", "price": 28000, "type": "boat", "desc": "Luxury speedboat.", "emoji": "⛵"},
+    {"id": "boat_marquis", "name": "🛥️ Marquis", "price": 42000, "type": "boat", "desc": "Luxury yacht tender.", "emoji": "🛥️"},
+    {"id": "boat_toro", "name": "🚤 Toro", "price": 55000, "type": "boat", "desc": "Premium powerboat.", "emoji": "🚤"},
+    {"id": "boat_yacht", "name": "🛳️ Galaxy Super Yacht", "price": 280000, "type": "boat", "desc": "Ultra-exclusive luxury yacht. The ultimate flex.", "emoji": "🛳️"},
 ]
 
 # ── Dynasty8 (apartments / common houses) ──
 DYNASTY8_ITEMS: List[Dict[str, Any]] = [
-    {"id": "prop_apt_low", "name": "🏠 Low-End Apartment", "price": 15000, "type": "property", "desc": "Basic starter home.", "emoji": "🏠"},
-    {"id": "prop_apt_mid", "name": "🏢 Mid-Range Apartment", "price": 45000, "type": "property", "desc": "Comfortable living.", "emoji": "🏢"},
-    {"id": "prop_apt_high", "name": "🏙️ High-End Apartment", "price": 120000, "type": "property", "desc": "Luxury city living.", "emoji": "🏙️"},
-    {"id": "prop_house_suburb", "name": "🏡 Suburban House", "price": 85000, "type": "property", "desc": "Quiet neighborhood house.", "emoji": "🏡"},
-    {"id": "prop_house_mansion", "name": "🏰 Mansion", "price": 350000, "type": "property", "desc": "Spacious luxury mansion.", "emoji": "🏰"},
+    {"id": "prop_apt_low", "name": "🏠 Low-End Apartment", "price": 12000, "type": "property", "desc": "Basic starter home.", "emoji": "🏠"},
+    {"id": "prop_apt_mid", "name": "🏢 Mid-Range Apartment", "price": 38000, "type": "property", "desc": "Comfortable living.", "emoji": "🏢"},
+    {"id": "prop_apt_high", "name": "🏙️ High-End Apartment", "price": 95000, "type": "property", "desc": "Luxury city living.", "emoji": "🏙️"},
+    {"id": "prop_house_suburb", "name": "🏡 Suburban House", "price": 72000, "type": "property", "desc": "Quiet neighborhood house.", "emoji": "🏡"},
+    {"id": "prop_house_mansion", "name": "🏰 Mansion", "price": 220000, "type": "property", "desc": "Spacious luxury mansion.", "emoji": "🏰"},
 ]
 
 # ── Maze Bank Foreclosures (business / underworld properties) ──
 FORECLOSURES_ITEMS: List[Dict[str, Any]] = [
-    {"id": "biz_nightclub", "name": "🕺 Nightclub", "price": 200000, "type": "business", "desc": "Own a nightclub.", "emoji": "🕺"},
-    {"id": "biz_warehouse", "name": "🏭 Warehouse", "price": 75000, "type": "business", "desc": "Storage complex.", "emoji": "🏭"},
-    {"id": "biz_bunker", "name": "🪖 Bunker", "price": 180000, "type": "business", "desc": "Underground bunker.", "emoji": "🪖"},
-    {"id": "biz_mc_clubhouse", "name": "🏍️ MC Clubhouse", "price": 95000, "type": "business", "desc": "Motorcycle club HQ.", "emoji": "🏍️"},
-    {"id": "biz_agency", "name": "🕵️ Agency", "price": 160000, "type": "business", "desc": "Private investigation agency.", "emoji": "🕵️"},
-    {"id": "biz_arcade", "name": "🕹️ Arcade", "price": 110000, "type": "business", "desc": "Arcade business front.", "emoji": "🕹️"},
-    {"id": "biz_hangar", "name": "✈️ Hangar", "price": 140000, "type": "business", "desc": "Aircraft hangar.", "emoji": "✈️"},
-    {"id": "biz_facility", "name": "🔬 Facility", "price": 250000, "type": "business", "desc": "High-tech facility.", "emoji": "🔬"},
+    {"id": "biz_nightclub", "name": "🕺 Nightclub", "price": 175000, "type": "business", "desc": "Own a nightclub.", "emoji": "🕺"},
+    {"id": "biz_warehouse", "name": "🏭 Warehouse", "price": 65000, "type": "business", "desc": "Storage complex.", "emoji": "🏭"},
+    {"id": "biz_bunker", "name": "🪖 Bunker", "price": 155000, "type": "business", "desc": "Underground bunker.", "emoji": "🪖"},
+    {"id": "biz_mc_clubhouse", "name": "🏍️ MC Clubhouse", "price": 85000, "type": "business", "desc": "Motorcycle club HQ.", "emoji": "🏍️"},
+    {"id": "biz_agency", "name": "🕵️ Agency", "price": 140000, "type": "business", "desc": "Private investigation agency.", "emoji": "🕵️"},
+    {"id": "biz_arcade", "name": "🕹️ Arcade", "price": 95000, "type": "business", "desc": "Arcade business front.", "emoji": "🕹️"},
+    {"id": "biz_hangar", "name": "✈️ Hangar", "price": 125000, "type": "business", "desc": "Aircraft hangar.", "emoji": "✈️"},
+    {"id": "biz_facility", "name": "🔬 Facility", "price": 210000, "type": "business", "desc": "High-tech facility.", "emoji": "🔬"},
+]
+
+
+# ── Cayo Perico Heist preparation items (buyable only inside Cayo panel) ──
+CAYO_PREP_ITEMS: List[Dict[str, Any]] = [
+    {"id": "cayo_longfin", "name": "🚤 Longfin Boat", "price": 900, "type": "cayo_prep", "desc": "Fast approach vessel for the island.", "emoji": "🚤"},
+    {"id": "cayo_plasma", "name": "⚡ Plasma Cutter", "price": 700, "type": "cayo_prep", "desc": "Cuts through reinforced glass and metal.", "emoji": "⚡"},
+    {"id": "cayo_fingerprint", "name": "🖐️ Fingerprint Clone", "price": 800, "type": "cayo_prep", "desc": "Clones biometric access prints.", "emoji": "🖐️"},
+    {"id": "cayo_charges", "name": "💣 Demolition Charges", "price": 950, "type": "cayo_prep", "desc": "Controlled explosives for barriers.", "emoji": "💣"},
+    {"id": "cayo_torch", "name": "🔥 Cutting Torch", "price": 550, "type": "cayo_prep", "desc": "Precision cutting tool.", "emoji": "🔥"},
+]
+
+CAYO_INVITE_ITEM = {
+    "id": "cayo_invite",
+    "name": "🎟️ Cayo Perico Invite",
+    "type": "consumable",
+    "desc": "One-time invitation to launch the Cayo Perico Heist.",
+    "emoji": "🎟️",
+}
+
+CAYO_PREP_IDS = [it["id"] for it in CAYO_PREP_ITEMS]
+
+# Heist quiz questions (Cayo Perico themed)
+CAYO_QUIZ = [
+    {
+        "q": "What is the name of the island compound owned by El Rubio?",
+        "options": ["Cayo Perico", "Los Santos Island", "Vice City Keys", "Sandy Shores"],
+        "correct": 0,
+    },
+    {
+        "q": "Which primary approach vehicle is ideal for a stealth entry to Cayo Perico?",
+        "options": ["Rhino Tank", "Longfin Boat", "Buzzard Attack Heli", "Oppressor Mk II"],
+        "correct": 1,
+    },
+]
+
+
+# ── Casino Resort items ──
+CASINO_PENTHOUSE = {
+    "id": "casino_penthouse",
+    "name": "🏨 Master Penthouse",
+    "price": 320000,
+    "type": "property",
+    "desc": "Premium casino residence with private services and exclusive access.",
+    "emoji": "🏨",
+}
+
+CASINO_MEMBERSHIP_TIERS = {
+    "standard": {"name": "Standard", "emoji": "🃏", "price_key": "casino_membership_standard", "discount": 0.05},
+    "vip": {"name": "VIP", "emoji": "💎", "price_key": "casino_membership_vip", "discount": 0.10},
+    "diamond": {"name": "Diamond", "emoji": "👑", "price_key": "casino_membership_diamond", "discount": 0.15},
+}
+
+# Podium vehicles (rotating collection — fixed list for now, one can be "featured")
+CASINO_PODIUM = [
+    {"id": "podium_paragon", "name": "🏎️ Paragon R", "price": 28000, "type": "car", "desc": "Casino podium exclusive sports car.", "emoji": "🏎️", "dealer": "podium"},
+    {"id": "podium_thrax", "name": "⚡ Thrax", "price": 45000, "type": "car", "desc": "Ultra-rare podium hypercar.", "emoji": "⚡", "dealer": "podium"},
+    {"id": "podium_italirsx", "name": "🏁 Itali RSX", "price": 38000, "type": "car", "desc": "Podium Italian supercar.", "emoji": "🏁", "dealer": "podium"},
+]
+
+MUSIC_EVENTS = [
+    "House Night",
+    "Techno Night",
+    "DJ Session",
+    "Underground Party",
 ]
 
 DEFAULT_SETTINGS = {
-    "daily_amount": 250,
-    "daily_streak_bonus": 25,   # per streak day
-    "max_streak_bonus": 500,
-    "work_min": 40,
-    "work_max": 180,
+    "daily_amount": 300,
+    "daily_streak_bonus": 30,   # per streak day
+    "max_streak_bonus": 600,
+    "work_min": 80,
+    "work_max": 220,
     "work_cooldown": 21600,     # 6 hours
     "balance_cooldown": 1800,   # 30 minutes (public only)
     "daily_cooldown": 86400,    # 24 hours
-    "rob_chance": 0.35,
-    "rob_cooldown": 7200,
     "min_bet": 10,
     "max_bet": 10000,
     "currency_name": CURRENCY,
+    "motoclub_cooldown": 18000,  # 5 hours
+    "ceo_cooldown": 18000,       # 5 hours
+    "motoclub_reward_min": 320,
+    "motoclub_reward_max": 850,
+    "ceo_fast_reward_min": 450,
+    "ceo_fast_reward_max": 1200,
+    "ceo_safe_reward_min": 200,
+    "ceo_safe_reward_max": 480,
+    "ceo_premium_reward_min": 800,
+    "ceo_premium_reward_max": 1800,
+    "ceo_premium_cost": 200,
+    "cayo_heist_prize_min": 4000,
+    "cayo_heist_prize_max": 9000,
+    # Casino
+    "lucky_wheel_cooldown": 86400,
+    "casino_membership_standard": 5000,
+    "casino_membership_vip": 15000,
+    "casino_membership_diamond": 40000,
+    "casino_penthouse_price": 320000,
+    # Music Locker
+    "music_entry_fee": 50,
+    "music_entry_reward": 80,
+    "music_event_reward_min": 120,
+    "music_event_reward_max": 280,
+    "music_vip_price": 12000,
+    "music_vip_bonus_mult": 1.5,
+    "music_event_cooldown": 86400,
 }
+
+# Street / location names used in MotoClub route choices
+MOTOCLUB_STREETS = [
+    "Tongva Hills", "Sandy Shores", "Chumash", "East Vinewood",
+    "Paleto Bay", "Grapeseed", "Harmony", "Grand Senora Desert",
+    "La Mesa", "Cypress Flats", "El Burro Heights", "Mirror Park",
+    "Rockford Hills", "Vinewood Hills", "Del Perro", "Vespucci Beach",
+    "Legion Square", "Pillbox Hill", "Little Seoul", "Strawberry",
+    "Rancho", "Davis", "Chamberlain Hills", "Banning",
+    "Port of LS", "Elysian Island", "Terminal", "Murrieta Heights",
+]
+
+MOTOCLUB_PRODUCTS = [
+    {"id": "weed", "name": "🌿 Weed", "emoji": "🌿"},
+    {"id": "coke", "name": "❄️ Cocaine", "emoji": "❄️"},
+    {"id": "meth", "name": "💎 Meth", "emoji": "💎"},
+    {"id": "lsd", "name": "🌈 LSD", "emoji": "🌈"},
+]
 
 
 def _now_ts() -> float:
@@ -194,11 +317,23 @@ class EconomyData:
                 "total_spent": 0,
                 "last_work": 0,
                 "last_balance": 0,
-                "last_rob": 0,
+                "last_motoclub": 0,
+                "last_ceo": 0,
+                "last_lucky_wheel": 0,
+                "last_music_event": 0,
+                "casino_membership": None,
+                "music_vip": False,
                 "created_at": _now_ts(),
             }
             save_json(self.USERS_KEY, users)
-        return users[uid]
+        u = users[uid]
+        u.setdefault("last_motoclub", 0)
+        u.setdefault("last_ceo", 0)
+        u.setdefault("last_lucky_wheel", 0)
+        u.setdefault("last_music_event", 0)
+        u.setdefault("casino_membership", None)
+        u.setdefault("music_vip", False)
+        return u
 
     def save_user(self, user_id: int, data: Dict[str, Any]):
         users = load_json(self.USERS_KEY, {})
@@ -257,17 +392,22 @@ class EconomyData:
         """Combine all shop catalogs for inventory lookup."""
         items = {}
         for lst in (
-            self.get_shop(),
             BENNYS_SOUTHERN,
             BENNYS_LEGENDARY,
+            BENNYS_LOST_MC,
             WARSTOCK_ITEMS,
             ELITAS_ITEMS,
             DOCKTEASE_ITEMS,
             DYNASTY8_ITEMS,
             FORECLOSURES_ITEMS,
+            CAYO_PREP_ITEMS,
         ):
             for it in lst:
                 items[it["id"]] = it
+        items[CAYO_INVITE_ITEM["id"]] = CAYO_INVITE_ITEM
+        items[CASINO_PENTHOUSE["id"]] = CASINO_PENTHOUSE
+        for it in CASINO_PODIUM:
+            items[it["id"]] = it
         return items
 
 
@@ -418,8 +558,953 @@ class ShopBuyView(discord.ui.View):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
+
+# ═══════════════════════════════════════════════════════════════════════════
+# MOTOCLUB MISSION VIEWS
+# ═══════════════════════════════════════════════════════════════════════════
+
+class MotoClubStartView(discord.ui.View):
+    """Ephemeral menu to start a MotoClub product delivery."""
+
+    def __init__(self, cog: "Economy", user_id: int):
+        super().__init__(timeout=90)
+        self.cog = cog
+        self.user_id = user_id
+        options = [
+            discord.SelectOption(
+                label=p["name"],
+                value=p["id"],
+                description=f"Deliver {p['name']}",
+                emoji=p["emoji"],
+            )
+            for p in MOTOCLUB_PRODUCTS
+        ]
+        select = discord.ui.Select(placeholder="Choose product to deliver…", options=options)
+        select.callback = self._start
+        self.add_item(select)
+
+    async def _start(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your mission.", ephemeral=True)
+        product_id = interaction.data["values"][0]
+        product = next((p for p in MOTOCLUB_PRODUCTS if p["id"] == product_id), None)
+        if not product:
+            return await interaction.response.send_message("Invalid product.", ephemeral=True)
+
+        settings = self.cog.data.get_settings()
+        u = self.cog.data.get_user(self.user_id)
+        now = _now_ts()
+        last = float(u.get("last_motoclub", 0))
+        cd = settings.get("motoclub_cooldown", 18000)
+        if now - last < cd:
+            rem = int(cd - (now - last))
+            embed = discord.Embed(
+                title="⏳ MotoClub Cooldown",
+                description=f"You can start another delivery in **{_fmt_time(rem)}**.",
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        view = MotoClubStageView(self.cog, self.user_id, product, stage=1)
+        embed = view.build_embed()
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+
+class MotoClubStageView(discord.ui.View):
+    """One stage of the delivery: pick a route (3 good / 1 bad)."""
+
+    def __init__(self, cog: "Economy", user_id: int, product: Dict, stage: int):
+        super().__init__(timeout=90)
+        self.cog = cog
+        self.user_id = user_id
+        self.product = product
+        self.stage = stage
+        self.streets = random.sample(MOTOCLUB_STREETS, 4)
+        self.bad_index = random.randint(0, 3)
+
+        options = [
+            discord.SelectOption(label=s, value=str(i), description=f"Route via {s}")
+            for i, s in enumerate(self.streets)
+        ]
+        select = discord.ui.Select(placeholder="Choose your route…", options=options)
+        select.callback = self._choose
+        self.add_item(select)
+
+    def build_embed(self) -> discord.Embed:
+        stage_label = "Stage 1 of 2" if self.stage == 1 else "Stage 2 of 2 — Final stretch"
+        dest = random.choice(["Paleto Bay", "Sandy Shores", "Grapeseed", "Harmony", "Chumash"])
+        embed = discord.Embed(
+            title=f"🏍️ MotoClub Delivery — {self.product['name']}",
+            description=(
+                f"**{stage_label}**\n\n"
+                f"You have a delivery of **{self.product['name']}** heading to **{dest}**.\n"
+                f"Which route do you take?\n\n"
+                f"Choose carefully — one wrong turn ends the run."
+            ),
+            color=COLOR_PURPLE,
+        )
+        embed.set_footer(text="MotoClub · 75% success chance per stage · 2 stages required")
+        return embed
+
+    async def _choose(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your mission.", ephemeral=True)
+        choice = int(interaction.data["values"][0])
+        if choice == self.bad_index:
+            u = self.cog.data.get_user(self.user_id)
+            u["last_motoclub"] = _now_ts()
+            self.cog.data.save_user(self.user_id, u)
+            embed = discord.Embed(
+                title="💥 Delivery Failed",
+                description=(
+                    f"You took a wrong turn near **{self.streets[choice]}**.\n"
+                    f"Cops spotted the load and the run is over.\n\n"
+                    f"Better luck next time."
+                ),
+                color=COLOR_FAIL,
+            )
+            embed.set_footer(text="MotoClub · Cooldown started")
+            return await interaction.response.edit_message(embed=embed, view=None)
+
+        if self.stage == 1:
+            next_view = MotoClubStageView(self.cog, self.user_id, self.product, stage=2)
+            embed = next_view.build_embed()
+            return await interaction.response.edit_message(embed=embed, view=next_view)
+
+        settings = self.cog.data.get_settings()
+        reward = random.randint(
+            settings.get("motoclub_reward_min", 280),
+            settings.get("motoclub_reward_max", 750),
+        )
+        u = self.cog.data.get_user(self.user_id)
+        u["last_motoclub"] = _now_ts()
+        self.cog.data.save_user(self.user_id, u)
+        self.cog.data.add_money(self.user_id, reward, "motoclub")
+        embed = discord.Embed(
+            title="✅ Delivery Successful!",
+            description=(
+                f"You delivered **{self.product['name']}** safely through both checkpoints.\n\n"
+                f"Reward: **{_fmt(reward)}** {CURRENCY}"
+            ),
+            color=COLOR_SUCCESS,
+        )
+        embed.set_footer(text="MotoClub · Cooldown started (5h)")
+        await interaction.response.edit_message(embed=embed, view=None)
+        public = discord.Embed(
+            title="🏍️ MotoClub Delivery Complete",
+            description=f"{interaction.user.mention} successfully delivered **{self.product['name']}** and earned **{_fmt(reward)}** {CURRENCY}!",
+            color=COLOR_SUCCESS,
+        )
+        await post_to_market(self.cog.bot, interaction.user, public)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CEO SECURO SERV MISSION VIEW
+# ═══════════════════════════════════════════════════════════════════════════
+
+class CEOMissionView(discord.ui.View):
+    """Choose acquisition route: Fast / Safe / Premium."""
+
+    def __init__(self, cog: "Economy", user_id: int):
+        super().__init__(timeout=90)
+        self.cog = cog
+        self.user_id = user_id
+
+    @discord.ui.button(label="⚡ Fast Route", style=discord.ButtonStyle.danger, row=0)
+    async def fast(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._resolve(interaction, "fast")
+
+    @discord.ui.button(label="🛡️ Safe Route", style=discord.ButtonStyle.success, row=0)
+    async def safe(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._resolve(interaction, "safe")
+
+    @discord.ui.button(label="💎 Premium Transport", style=discord.ButtonStyle.primary, row=0)
+    async def premium(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._resolve(interaction, "premium")
+
+    async def _resolve(self, interaction: discord.Interaction, route: str):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your mission.", ephemeral=True)
+
+        settings = self.cog.data.get_settings()
+        u = self.cog.data.get_user(self.user_id)
+        now = _now_ts()
+        last = float(u.get("last_ceo", 0))
+        cd = settings.get("ceo_cooldown", 18000)
+        if now - last < cd:
+            rem = int(cd - (now - last))
+            embed = discord.Embed(
+                title="⏳ CEO SecuroServ Cooldown",
+                description=f"You can start another acquisition in **{_fmt_time(rem)}**.",
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.edit_message(embed=embed, view=None)
+
+        if route == "fast":
+            success_chance = 0.40
+            cost = 0
+            rmin = settings.get("ceo_fast_reward_min", 400)
+            rmax = settings.get("ceo_fast_reward_max", 1100)
+            route_name = "Fast Route"
+            time_desc = "Quick but risky"
+        elif route == "safe":
+            success_chance = 0.80
+            cost = 0
+            rmin = settings.get("ceo_safe_reward_min", 180)
+            rmax = settings.get("ceo_safe_reward_max", 420)
+            route_name = "Safe Route"
+            time_desc = "Slow and steady"
+        else:
+            success_chance = 0.90
+            cost = settings.get("ceo_premium_cost", 150)
+            rmin = settings.get("ceo_premium_reward_min", 700)
+            rmax = settings.get("ceo_premium_reward_max", 1600)
+            route_name = "Premium Transport"
+            time_desc = "Expensive, high success"
+
+        if cost > 0 and u["wallet"] < cost:
+            embed = discord.Embed(
+                title="💸 Insufficient Funds",
+                description=f"Premium Transport costs **{_fmt(cost)}** {CURRENCY}. You only have **{_fmt(u['wallet'])}**.",
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.edit_message(embed=embed, view=None)
+
+        if cost > 0:
+            self.cog.data.add_money(self.user_id, -cost, "ceo_premium_cost")
+
+        success = random.random() < success_chance
+        u = self.cog.data.get_user(self.user_id)
+        u["last_ceo"] = now
+        self.cog.data.save_user(self.user_id, u)
+
+        if success:
+            reward = random.randint(rmin, rmax)
+            self.cog.data.add_money(self.user_id, reward, "ceo_securo")
+            embed = discord.Embed(
+                title="✅ Acquisition Successful!",
+                description=(
+                    f"**{route_name}** ({time_desc})\n\n"
+                    f"Merchandise secured.\n"
+                    f"Reward: **{_fmt(reward)}** {CURRENCY}"
+                    + (f"\nCost paid: **{_fmt(cost)}** {CURRENCY}" if cost else "")
+                ),
+                color=COLOR_SUCCESS,
+            )
+            embed.set_footer(text="CEO SecuroServ · Cooldown started (5h)")
+            await interaction.response.edit_message(embed=embed, view=None)
+            public = discord.Embed(
+                title="💼 CEO SecuroServ — Acquisition Complete",
+                description=f"{interaction.user.mention} completed a **{route_name}** acquisition and earned **{_fmt(reward)}** {CURRENCY}!",
+                color=COLOR_SUCCESS,
+            )
+            await post_to_market(self.cog.bot, interaction.user, public)
+        else:
+            embed = discord.Embed(
+                title="💥 Acquisition Failed",
+                description=(
+                    f"**{route_name}** went wrong.\n"
+                    f"The shipment was compromised or intercepted.\n\n"
+                    + (f"You lost the **{_fmt(cost)}** premium fee." if cost else "No payout this time.")
+                ),
+                color=COLOR_FAIL,
+            )
+            embed.set_footer(text="CEO SecuroServ · Cooldown started (5h)")
+            await interaction.response.edit_message(embed=embed, view=None)
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CAYO PERICO HEIST SYSTEM
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _has_submarine(u: Dict) -> bool:
+    inv = u.get("inventory", {})
+    return inv.get("mil_submarine", 0) >= 1
+
+
+def _cayo_prep_progress(u: Dict) -> Tuple[int, List[str]]:
+    inv = u.get("inventory", {})
+    owned = []
+    missing = []
+    for it in CAYO_PREP_ITEMS:
+        if inv.get(it["id"], 0) >= 1:
+            owned.append(it["id"])
+        else:
+            missing.append(it["id"])
+    return len(owned), missing
+
+
+class CayoMainView(discord.ui.View):
+    """Main Cayo Perico panel (ephemeral)."""
+
+    def __init__(self, cog: "Economy", user_id: int):
+        super().__init__(timeout=120)
+        self.cog = cog
+        self.user_id = user_id
+
+    def build_embed(self, u: Dict) -> discord.Embed:
+        inv = u.get("inventory", {})
+        lines = []
+        for it in CAYO_PREP_ITEMS:
+            qty = inv.get(it["id"], 0)
+            status = "✅" if qty >= 1 else "❌"
+            lines.append(
+                f"{status} {it.get('emoji', '')} **{it['name']}** — {_fmt(it['price'])} {CURRENCY}"
+                + (f" (owned ×{qty})" if qty else "")
+            )
+        owned_count, missing = _cayo_prep_progress(u)
+        invite_qty = inv.get("cayo_invite", 0)
+        embed = discord.Embed(
+            title="🏝️ Cayo Perico Heist",
+            description=(
+                "Prepare your gear, deliver the full set to receive an **Invite**, "
+                "then launch the Heist for a big payout.\n\n"
+                f"**Prep progress:** {owned_count}/5 items\n"
+                f"**Invites owned:** {invite_qty}\n\n"
+                + "\n".join(lines)
+            ),
+            color=COLOR_LIGHT_BLUE,
+        )
+        embed.set_footer(text="Requires Kosatka Submarine · All actions private")
+        return embed
+
+    @discord.ui.button(label="🛒 Buy Prep Items", style=discord.ButtonStyle.primary, row=0)
+    async def buy_prep(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your panel.", ephemeral=True)
+        view = CayoBuyView(self.cog, self.user_id)
+        embed = discord.Embed(
+            title="🛒 Cayo Perico — Prep Shop",
+            description="Select an item to purchase. You need **all 5** to deliver for an Invite.",
+            color=COLOR_LIGHT_BLUE,
+        )
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    @discord.ui.button(label="📦 Deliver Prep Set", style=discord.ButtonStyle.success, row=0)
+    async def deliver(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your panel.", ephemeral=True)
+        u = self.cog.data.get_user(self.user_id)
+        owned_count, missing = _cayo_prep_progress(u)
+        if owned_count < 5:
+            names = []
+            for it in CAYO_PREP_ITEMS:
+                if it["id"] in missing:
+                    names.append(it["name"])
+            embed = discord.Embed(
+                title="📦 Incomplete Set",
+                description=(
+                    f"You still need:\n• " + "\n• ".join(names)
+                    + "\n\nBuy the missing items first."
+                ),
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        inv = u.get("inventory", {})
+        for iid in CAYO_PREP_IDS:
+            inv[iid] = max(0, inv.get(iid, 0) - 1)
+            if inv[iid] == 0:
+                inv.pop(iid, None)
+        inv["cayo_invite"] = inv.get("cayo_invite", 0) + 1
+        u["inventory"] = inv
+        self.cog.data.save_user(self.user_id, u)
+
+        embed = discord.Embed(
+            title="✅ Prep Set Delivered!",
+            description=(
+                "You handed over the full preparation kit.\n\n"
+                f"Received: **🎟️ Cayo Perico Invite** ×1\n"
+                f"Invites now: **{inv['cayo_invite']}**\n\n"
+                "Use **Launch Heist** when you are ready."
+            ),
+            color=COLOR_SUCCESS,
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="🚀 Launch Heist", style=discord.ButtonStyle.danger, row=0)
+    async def launch(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your panel.", ephemeral=True)
+        u = self.cog.data.get_user(self.user_id)
+        inv = u.get("inventory", {})
+        if inv.get("cayo_invite", 0) < 1:
+            embed = discord.Embed(
+                title="🎟️ No Invite",
+                description="You need a **Cayo Perico Invite**. Deliver a full prep set first.",
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        # Consume invite
+        inv["cayo_invite"] -= 1
+        if inv["cayo_invite"] <= 0:
+            inv.pop("cayo_invite", None)
+        u["inventory"] = inv
+        self.cog.data.save_user(self.user_id, u)
+
+        # Start quiz stage 1
+        view = CayoQuizView(self.cog, self.user_id, stage=0)
+        embed = view.build_embed()
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+
+class CayoBuyView(discord.ui.View):
+    def __init__(self, cog: "Economy", user_id: int):
+        super().__init__(timeout=90)
+        self.cog = cog
+        self.user_id = user_id
+        options = []
+        for it in CAYO_PREP_ITEMS:
+            options.append(discord.SelectOption(
+                label=f"{it.get('emoji', '')} {it['name']}"[:100],
+                value=it["id"],
+                description=f"{_fmt(it['price'])} {CURRENCY}"[:100],
+            ))
+        select = discord.ui.Select(placeholder="Choose prep item to buy…", options=options)
+        select.callback = self._buy
+        self.add_item(select)
+
+    async def _buy(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your shop.", ephemeral=True)
+        item_id = interaction.data["values"][0]
+        item = next((it for it in CAYO_PREP_ITEMS if it["id"] == item_id), None)
+        if not item:
+            return await interaction.response.send_message("Item not found.", ephemeral=True)
+        u = self.cog.data.get_user(self.user_id)
+        if u["wallet"] < item["price"]:
+            return await interaction.response.send_message(
+                f"Insufficient balance. You need {_fmt(item['price'])} {CURRENCY}.",
+                ephemeral=True,
+            )
+        self.cog.data.add_money(self.user_id, -item["price"], "cayo_prep_buy")
+        u = self.cog.data.get_user(self.user_id)
+        inv = u.get("inventory", {})
+        inv[item_id] = inv.get(item_id, 0) + 1
+        u["inventory"] = inv
+        self.cog.data.save_user(self.user_id, u)
+        owned, _ = _cayo_prep_progress(u)
+        embed = discord.Embed(
+            title="✅ Purchase Successful",
+            description=(
+                f"You bought **{item.get('emoji', '')} {item['name']}** "
+                f"for **{_fmt(item['price'])}** {CURRENCY}.\n\n"
+                f"Prep progress: **{owned}/5**"
+            ),
+            color=COLOR_SUCCESS,
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+class CayoQuizView(discord.ui.View):
+    """Stages 0 and 1: multiple-choice quiz. Stage 2: reward choice."""
+
+    def __init__(self, cog: "Economy", user_id: int, stage: int):
+        super().__init__(timeout=120)
+        self.cog = cog
+        self.user_id = user_id
+        self.stage = stage  # 0, 1, or 2
+
+        if stage < 2:
+            qdata = CAYO_QUIZ[stage]
+            options = [
+                discord.SelectOption(label=opt[:100], value=str(i))
+                for i, opt in enumerate(qdata["options"])
+            ]
+            select = discord.ui.Select(placeholder="Choose your answer…", options=options)
+            select.callback = self._answer
+            self.add_item(select)
+        else:
+            # Final reward choice — 4 buttons (one random bag is 40%, rest 20%)
+            pcts = [0.20, 0.20, 0.20, 0.40]
+            random.shuffle(pcts)
+            for label, pct in zip("ABCD", pcts):
+                self.add_item(CayoRewardButton(self.cog, self.user_id, label, pct))
+
+    def build_embed(self) -> discord.Embed:
+        if self.stage < 2:
+            qdata = CAYO_QUIZ[self.stage]
+            embed = discord.Embed(
+                title=f"🏝️ Cayo Perico Heist — Question {self.stage + 1}/2",
+                description=f"**{qdata['q']}**\n\nSelect the correct answer below.",
+                color=COLOR_LIGHT_BLUE,
+            )
+            embed.set_footer(text="Wrong answer ends the heist with no payout")
+            return embed
+        embed = discord.Embed(
+            title="🏝️ Cayo Perico Heist — Final Score!",
+            description=(
+                "You reached the compound vault.\n\n"
+                "Choose one of the **4 loot bags**. All are wins:\n"
+                "• Three bags contain **20%** of the total prize\n"
+                "• One bag contains **40%** of the total prize\n\n"
+                "Pick wisely — the values are hidden."
+            ),
+            color=COLOR_SUCCESS,
+        )
+        embed.set_footer(text="All choices are successful — higher % is better")
+        return embed
+
+    async def _answer(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your heist.", ephemeral=True)
+        choice = int(interaction.data["values"][0])
+        qdata = CAYO_QUIZ[self.stage]
+        if choice != qdata["correct"]:
+            embed = discord.Embed(
+                title="💥 Heist Failed",
+                description=(
+                    f"Wrong answer.\n"
+                    f"Correct was: **{qdata['options'][qdata['correct']]}**\n\n"
+                    "The guards were alerted. No payout this run."
+                ),
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.edit_message(embed=embed, view=None)
+
+        next_stage = self.stage + 1
+        next_view = CayoQuizView(self.cog, self.user_id, stage=next_stage)
+        embed = next_view.build_embed()
+        await interaction.response.edit_message(embed=embed, view=next_view)
+
+
+class CayoRewardButton(discord.ui.Button):
+    def __init__(self, cog: "Economy", user_id: int, label: str, pct: float):
+        super().__init__(label=f"Loot Bag {label}", style=discord.ButtonStyle.primary)
+        self.cog = cog
+        self.user_id = user_id
+        self.pct = pct
+
+    async def callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your heist.", ephemeral=True)
+        settings = self.cog.data.get_settings()
+        total = random.randint(
+            settings.get("cayo_heist_prize_min", 3500),
+            settings.get("cayo_heist_prize_max", 7500),
+        )
+        reward = int(total * self.pct)
+        self.cog.data.add_money(self.user_id, reward, "cayo_heist")
+        embed = discord.Embed(
+            title="🏆 Heist Complete!",
+            description=(
+                f"You grabbed **Loot Bag** and escaped Cayo Perico!\n\n"
+                f"Total heist value: **{_fmt(total)}** {CURRENCY}\n"
+                f"Your share (**{int(self.pct*100)}%**): **{_fmt(reward)}** {CURRENCY}"
+            ),
+            color=COLOR_SUCCESS,
+        )
+        embed.set_footer(text="Cayo Perico Heist · Invite consumed")
+        await interaction.response.edit_message(embed=embed, view=None)
+        public = discord.Embed(
+            title="🏝️ Cayo Perico Heist Successful",
+            description=f"{interaction.user.mention} completed the Cayo Perico Heist and earned **{_fmt(reward)}** {CURRENCY}!",
+            color=COLOR_SUCCESS,
+        )
+        await post_to_market(self.cog.bot, interaction.user, public)
+
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # MEMBER PANEL VIEW (persistent)
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CASINO RESORT
+# ═══════════════════════════════════════════════════════════════════════════
+
+class CasinoMainView(discord.ui.View):
+    def __init__(self, cog: "Economy", user_id: int):
+        super().__init__(timeout=120)
+        self.cog = cog
+        self.user_id = user_id
+
+    def build_embed(self, u: Dict) -> discord.Embed:
+        settings = self.cog.data.get_settings()
+        inv = u.get("inventory", {})
+        membership = u.get("casino_membership")
+        mem_txt = "None"
+        if membership and membership in CASINO_MEMBERSHIP_TIERS:
+            t = CASINO_MEMBERSHIP_TIERS[membership]
+            mem_txt = f"{t['emoji']} {t['name']}"
+        has_ph = inv.get("casino_penthouse", 0) >= 1
+        embed = discord.Embed(
+            title="🎰 Diamond Casino & Resort",
+            description=(
+                "Welcome to the most luxurious establishment in Los Santos.\n\n"
+                f"**Membership:** {mem_txt}\n"
+                f"**Master Penthouse:** {'✅ Owned' if has_ph else '❌ Not owned'}\n\n"
+                "• **Lucky Wheel** — one spin per day\n"
+                "• **Membership** — Standard / VIP / Diamond perks\n"
+                "• **Podium Collection** — exclusive vehicles\n"
+                "• **Master Penthouse** — premium residence"
+            ),
+            color=COLOR_CASINO,
+        )
+        embed.set_footer(text="Casino Resort · All actions private")
+        return embed
+
+    @discord.ui.button(label="🎡 Lucky Wheel", style=discord.ButtonStyle.primary, row=0)
+    async def lucky_wheel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("Not your menu.", ephemeral=True)
+        settings = self.cog.data.get_settings()
+        u = self.cog.data.get_user(self.user_id)
+        now = _now_ts()
+        last = float(u.get("last_lucky_wheel", 0))
+        cd = settings.get("lucky_wheel_cooldown", 86400)
+        if now - last < cd:
+            rem = int(cd - (now - last))
+            embed = discord.Embed(
+                title="⏳ Lucky Wheel Cooldown",
+                description=f"You can spin again in **{_fmt_time(rem)}**.",
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        u["last_lucky_wheel"] = now
+        self.cog.data.save_user(self.user_id, u)
+
+        # Weighted rewards — vehicle is rare (~3%)
+        roll = random.random()
+        if roll < 0.03:
+            # Podium vehicle (random from list if not owned, else cash)
+            candidates = [p for p in CASINO_PODIUM if u.get("inventory", {}).get(p["id"], 0) < 1]
+            if candidates:
+                prize = random.choice(candidates)
+                inv = u.get("inventory", {})
+                inv[prize["id"]] = 1
+                u["inventory"] = inv
+                self.cog.data.save_user(self.user_id, u)
+                embed = discord.Embed(
+                    title="🎡 JACKPOT — Podium Vehicle!",
+                    description=f"The wheel landed on **{prize.get('emoji','🏎️')} {prize['name']}**!\nIt has been added to your Garage.",
+                    color=COLOR_SUCCESS,
+                )
+            else:
+                amt = random.randint(2500, 5000)
+                self.cog.data.add_money(self.user_id, amt, "lucky_wheel")
+                embed = discord.Embed(
+                    title="🎡 Big Cash Win!",
+                    description=f"You already own the podium cars.\nReceived **{_fmt(amt)}** {CURRENCY} instead!",
+                    color=COLOR_SUCCESS,
+                )
+        elif roll < 0.18:
+            amt = random.randint(800, 1800)
+            self.cog.data.add_money(self.user_id, amt, "lucky_wheel")
+            embed = discord.Embed(
+                title="🎡 Lucky Wheel — Cash",
+                description=f"You won **{_fmt(amt)}** {CURRENCY}!",
+                color=COLOR_SUCCESS,
+            )
+        elif roll < 0.40:
+            amt = random.randint(200, 500)
+            self.cog.data.add_money(self.user_id, amt, "lucky_wheel")
+            embed = discord.Embed(
+                title="🎡 Lucky Wheel — Small Cash",
+                description=f"You won **{_fmt(amt)}** {CURRENCY}.",
+                color=COLOR_INFO,
+            )
+        elif roll < 0.55:
+            embed = discord.Embed(
+                title="🎡 Lucky Wheel — Cosmetic Chip",
+                description="You won a **Decoration Chip** (cosmetic collectible).\n*Chips are tracked as a fun flex — no mechanical effect yet.*",
+                color=COLOR_INFO,
+            )
+            inv = u.get("inventory", {})
+            inv["casino_chip"] = inv.get("casino_chip", 0) + 1
+            u["inventory"] = inv
+            self.cog.data.save_user(self.user_id, u)
+        else:
+            embed = discord.Embed(
+                title="🎡 Lucky Wheel — Better Luck Next Time",
+                description="The wheel stopped on nothing this time.\nCome back tomorrow!",
+                color=COLOR_FAIL,
+            )
+        embed.set_footer(text="Lucky Wheel · 1 spin per day")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="🃏 Membership", style=discord.ButtonStyle.secondary, row=0)
+    async def membership(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("Not your menu.", ephemeral=True)
+        settings = self.cog.data.get_settings()
+        u = self.cog.data.get_user(self.user_id)
+        current = u.get("casino_membership")
+        lines = []
+        for key, tier in CASINO_MEMBERSHIP_TIERS.items():
+            price = settings.get(tier["price_key"], 0)
+            owned = "✅" if current == key else ""
+            lines.append(
+                f"{tier['emoji']} **{tier['name']}** — {_fmt(price)} {CURRENCY} "
+                f"({int(tier['discount']*100)}% shop discount) {owned}"
+            )
+        embed = discord.Embed(
+            title="🃏 Casino Membership",
+            description=(
+                "Higher tiers unlock better discounts and prestige.\n"
+                "Purchasing a higher tier replaces your current one.\n\n"
+                + "\n".join(lines)
+            ),
+            color=COLOR_CASINO,
+        )
+        view = CasinoMembershipView(self.cog, self.user_id)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    @discord.ui.button(label="🏎️ Podium Collection", style=discord.ButtonStyle.primary, row=1)
+    async def podium(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("Not your menu.", ephemeral=True)
+        lines = [
+            f"{it.get('emoji','🏎️')} **{it['name']}** — {_fmt(it['price'])} {CURRENCY}"
+            for it in CASINO_PODIUM
+        ]
+        embed = discord.Embed(
+            title="🏎️ Podium Collection",
+            description=(
+                "Exclusive vehicles displayed on the casino podium.\n"
+                "Collection rotates periodically in future updates.\n\n"
+                + "\n".join(lines)
+            ),
+            color=COLOR_CASINO,
+        )
+        embed.set_footer(text="Select below to purchase · Private")
+        view = ShopBuyView(self.cog, self.user_id, CASINO_PODIUM, "Podium Collection")
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    @discord.ui.button(label="🏨 Master Penthouse", style=discord.ButtonStyle.success, row=1)
+    async def penthouse(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("Not your menu.", ephemeral=True)
+        settings = self.cog.data.get_settings()
+        price = settings.get("casino_penthouse_price", CASINO_PENTHOUSE["price"])
+        u = self.cog.data.get_user(self.user_id)
+        inv = u.get("inventory", {})
+        if inv.get("casino_penthouse", 0) >= 1:
+            embed = discord.Embed(
+                title="🏨 Master Penthouse",
+                description="You already own the **Master Penthouse**.\nEnjoy private services and exclusive casino access.",
+                color=COLOR_SUCCESS,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+        if u["wallet"] < price:
+            embed = discord.Embed(
+                title="💸 Insufficient Funds",
+                description=f"Master Penthouse costs **{_fmt(price)}** {CURRENCY}.\nYou have **{_fmt(u['wallet'])}**.",
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+        self.cog.data.add_money(self.user_id, -price, "casino_penthouse")
+        u = self.cog.data.get_user(self.user_id)
+        inv = u.get("inventory", {})
+        inv["casino_penthouse"] = 1
+        u["inventory"] = inv
+        self.cog.data.save_user(self.user_id, u)
+        embed = discord.Embed(
+            title="🏨 Welcome Home!",
+            description=(
+                f"You purchased the **Master Penthouse** for **{_fmt(price)}** {CURRENCY}.\n\n"
+                "Private elevators, exclusive lounges and the best view of the Strip are yours."
+            ),
+            color=COLOR_SUCCESS,
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+class CasinoMembershipView(discord.ui.View):
+    def __init__(self, cog: "Economy", user_id: int):
+        super().__init__(timeout=90)
+        self.cog = cog
+        self.user_id = user_id
+        options = [
+            discord.SelectOption(
+                label=f"{t['emoji']} {t['name']}",
+                value=key,
+                description=f"{int(t['discount']*100)}% discount",
+            )
+            for key, t in CASINO_MEMBERSHIP_TIERS.items()
+        ]
+        select = discord.ui.Select(placeholder="Choose membership tier…", options=options)
+        select.callback = self._buy
+        self.add_item(select)
+
+    async def _buy(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("Not your menu.", ephemeral=True)
+        key = interaction.data["values"][0]
+        tier = CASINO_MEMBERSHIP_TIERS[key]
+        settings = self.cog.data.get_settings()
+        price = settings.get(tier["price_key"], 0)
+        u = self.cog.data.get_user(self.user_id)
+        if u.get("casino_membership") == key:
+            return await interaction.response.send_message(
+                f"You already have **{tier['name']}** membership.", ephemeral=True
+            )
+        if u["wallet"] < price:
+            return await interaction.response.send_message(
+                f"Need **{_fmt(price)}** {CURRENCY}. You have **{_fmt(u['wallet'])}**.",
+                ephemeral=True,
+            )
+        self.cog.data.add_money(self.user_id, -price, "casino_membership")
+        u = self.cog.data.get_user(self.user_id)
+        u["casino_membership"] = key
+        self.cog.data.save_user(self.user_id, u)
+        embed = discord.Embed(
+            title=f"{tier['emoji']} Membership Upgraded",
+            description=(
+                f"You are now a **{tier['name']}** member.\n"
+                f"Shop discount: **{int(tier['discount']*100)}%**\n"
+                f"Paid: **{_fmt(price)}** {CURRENCY}"
+            ),
+            color=COLOR_SUCCESS,
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# MUSIC LOCKER
+# ═══════════════════════════════════════════════════════════════════════════
+
+class MusicLockerView(discord.ui.View):
+    def __init__(self, cog: "Economy", user_id: int):
+        super().__init__(timeout=120)
+        self.cog = cog
+        self.user_id = user_id
+
+    def build_embed(self, u: Dict) -> discord.Embed:
+        settings = self.cog.data.get_settings()
+        is_vip = bool(u.get("music_vip"))
+        # Event of the day (stable per calendar day)
+        day_index = int(_now_ts() // 86400) % len(MUSIC_EVENTS)
+        event_name = MUSIC_EVENTS[day_index]
+        embed = discord.Embed(
+            title="🎵 The Music Locker",
+            description=(
+                "**Los Santos · Underground Nightlife**\n\n"
+                f"Tonight's event: **{event_name}**\n"
+                f"VIP Access: {'✅ Unlocked (free entry + bonus rewards)' if is_vip else '❌ Not unlocked'}\n\n"
+                f"• **Enter Club** — pay {_fmt(settings.get('music_entry_fee', 50))} "
+                f"(free for VIP) · small presence bonus\n"
+                f"• **Join Event** — daily musical event reward (1× / day)\n"
+                f"• **Unlock VIP** — permanent VIP for {_fmt(settings.get('music_vip_price', 12000))} {CURRENCY}"
+            ),
+            color=COLOR_PURPLE,
+        )
+        embed.set_footer(text="Music Locker · Underground · Private")
+        return embed
+
+    @discord.ui.button(label="🚪 Enter Club", style=discord.ButtonStyle.primary, row=0)
+    async def enter(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("Not your menu.", ephemeral=True)
+        settings = self.cog.data.get_settings()
+        u = self.cog.data.get_user(self.user_id)
+        fee = settings.get("music_entry_fee", 50)
+        reward = settings.get("music_entry_reward", 80)
+        is_vip = bool(u.get("music_vip"))
+        if not is_vip:
+            if u["wallet"] < fee:
+                return await interaction.response.send_message(
+                    f"Entry costs **{_fmt(fee)}** {CURRENCY}.", ephemeral=True
+                )
+            self.cog.data.add_money(self.user_id, -fee, "music_entry")
+        self.cog.data.add_money(self.user_id, reward, "music_presence")
+        net = reward if is_vip else reward - fee
+        embed = discord.Embed(
+            title="🎵 Welcome to The Music Locker",
+            description=(
+                ("VIP entry — free. " if is_vip else f"Paid **{_fmt(fee)}** entry. ")
+                + f"Presence bonus: **{_fmt(reward)}** {CURRENCY}.\n"
+                f"Net: **{_fmt(net)}** {CURRENCY}."
+            ),
+            color=COLOR_SUCCESS,
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="🎧 Join Event", style=discord.ButtonStyle.success, row=0)
+    async def event(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("Not your menu.", ephemeral=True)
+        settings = self.cog.data.get_settings()
+        u = self.cog.data.get_user(self.user_id)
+        now = _now_ts()
+        last = float(u.get("last_music_event", 0))
+        cd = settings.get("music_event_cooldown", 86400)
+        if now - last < cd:
+            rem = int(cd - (now - last))
+            embed = discord.Embed(
+                title="⏳ Event Cooldown",
+                description=f"You already enjoyed tonight's event.\nCome back in **{_fmt_time(rem)}**.",
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        day_index = int(now // 86400) % len(MUSIC_EVENTS)
+        event_name = MUSIC_EVENTS[day_index]
+        rmin = settings.get("music_event_reward_min", 120)
+        rmax = settings.get("music_event_reward_max", 280)
+        reward = random.randint(rmin, rmax)
+        if u.get("music_vip"):
+            mult = settings.get("music_vip_bonus_mult", 1.5)
+            reward = int(reward * mult)
+
+        u["last_music_event"] = now
+        self.cog.data.save_user(self.user_id, u)
+        self.cog.data.add_money(self.user_id, reward, "music_event")
+
+        embed = discord.Embed(
+            title=f"🎧 {event_name}",
+            description=(
+                f"You spent the night on the floor at **{event_name}**.\n\n"
+                f"Reward: **{_fmt(reward)}** {CURRENCY}"
+                + (" (VIP bonus applied)" if u.get("music_vip") else "")
+            ),
+            color=COLOR_SUCCESS,
+        )
+        embed.set_footer(text="Music Locker · Daily event")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        public = discord.Embed(
+            title="🎵 Music Locker",
+            description=f"{interaction.user.mention} hit **{event_name}** and earned **{_fmt(reward)}** {CURRENCY}!",
+            color=COLOR_PURPLE,
+        )
+        await post_to_market(self.cog.bot, interaction.user, public)
+
+    @discord.ui.button(label="⭐ Unlock VIP", style=discord.ButtonStyle.secondary, row=0)
+    async def vip(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("Not your menu.", ephemeral=True)
+        settings = self.cog.data.get_settings()
+        u = self.cog.data.get_user(self.user_id)
+        if u.get("music_vip"):
+            return await interaction.response.send_message(
+                "You already have permanent **VIP Access**.", ephemeral=True
+            )
+        price = settings.get("music_vip_price", 12000)
+        if u["wallet"] < price:
+            return await interaction.response.send_message(
+                f"VIP costs **{_fmt(price)}** {CURRENCY}. You have **{_fmt(u['wallet'])}**.",
+                ephemeral=True,
+            )
+        self.cog.data.add_money(self.user_id, -price, "music_vip")
+        u = self.cog.data.get_user(self.user_id)
+        u["music_vip"] = True
+        self.cog.data.save_user(self.user_id, u)
+        embed = discord.Embed(
+            title="⭐ VIP Access Unlocked",
+            description=(
+                f"Permanent VIP for **{_fmt(price)}** {CURRENCY}.\n"
+                "• Free club entry\n"
+                "• +50% event rewards\n"
+                "• Prestige status at The Music Locker"
+            ),
+            color=COLOR_SUCCESS,
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 
 class MemberPanelView(discord.ui.View):
@@ -448,18 +1533,21 @@ class MemberPanelView(discord.ui.View):
             return
         await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
-    # ── Row 0 ──
-    @discord.ui.button(label="💰 Balance", style=discord.ButtonStyle.primary, custom_id="eco_balance", row=0)
-    async def btn_balance(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Offer visibility choice
-        view = VisibilityChoiceView(self.cog, "balance", interaction.user.id)
+    async def _under_construction(self, interaction: discord.Interaction, title: str, extra: str = ""):
         embed = discord.Embed(
-            title="💰 Balance",
-            description="Choose how you want to view your balance:",
-            color=COLOR_INFO,
+            title=title,
+            description=(
+                "**Under Construction** 🚧\n\n"
+                "This feature is currently being developed.\n"
+                "Check back later for updates!"
+                + (f"\n\n{extra}" if extra else "")
+            ),
+            color=COLOR_CONSTRUCTION,
         )
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        embed.set_footer(text=f"Bovary Economy · {title} · Coming Soon")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
+    # ── Row 0 — Core actions (green) ──
     @discord.ui.button(label="📅 Daily", style=discord.ButtonStyle.success, custom_id="eco_daily", row=0)
     async def btn_daily(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer(ephemeral=True)
@@ -478,7 +1566,6 @@ class MemberPanelView(discord.ui.View):
             )
             return await interaction.followup.send(embed=embed, ephemeral=True)
 
-        # Success — post to market (public reward) but cooldown was ephemeral
         embed, _ = await self.cog.handle_member_action(interaction, "daily", force_private=False)
         if embed:
             msg = await post_to_market(self.cog.bot, interaction.user, embed)
@@ -490,11 +1577,7 @@ class MemberPanelView(discord.ui.View):
             else:
                 await interaction.followup.send(embed=embed, ephemeral=True)
 
-    @discord.ui.button(label="💸 Pay", style=discord.ButtonStyle.secondary, custom_id="eco_pay", row=0)
-    async def btn_pay(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(PayModal(self.cog))
-
-    @discord.ui.button(label="💼 Work", style=discord.ButtonStyle.secondary, custom_id="eco_work", row=0)
+    @discord.ui.button(label="💼 Work", style=discord.ButtonStyle.success, custom_id="eco_work", row=0)
     async def btn_work(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer(ephemeral=True)
         uid = interaction.user.id
@@ -523,8 +1606,162 @@ class MemberPanelView(discord.ui.View):
             else:
                 await interaction.followup.send(embed=embed, ephemeral=True)
 
-    # ── Row 1 ──
-    @discord.ui.button(label="🎒 Inventory", style=discord.ButtonStyle.secondary, custom_id="eco_inv", row=1)
+    @discord.ui.button(label="💰 Balance", style=discord.ButtonStyle.success, custom_id="eco_balance", row=0)
+    async def btn_balance(self, interaction: discord.Interaction, button: discord.ui.Button):
+        view = VisibilityChoiceView(self.cog, "balance", interaction.user.id)
+        embed = discord.Embed(
+            title="💰 Balance",
+            description="Choose how you want to view your balance:",
+            color=COLOR_INFO,
+        )
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    @discord.ui.button(label="💸 Pay", style=discord.ButtonStyle.success, custom_id="eco_pay", row=0)
+    async def btn_pay(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(PayModal(self.cog))
+
+    # ── Row 1 — Blue shops ──
+    @discord.ui.button(label="🏎️ Benny's Workshop", style=discord.ButtonStyle.primary, custom_id="eco_bennys", row=1)
+    async def btn_bennys(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._send_ephemeral_result(interaction, "bennys")
+
+    @discord.ui.button(label="✈️ Elitas Travel", style=discord.ButtonStyle.primary, custom_id="eco_elitas", row=1)
+    async def btn_elitas(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._send_ephemeral_result(interaction, "elitas")
+
+    # ── Row 2 — Red shops ──
+    @discord.ui.button(label="🪖 Warstock", style=discord.ButtonStyle.danger, custom_id="eco_warstock", row=2)
+    async def btn_warstock(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._send_ephemeral_result(interaction, "warstock")
+
+    @discord.ui.button(label="🚤 DockTease", style=discord.ButtonStyle.danger, custom_id="eco_docktease", row=2)
+    async def btn_docktease(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._send_ephemeral_result(interaction, "docktease")
+
+    # ── Row 3 — Yellow / Lilac ──
+    @discord.ui.button(label="🎰 Casino Resort", style=discord.ButtonStyle.secondary, custom_id="eco_casino", row=3)
+    async def btn_casino(self, interaction: discord.Interaction, button: discord.ui.Button):
+        u = self.cog.data.get_user(interaction.user.id)
+        view = CasinoMainView(self.cog, interaction.user.id)
+        embed = view.build_embed(u)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    @discord.ui.button(label="🎵 Music Locker", style=discord.ButtonStyle.secondary, custom_id="eco_musiclocker", row=3)
+    async def btn_musiclocker(self, interaction: discord.Interaction, button: discord.ui.Button):
+        u = self.cog.data.get_user(interaction.user.id)
+        view = MusicLockerView(self.cog, interaction.user.id)
+        embed = view.build_embed(u)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    @discord.ui.button(label="🏠 Dynasty8", style=discord.ButtonStyle.secondary, custom_id="eco_dynasty8", row=3)
+    async def btn_dynasty8(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._send_ephemeral_result(interaction, "dynasty8")
+
+    @discord.ui.button(label="🏦 Maze Bank", style=discord.ButtonStyle.secondary, custom_id="eco_mazebank", row=3)
+    async def btn_mazebank(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._send_ephemeral_result(interaction, "foreclosures")
+
+    @discord.ui.button(label="🏝️ Cayo Perico Heist", style=discord.ButtonStyle.primary, custom_id="eco_cayo", row=3)
+    async def btn_cayo(self, interaction: discord.Interaction, button: discord.ui.Button):
+        u = self.cog.data.get_user(interaction.user.id)
+        if not _has_submarine(u):
+            embed = discord.Embed(
+                title="🚢 Submarine Required",
+                description=(
+                    "You need a **Kosatka Submarine** in your inventory to access Cayo Perico Heist.\n\n"
+                    "Buy it at **Warstock Cache & Carry** (permanent item)."
+                ),
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        view = CayoMainView(self.cog, interaction.user.id)
+        embed = view.build_embed(u)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    # ── Row 4 — Missions + utility + extras ──
+    @discord.ui.button(label="💼 CEO SecuroServ", style=discord.ButtonStyle.secondary, custom_id="eco_ceo", row=2)
+    async def btn_ceo(self, interaction: discord.Interaction, button: discord.ui.Button):
+        settings = self.cog.data.get_settings()
+        u = self.cog.data.get_user(interaction.user.id)
+        now = _now_ts()
+        last = float(u.get("last_ceo", 0))
+        cd = settings.get("ceo_cooldown", 18000)
+        if now - last < cd:
+            rem = int(cd - (now - last))
+            embed = discord.Embed(
+                title="⏳ CEO SecuroServ Cooldown",
+                description=f"You can start another acquisition in **{_fmt_time(rem)}**.",
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        embed = discord.Embed(
+            title="💼 CEO SecuroServ — Merchandise Acquisition",
+            description=(
+                "Choose your acquisition method:\n\n"
+                "⚡ **Fast Route** — High risk, high reward (≈40% success)\n"
+                "🛡️ **Safe Route** — Lower payout, reliable (≈80% success)\n"
+                "💎 **Premium Transport** — Costs coins upfront, best odds (≈90% success)\n\n"
+                "Cooldown: **5 hours** after each attempt."
+            ),
+            color=COLOR_PURPLE,
+        )
+        embed.set_footer(text="CEO SecuroServ · Ephemeral · Only you can see this")
+        view = CEOMissionView(self.cog, interaction.user.id)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    @discord.ui.button(label="🏍️ MotoClub", style=discord.ButtonStyle.secondary, custom_id="eco_motoclub", row=2)
+    async def btn_motoclub(self, interaction: discord.Interaction, button: discord.ui.Button):
+        settings = self.cog.data.get_settings()
+        u = self.cog.data.get_user(interaction.user.id)
+        now = _now_ts()
+        last = float(u.get("last_motoclub", 0))
+        cd = settings.get("motoclub_cooldown", 18000)
+        if now - last < cd:
+            rem = int(cd - (now - last))
+            embed = discord.Embed(
+                title="⏳ MotoClub Cooldown",
+                description=f"You can start another delivery in **{_fmt_time(rem)}**.",
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        embed = discord.Embed(
+            title="🏍️ MotoClub — Product Delivery",
+            description=(
+                "Select a product to deliver. You must pass **two route stages**.\n"
+                "Each stage has 4 route options — **3 correct, 1 wrong** (75% chance).\n"
+                "One wrong choice fails the entire run.\n\n"
+                "Products: Weed · Cocaine · Meth · LSD\n"
+                "Cooldown: **5 hours** after each attempt."
+            ),
+            color=COLOR_PURPLE,
+        )
+        embed.set_footer(text="MotoClub · Ephemeral · Only you can see this")
+        view = MotoClubStartView(self.cog, interaction.user.id)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    @discord.ui.button(label="❓ Help", style=discord.ButtonStyle.secondary, custom_id="eco_help", row=4)
+    async def btn_help(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = discord.Embed(
+            title="❓ Bovary Economy — Help",
+            description=(
+                f"**Currency:** {CURRENCY_EMOJI} {CURRENCY}\n\n"
+                "**Core (green):** Daily · Work · Balance · Pay\n\n"
+                "**Shops:** Benny's (cars + Lost MC) · Elitas · Warstock · DockTease · Dynasty8 · Maze Bank\n\n"
+                "**Lifestyle:** Casino Resort (Lucky Wheel, Membership, Podium, Penthouse) · Music Locker (events + VIP)\n\n"
+                "**Missions (5h):** CEO SecuroServ · MotoClub\n"
+                "**Cayo Perico Heist:** needs Kosatka Submarine\n\n"
+                "**Utility:** Inventory · Garage · Ranking (private or public)\n\n"
+                "Cooldowns and shops are always private."
+            ),
+            color=COLOR_INFO,
+        )
+        embed.set_footer(text="Bovary Economy")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="🎒 Inventory", style=discord.ButtonStyle.secondary, custom_id="eco_inv", row=4)
     async def btn_inv(self, interaction: discord.Interaction, button: discord.ui.Button):
         view = VisibilityChoiceView(self.cog, "inventory", interaction.user.id)
         embed = discord.Embed(
@@ -534,115 +1771,25 @@ class MemberPanelView(discord.ui.View):
         )
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
-    @discord.ui.button(label="🏆 Ranking", style=discord.ButtonStyle.primary, custom_id="eco_lb", row=1)
-    async def btn_lb(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Ranking is ALWAYS ephemeral for members
-        await self._send_ephemeral_result(interaction, "leaderboard")
-
-    @discord.ui.button(label="🛒 Shop", style=discord.ButtonStyle.primary, custom_id="eco_shop", row=1)
-    async def btn_shop(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Shop is ALWAYS ephemeral
-        await self._send_ephemeral_result(interaction, "shop")
-
-    @discord.ui.button(label="❓ Help", style=discord.ButtonStyle.secondary, custom_id="eco_help", row=1)
-    async def btn_help(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="🚗 Garage", style=discord.ButtonStyle.secondary, custom_id="eco_garage", row=4)
+    async def btn_garage(self, interaction: discord.Interaction, button: discord.ui.Button):
+        view = VisibilityChoiceView(self.cog, "garage", interaction.user.id)
         embed = discord.Embed(
-            title="❓ Bovary Economy — Help",
-            description=(
-                f"**Currency:** {CURRENCY_EMOJI} {CURRENCY}\n\n"
-                "**Panel buttons:**\n"
-                "💰 **Balance** — view your wallet (private or public)\n"
-                "📅 **Daily** — daily reward (+ streak) — 24h cooldown\n"
-                "💸 **Pay** — transfer coins to another member\n"
-                "💼 **Work** — earn coins — 6h cooldown\n"
-                "🎒 **Inventory** — your items (private or public)\n"
-                "🏆 **Ranking** — top richest (private only)\n"
-                "🛒 **Shop** — pets, badges & consumables (private only)\n\n"
-                "**Special shops:**\n"
-                "🏎️ **Benny's** — cars (Southern SA Super Autos & Legendary Motorsport)\n"
-                "🪖 **Warstock** — military vehicles\n"
-                "✈️ **Elitas Travel** — aircraft\n"
-                "🚤 **DockTease** — boats (incl. luxury yacht)\n"
-                "🏠 **Dynasty8** — apartments & houses\n"
-                "🏢 **Maze Bank Foreclosures** — businesses & underworld properties\n"
-                "🎰 **Casino Resort** — coming soon\n"
-                "🎮 **MC Lost** / **CEO Securo Serv** — games under construction\n\n"
-                "Cooldown messages are always private (only you can see them)."
-            ),
+            title="🚗 Garage",
+            description="Choose how you want to view your garage:",
             color=COLOR_INFO,
         )
-        embed.set_footer(text="Bovary Economy")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
-    # ── Row 2 — Vehicle & travel shops ──
-    @discord.ui.button(label="🏎️ Benny's Workshop", style=discord.ButtonStyle.primary, custom_id="eco_bennys", row=2)
-    async def btn_bennys(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._send_ephemeral_result(interaction, "bennys")
-
-    @discord.ui.button(label="🪖 Warstock", style=discord.ButtonStyle.danger, custom_id="eco_warstock", row=2)
-    async def btn_warstock(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._send_ephemeral_result(interaction, "warstock")
-
-    @discord.ui.button(label="✈️ Elitas Travel", style=discord.ButtonStyle.primary, custom_id="eco_elitas", row=2)
-    async def btn_elitas(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._send_ephemeral_result(interaction, "elitas")
-
-    @discord.ui.button(label="🚤 DockTease", style=discord.ButtonStyle.primary, custom_id="eco_docktease", row=2)
-    async def btn_docktease(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._send_ephemeral_result(interaction, "docktease")
-
-    # ── Row 3 — Properties & Casino ──
-    @discord.ui.button(label="🏠 Dynasty8", style=discord.ButtonStyle.success, custom_id="eco_dynasty8", row=3)
-    async def btn_dynasty8(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._send_ephemeral_result(interaction, "dynasty8")
-
-    @discord.ui.button(label="🏢 Maze Bank Foreclosures", style=discord.ButtonStyle.success, custom_id="eco_foreclosures", row=3)
-    async def btn_foreclosures(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._send_ephemeral_result(interaction, "foreclosures")
-
-    @discord.ui.button(label="🎰 Casino Resort", style=discord.ButtonStyle.primary, custom_id="eco_casino", row=3)
-    async def btn_casino(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="🏆 Ranking", style=discord.ButtonStyle.secondary, custom_id="eco_lb", row=4)
+    async def btn_lb(self, interaction: discord.Interaction, button: discord.ui.Button):
+        view = VisibilityChoiceView(self.cog, "leaderboard", interaction.user.id)
         embed = discord.Embed(
-            title="🎰 Casino Resort",
-            description=(
-                "**Under Construction** 🚧\n\n"
-                "The luxurious Casino Resort is being prepared.\n"
-                "High-stakes tables, exclusive rewards and VIP experiences coming soon.\n\n"
-                "*Stay tuned — the house always wins… eventually.*"
-            ),
-            color=COLOR_CASINO,
+            title="🏆 Ranking",
+            description="Choose how you want to view the ranking:",
+            color=COLOR_INFO,
         )
-        embed.set_footer(text="Bovary Economy · Casino Resort · Coming Soon")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-
-    # ── Row 4 — Future games ──
-    @discord.ui.button(label="🎮 MC Lost", style=discord.ButtonStyle.secondary, custom_id="eco_mclost", row=4)
-    async def btn_mclost(self, interaction: discord.Interaction, button: discord.ui.Button):
-        embed = discord.Embed(
-            title="🎮 MC Lost",
-            description=(
-                "**Under Construction** 🚧\n\n"
-                "This mini-game is currently being developed.\n"
-                "Check back later for updates!"
-            ),
-            color=COLOR_CONSTRUCTION,
-        )
-        embed.set_footer(text="Bovary Economy · MC Lost · Coming Soon")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-
-    @discord.ui.button(label="💼 CEO Securo Serv", style=discord.ButtonStyle.secondary, custom_id="eco_ceosecuro", row=4)
-    async def btn_ceosecuro(self, interaction: discord.Interaction, button: discord.ui.Button):
-        embed = discord.Embed(
-            title="💼 CEO Securo Serv",
-            description=(
-                "**Under Construction** 🚧\n\n"
-                "This mini-game is currently being developed.\n"
-                "Check back later for updates!"
-            ),
-            color=COLOR_CONSTRUCTION,
-        )
-        embed.set_footer(text="Bovary Economy · CEO Securo Serv · Coming Soon")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
 class PayModal(discord.ui.Modal, title="💸 Pay Member"):
@@ -767,13 +1914,7 @@ class AdminPanelView(discord.ui.View):
     async def set_daily(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(AdminDailyModal(self.cog))
 
-    @discord.ui.button(label="🛒 Shop Add", style=discord.ButtonStyle.success, custom_id="adm_shop_add", row=3)
-    async def shop_add(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(AdminShopAddModal(self.cog))
 
-    @discord.ui.button(label="🛒 Shop Remove", style=discord.ButtonStyle.danger, custom_id="adm_shop_rem", row=3)
-    async def shop_rem(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(AdminShopRemModal(self.cog))
 
     @discord.ui.button(label="📋 Backup Wallets", style=discord.ButtonStyle.primary, custom_id="adm_backup", row=3)
     async def backup(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -894,59 +2035,6 @@ class AdminDailyModal(discord.ui.Modal, title="Set Daily Amount"):
         await interaction.response.send_message(f"✅ Daily base = {_fmt(v)}", ephemeral=True)
 
 
-class AdminShopAddModal(discord.ui.Modal, title="Add Item to Shop"):
-    def __init__(self, cog: "Economy"):
-        super().__init__()
-        self.cog = cog
-        self.iid = discord.ui.TextInput(label="Unique ID (e.g. pet_new)", required=True)
-        self.name = discord.ui.TextInput(label="Name", required=True)
-        self.price = discord.ui.TextInput(label="Price", required=True)
-        self.typ = discord.ui.TextInput(label="Type (pet/badge/consumable)", required=True, default="pet")
-        self.emoji = discord.ui.TextInput(label="Emoji", required=False, default="🎁")
-        self.add_item(self.iid)
-        self.add_item(self.name)
-        self.add_item(self.price)
-        self.add_item(self.typ)
-        self.add_item(self.emoji)
-
-    async def on_submit(self, interaction: discord.Interaction):
-        try:
-            price = int(self.price.value)
-        except ValueError:
-            return await interaction.response.send_message("Invalid price.", ephemeral=True)
-        shop = self.cog.data.get_shop()
-        shop.append({
-            "id": self.iid.value.strip(),
-            "name": self.name.value.strip(),
-            "price": price,
-            "type": self.typ.value.strip().lower(),
-            "desc": "",
-            "emoji": self.emoji.value or "🎁",
-        })
-        self.cog.data.save_shop(shop)
-        await interaction.response.send_message(f"✅ Item `{self.iid.value}` added.", ephemeral=True)
-
-
-class AdminShopRemModal(discord.ui.Modal, title="Remove Item from Shop"):
-    def __init__(self, cog: "Economy"):
-        super().__init__()
-        self.cog = cog
-        self.iid = discord.ui.TextInput(label="Item ID", required=True)
-        self.add_item(self.iid)
-
-    async def on_submit(self, interaction: discord.Interaction):
-        shop = self.cog.data.get_shop()
-        new = [i for i in shop if i["id"] != self.iid.value.strip()]
-        if len(new) == len(shop):
-            return await interaction.response.send_message("Item not found.", ephemeral=True)
-        self.cog.data.save_shop(new)
-        await interaction.response.send_message("✅ Item removed.", ephemeral=True)
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# COG
-# ═══════════════════════════════════════════════════════════════════════════
-
 class Economy(commands.Cog):
     """Bovary Economy system."""
 
@@ -1052,59 +2140,41 @@ class Economy(commands.Cog):
             )
             return embed, None
 
-        if action == "shop":
-            shop = self.data.get_shop()
-            if not shop:
-                embed = discord.Embed(
-                    title="🛒 Shop Empty",
-                    description="No items available.",
-                    color=COLOR_INFO,
-                )
-                return embed, None
-            lines = []
-            for it in shop:
-                lines.append(
-                    f"{it.get('emoji','🎁')} **{it['name']}** — {_fmt(it['price'])} {CURRENCY} (`{it['type']}`)"
-                )
-            embed = discord.Embed(
-                title="🛒 Bovary Shop",
-                description="\n".join(lines[:30]),
-                color=COLOR_MAIN,
-            )
-            embed.set_footer(text="Select below to purchase · Private view only")
-            view = ShopBuyView(self, uid, shop, "Bovary Shop")
-            return embed, view
-
         if action == "bennys":
             embed = discord.Embed(
                 title="🏎️ Benny's Original Motor Workshop",
-                description="Premium vehicles from Los Santos dealers.",
+                description="Premium vehicles and motorcycles from Los Santos dealers.",
                 color=COLOR_MAIN,
             )
-            # Southern San Andreas Super Autos
-            southern_lines = []
-            for it in BENNYS_SOUTHERN:
-                southern_lines.append(
-                    f"{it.get('emoji','🚗')} **{it['name']}** — {_fmt(it['price'])} {CURRENCY}"
-                )
+            southern_lines = [
+                f"{it.get('emoji','🚗')} **{it['name']}** — {_fmt(it['price'])} {CURRENCY}"
+                for it in BENNYS_SOUTHERN
+            ]
             embed.add_field(
                 name="🏁 Southern San Andreas Super Autos",
                 value="\n".join(southern_lines) or "—",
                 inline=False,
             )
-            # Legendary Motorsport
-            legendary_lines = []
-            for it in BENNYS_LEGENDARY:
-                legendary_lines.append(
-                    f"{it.get('emoji','🚗')} **{it['name']}** — {_fmt(it['price'])} {CURRENCY}"
-                )
+            legendary_lines = [
+                f"{it.get('emoji','🚗')} **{it['name']}** — {_fmt(it['price'])} {CURRENCY}"
+                for it in BENNYS_LEGENDARY
+            ]
             embed.add_field(
                 name="🏆 Legendary Motorsport",
                 value="\n".join(legendary_lines) or "—",
                 inline=False,
             )
+            lost_lines = [
+                f"{it.get('emoji','🏍️')} **{it['name']}** — {_fmt(it['price'])} {CURRENCY}"
+                for it in BENNYS_LOST_MC
+            ]
+            embed.add_field(
+                name="☠️ Lost MC Shop",
+                value="\n".join(lost_lines) or "—",
+                inline=False,
+            )
             embed.set_footer(text="Select below to purchase · Private view only")
-            all_cars = BENNYS_SOUTHERN + BENNYS_LEGENDARY
+            all_cars = BENNYS_SOUTHERN + BENNYS_LEGENDARY + BENNYS_LOST_MC
             view = ShopBuyView(self, uid, all_cars, "Benny's")
             return embed, view
 
@@ -1186,6 +2256,33 @@ class Economy(commands.Cog):
             view = ShopBuyView(self, uid, FORECLOSURES_ITEMS, "Foreclosures")
             return embed, view
 
+        if action == "garage":
+            inv = u.get("inventory", {})
+            all_items = self.data.get_all_items()
+            cars = []
+            for iid, qty in inv.items():
+                item = all_items.get(iid, {})
+                itype = item.get("type", "")
+                if itype in ("car", "motorcycle") or item.get("dealer") in ("southern", "legendary", "lost_mc"):
+                    name = item.get("name", iid)
+                    emoji = item.get("emoji", "🚗")
+                    cars.append(f"{emoji} **{name}** ×{qty}")
+            if not cars:
+                embed = discord.Embed(
+                    title="🚗 Empty Garage",
+                    description="You don't own any vehicles yet.\nBuy cars and bikes at **Benny's Workshop**!",
+                    color=COLOR_INFO,
+                )
+                return embed, None
+            embed = discord.Embed(
+                title=f"🚗 {interaction.user.display_name}'s Garage",
+                description="\n".join(cars),
+                color=COLOR_MAIN,
+            )
+            embed.set_thumbnail(url=interaction.user.display_avatar.url)
+            embed.set_footer(text="Bovary Economy · Garage")
+            return embed, None
+
         if action == "inventory":
             inv = u.get("inventory", {})
             if not inv:
@@ -1244,12 +2341,11 @@ class Economy(commands.Cog):
                 f"**Welcome to the Bovary Economy system!**\n\n"
                 f"Currency: **{CURRENCY}**\n\n"
                 "Use the buttons below to:\n"
-                "• Check balance & claim daily\n"
-                "• Work, pay others, view inventory\n"
-                "• Browse shops (cars, military, planes, boats, properties)\n"
-                "• Ranking (private only)\n\n"
-                "🔒 Cooldown messages are always private.\n"
-                "🛒 Shops open in private view only."
+                "• Daily, Work, Balance & Pay\n"
+                "• Shops: Benny's, Elitas, Warstock, DockTease, Dynasty8, Maze Bank\n"
+                "• Missions: CEO SecuroServ & MotoClub\n"
+                "• Inventory, Garage, Help & more\n\n"
+                "🔒 Cooldown messages and shops are always private."
             ),
             color=COLOR_MAIN,
         )
