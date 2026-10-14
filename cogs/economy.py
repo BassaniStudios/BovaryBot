@@ -1,9 +1,9 @@
 """
-Bovary Economy — sistema completo de economia do Bova's Bot.
-Moeda: Bovas coins
-Painel principal (membros): canal Maze Bank
-Respostas dos membros: canal Bovary Market
-Painel admin [LOCKED]: canal Bank Admin
+Bovary Economy — complete economy system for Bova's Bot.
+Currency: Bovas coins
+Main panel (members): Maze Bank channel
+Member responses: Bovary Market channel
+Admin panel [LOCKED]: Bank Admin channel
 """
 from __future__ import annotations
 
@@ -25,9 +25,9 @@ from utils.helpers import make_embed, SERVER_TZ
 logger = logging.getLogger("bovary_bot.economy")
 
 # ── Channel IDs (hardcoded production + env override possible via config) ──
-BANK_CHANNEL_ID = 1559720971437350933       # Maze Bank — painel membros
-MARKET_CHANNEL_ID = 1559721230591066182     # Bovary Market — respostas
-ADMIN_CHANNEL_ID = 1426755523797057536      # Bank Admin — painel staff
+BANK_CHANNEL_ID = 1559720971437350933       # Maze Bank — member panel
+MARKET_CHANNEL_ID = 1559721230591066182     # Bovary Market — responses
+ADMIN_CHANNEL_ID = 1426755523797057536      # Bank Admin — staff panel
 
 CURRENCY = "Bovas coins"
 CURRENCY_EMOJI = "🪙"
@@ -36,31 +36,97 @@ COLOR_SUCCESS = discord.Color.from_rgb(46, 204, 113)
 COLOR_FAIL = discord.Color.from_rgb(231, 76, 60)
 COLOR_INFO = discord.Color.from_rgb(52, 152, 219)
 COLOR_ADMIN = discord.Color.from_rgb(155, 89, 182)
+COLOR_CASINO = discord.Color.from_rgb(212, 175, 55)   # luxurious gold
+COLOR_CONSTRUCTION = discord.Color.from_rgb(149, 165, 166)
 
-# Default shop items (pets, carros, brasões + básicos)
+# ── Default general shop (pets, badges, consumables — cars moved to Benny's) ──
 DEFAULT_SHOP: List[Dict[str, Any]] = [
-    {"id": "pet_gato", "name": "🐱 Gato de Estimação", "price": 500, "type": "pet", "desc": "Um gato fofo que te acompanha.", "emoji": "🐱"},
-    {"id": "pet_cachorro", "name": "🐶 Cachorro Fiel", "price": 800, "type": "pet", "desc": "O melhor amigo do homem (e do Bova).", "emoji": "🐶"},
-    {"id": "pet_dragao", "name": "🐉 Dragão Mini", "price": 5000, "type": "pet", "desc": "Um dragão de bolso lendário.", "emoji": "🐉"},
-    {"id": "pet_fenrir", "name": "🐺 Fenrir Pup", "price": 3500, "type": "pet", "desc": "Filhote do lobo de Fenrir Yakuza.", "emoji": "🐺"},
-    {"id": "car_civic", "name": "🚗 Honda Civic 2008", "price": 2500, "type": "car", "desc": "Clássico de rua.", "emoji": "🚗"},
-    {"id": "car_supra", "name": "🏎️ Toyota Supra", "price": 12000, "type": "car", "desc": "Rápido demais pro radar.", "emoji": "🏎️"},
-    {"id": "car_lambo", "name": "🚙 Lamborghini Aventador", "price": 50000, "type": "car", "desc": "Flex no Bovary Club.", "emoji": "🚙"},
-    {"id": "car_fusca", "name": "🪲 Fusca Tunado", "price": 1500, "type": "car", "desc": "Não subestime o fusca.", "emoji": "🪲"},
-    {"id": "brasao_ouro", "name": "⚜️ Brasão de Ouro", "price": 3000, "type": "brasao", "desc": "Símbolo de prestígio.", "emoji": "⚜️"},
-    {"id": "brasao_yakuza", "name": "🩸 Brasão Yakuza", "price": 8000, "type": "brasao", "desc": "Respeito da família Fenrir.", "emoji": "🩸"},
-    {"id": "brasao_bova", "name": "👑 Brasão Bova", "price": 15000, "type": "brasao", "desc": "O brasão oficial do clube.", "emoji": "👑"},
-    {"id": "item_cafe", "name": "☕ Café do Bova", "price": 50, "type": "consumable", "desc": "Recupera a energia (cosmético).", "emoji": "☕"},
-    {"id": "item_roleta", "name": "🎰 Ficha de Cassino", "price": 200, "type": "consumable", "desc": "Item colecionável.", "emoji": "🎰"},
+    {"id": "pet_cat", "name": "🐱 Pet Cat", "price": 500, "type": "pet", "desc": "A cute cat that follows you.", "emoji": "🐱"},
+    {"id": "pet_dog", "name": "🐶 Loyal Dog", "price": 800, "type": "pet", "desc": "Man's best friend (and Bova's).", "emoji": "🐶"},
+    {"id": "pet_dragon", "name": "🐉 Mini Dragon", "price": 5000, "type": "pet", "desc": "A legendary pocket dragon.", "emoji": "🐉"},
+    {"id": "pet_fenrir", "name": "🐺 Fenrir Pup", "price": 3500, "type": "pet", "desc": "Pup of the Fenrir Yakuza wolf.", "emoji": "🐺"},
+    {"id": "badge_gold", "name": "⚜️ Gold Badge", "price": 3000, "type": "badge", "desc": "Symbol of prestige.", "emoji": "⚜️"},
+    {"id": "badge_yakuza", "name": "🩸 Yakuza Badge", "price": 8000, "type": "badge", "desc": "Respect of the Fenrir family.", "emoji": "🩸"},
+    {"id": "badge_bova", "name": "👑 Bova Badge", "price": 15000, "type": "badge", "desc": "Official club badge.", "emoji": "👑"},
+    {"id": "item_coffee", "name": "☕ Bova's Coffee", "price": 50, "type": "consumable", "desc": "Restores energy (cosmetic).", "emoji": "☕"},
+    {"id": "item_chip", "name": "🎰 Casino Chip", "price": 200, "type": "consumable", "desc": "Collectible item.", "emoji": "🎰"},
+]
+
+# ── Benny's Original Motor Workshop (cars) ──
+BENNYS_SOUTHERN: List[Dict[str, Any]] = [
+    {"id": "car_banshee", "name": "🏎️ Banshee", "price": 9000, "type": "car", "desc": "Classic sports car.", "emoji": "🏎️", "dealer": "southern"},
+    {"id": "car_infernus", "name": "🔥 Infernus", "price": 14000, "type": "car", "desc": "Italian supercar.", "emoji": "🔥", "dealer": "southern"},
+    {"id": "car_cheetah", "name": "🐆 Cheetah", "price": 11000, "type": "car", "desc": "Fast and sleek.", "emoji": "🐆", "dealer": "southern"},
+    {"id": "car_green_sabre", "name": "🟢 Green Sabre", "price": 6500, "type": "car", "desc": "Muscle classic.", "emoji": "🟢", "dealer": "southern"},
+    {"id": "car_pfister_comet", "name": "☄️ Pfister Comet", "price": 8500, "type": "car", "desc": "German precision.", "emoji": "☄️", "dealer": "southern"},
+    {"id": "car_zentorno", "name": "⚡ Zentorno", "price": 22000, "type": "car", "desc": "Hypercar legend.", "emoji": "⚡", "dealer": "southern"},
+    {"id": "car_cognoscenti", "name": "🖤 Cognoscenti", "price": 7500, "type": "car", "desc": "Luxury sedan.", "emoji": "🖤", "dealer": "southern"},
+]
+
+BENNYS_LEGENDARY: List[Dict[str, Any]] = [
+    {"id": "car_kuruma", "name": "🛡️ Karin Kuruma", "price": 18000, "type": "car", "desc": "Armored sports sedan.", "emoji": "🛡️", "dealer": "legendary"},
+    {"id": "car_jesterrr", "name": "🏁 JesterRR", "price": 16000, "type": "car", "desc": "Race-ready Jester.", "emoji": "🏁", "dealer": "legendary"},
+    {"id": "car_bodhi", "name": "🛻 Bodhi", "price": 5500, "type": "car", "desc": "Off-road beast.", "emoji": "🛻", "dealer": "legendary"},
+    {"id": "car_coquette_classic", "name": "🚘 Coquette Classic", "price": 12000, "type": "car", "desc": "Timeless classic.", "emoji": "🚘", "dealer": "legendary"},
+]
+
+# ── Warstock Cache & Carry (military) ──
+WARSTOCK_ITEMS: List[Dict[str, Any]] = [
+    {"id": "mil_rhino", "name": "🛡️ Rhino Tank", "price": 150000, "type": "military", "desc": "Heavy armor tank.", "emoji": "🛡️"},
+    {"id": "mil_insurgent", "name": "🚙 Insurgent", "price": 45000, "type": "military", "desc": "Armored off-road.", "emoji": "🚙"},
+    {"id": "mil_buzzard", "name": "🚁 Buzzard Attack Heli", "price": 120000, "type": "military", "desc": "Attack helicopter.", "emoji": "🚁"},
+    {"id": "mil_barracks", "name": "🚛 Barracks", "price": 25000, "type": "military", "desc": "Troop transport.", "emoji": "🚛"},
+    {"id": "mil_apc", "name": "🛡️ APC", "price": 90000, "type": "military", "desc": "Armored personnel carrier.", "emoji": "🛡️"},
+]
+
+# ── Elitas Travel (aircraft) ──
+ELITAS_ITEMS: List[Dict[str, Any]] = [
+    {"id": "plane_luxor", "name": "✈️ Luxor", "price": 80000, "type": "aircraft", "desc": "Luxury private jet.", "emoji": "✈️"},
+    {"id": "plane_shamal", "name": "🛩️ Shamal", "price": 65000, "type": "aircraft", "desc": "Business jet.", "emoji": "🛩️"},
+    {"id": "plane_vestra", "name": "🛫 Vestra", "price": 35000, "type": "aircraft", "desc": "Light private plane.", "emoji": "🛫"},
+    {"id": "plane_mammatus", "name": "🛩️ Mammatus", "price": 20000, "type": "aircraft", "desc": "Small prop plane.", "emoji": "🛩️"},
+    {"id": "heli_frogger", "name": "🚁 Frogger", "price": 40000, "type": "aircraft", "desc": "Civilian helicopter.", "emoji": "🚁"},
+]
+
+# ── DockTease (boats) ──
+DOCKTEASE_ITEMS: List[Dict[str, Any]] = [
+    {"id": "boat_seashark", "name": "🚤 Seashark", "price": 5000, "type": "boat", "desc": "Jet ski fun.", "emoji": "🚤"},
+    {"id": "boat_dinghy", "name": "🛶 Dinghy", "price": 3500, "type": "boat", "desc": "Small inflatable.", "emoji": "🛶"},
+    {"id": "boat_speeder", "name": "🚤 Speeder", "price": 18000, "type": "boat", "desc": "Fast motorboat.", "emoji": "🚤"},
+    {"id": "boat_marquis", "name": "🛥️ Marquis", "price": 45000, "type": "boat", "desc": "Luxury yacht tender.", "emoji": "🛥️"},
+    {"id": "boat_yacht", "name": "🛳️ Galaxy Super Yacht", "price": 500000, "type": "boat", "desc": "Ultra-exclusive luxury yacht. The ultimate flex.", "emoji": "🛳️"},
+]
+
+# ── Dynasty8 (apartments / common houses) ──
+DYNASTY8_ITEMS: List[Dict[str, Any]] = [
+    {"id": "prop_apt_low", "name": "🏠 Low-End Apartment", "price": 15000, "type": "property", "desc": "Basic starter home.", "emoji": "🏠"},
+    {"id": "prop_apt_mid", "name": "🏢 Mid-Range Apartment", "price": 45000, "type": "property", "desc": "Comfortable living.", "emoji": "🏢"},
+    {"id": "prop_apt_high", "name": "🏙️ High-End Apartment", "price": 120000, "type": "property", "desc": "Luxury city living.", "emoji": "🏙️"},
+    {"id": "prop_house_suburb", "name": "🏡 Suburban House", "price": 85000, "type": "property", "desc": "Quiet neighborhood house.", "emoji": "🏡"},
+    {"id": "prop_house_mansion", "name": "🏰 Mansion", "price": 350000, "type": "property", "desc": "Spacious luxury mansion.", "emoji": "🏰"},
+]
+
+# ── Maze Bank Foreclosures (business / underworld properties) ──
+FORECLOSURES_ITEMS: List[Dict[str, Any]] = [
+    {"id": "biz_nightclub", "name": "🕺 Nightclub", "price": 200000, "type": "business", "desc": "Own a nightclub.", "emoji": "🕺"},
+    {"id": "biz_warehouse", "name": "🏭 Warehouse", "price": 75000, "type": "business", "desc": "Storage complex.", "emoji": "🏭"},
+    {"id": "biz_bunker", "name": "🪖 Bunker", "price": 180000, "type": "business", "desc": "Underground bunker.", "emoji": "🪖"},
+    {"id": "biz_mc_clubhouse", "name": "🏍️ MC Clubhouse", "price": 95000, "type": "business", "desc": "Motorcycle club HQ.", "emoji": "🏍️"},
+    {"id": "biz_agency", "name": "🕵️ Agency", "price": 160000, "type": "business", "desc": "Private investigation agency.", "emoji": "🕵️"},
+    {"id": "biz_arcade", "name": "🕹️ Arcade", "price": 110000, "type": "business", "desc": "Arcade business front.", "emoji": "🕹️"},
+    {"id": "biz_hangar", "name": "✈️ Hangar", "price": 140000, "type": "business", "desc": "Aircraft hangar.", "emoji": "✈️"},
+    {"id": "biz_facility", "name": "🔬 Facility", "price": 250000, "type": "business", "desc": "High-tech facility.", "emoji": "🔬"},
 ]
 
 DEFAULT_SETTINGS = {
     "daily_amount": 250,
-    "daily_streak_bonus": 25,   # por dia de streak
+    "daily_streak_bonus": 25,   # per streak day
     "max_streak_bonus": 500,
     "work_min": 40,
     "work_max": 180,
-    "work_cooldown": 3600,      # 1h
+    "work_cooldown": 21600,     # 6 hours
+    "balance_cooldown": 1800,   # 30 minutes (public only)
+    "daily_cooldown": 86400,    # 24 hours
     "rob_chance": 0.35,
     "rob_cooldown": 7200,
     "min_bet": 10,
@@ -75,6 +141,16 @@ def _now_ts() -> float:
 
 def _fmt(n: int | float) -> str:
     return f"{int(n):,}".replace(",", ".")
+
+
+def _fmt_time(seconds: int) -> str:
+    if seconds >= 3600:
+        h = seconds // 3600
+        m = (seconds % 3600) // 60
+        return f"{h}h {m}m"
+    if seconds >= 60:
+        return f"{seconds // 60}m {seconds % 60}s"
+    return f"{seconds}s"
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -117,6 +193,7 @@ class EconomyData:
                 "total_earned": 0,
                 "total_spent": 0,
                 "last_work": 0,
+                "last_balance": 0,
                 "last_rob": 0,
                 "created_at": _now_ts(),
             }
@@ -176,6 +253,23 @@ class EconomyData:
     def save_panels(self, data: Dict):
         save_json(self.PANELS_KEY, data)
 
+    def get_all_items(self) -> Dict[str, Dict]:
+        """Combine all shop catalogs for inventory lookup."""
+        items = {}
+        for lst in (
+            self.get_shop(),
+            BENNYS_SOUTHERN,
+            BENNYS_LEGENDARY,
+            WARSTOCK_ITEMS,
+            ELITAS_ITEMS,
+            DOCKTEASE_ITEMS,
+            DYNASTY8_ITEMS,
+            FORECLOSURES_ITEMS,
+        ):
+            for it in lst:
+                items[it["id"]] = it
+        return items
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # HELPERS
@@ -216,196 +310,112 @@ async def post_to_market(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# MINI-GAMES VIEWS
+# VISIBILITY CHOICE VIEW (public vs ephemeral)
 # ═══════════════════════════════════════════════════════════════════════════
 
-class MinesView(discord.ui.View):
-    def __init__(self, cog: "Economy", user_id: int, bet: int, mines: int, grid_size: int = 5):
-        super().__init__(timeout=180)
-        self.cog = cog
-        self.user_id = user_id
-        self.bet = bet
-        self.mines = mines
-        self.grid_size = grid_size
-        self.revealed: set[int] = set()
-        self.mine_positions = set(random.sample(range(grid_size * grid_size), mines))
-        self.alive = True
-        self.cashout_mult = 1.0
-        self._build_buttons()
+class VisibilityChoiceView(discord.ui.View):
+    """Lets the user choose to view privately or post to channel."""
 
-    def _mult_for(self, revealed_count: int) -> float:
-        # Simple progressive multiplier
-        safe = self.grid_size * self.grid_size - self.mines
-        if revealed_count == 0:
-            return 1.0
-        base = 1.0 + (self.mines / max(1, safe)) * 0.85
-        return round(base ** revealed_count, 2)
-
-    def _build_buttons(self):
-        self.clear_items()
-        for i in range(self.grid_size * self.grid_size):
-            row = i // self.grid_size
-            if i in self.revealed:
-                label = "💥" if i in self.mine_positions else "✅"
-                style = discord.ButtonStyle.danger if i in self.mine_positions else discord.ButtonStyle.success
-                disabled = True
-            else:
-                label = "⬛"
-                style = discord.ButtonStyle.secondary
-                disabled = not self.alive
-            btn = discord.ui.Button(label=label, style=style, disabled=disabled, row=row, custom_id=f"mines_{i}")
-            btn.callback = self._make_callback(i)
-            self.add_item(btn)
-        if self.alive and self.revealed:
-            cash = discord.ui.Button(label=f"💰 Cash Out x{self.cashout_mult}", style=discord.ButtonStyle.primary, row=4, custom_id="mines_cash")
-            cash.callback = self._cashout
-            self.add_item(cash)
-
-    def _make_callback(self, idx: int):
-        async def cb(interaction: discord.Interaction):
-            if interaction.user.id != self.user_id:
-                return await interaction.response.send_message("Esse jogo não é seu!", ephemeral=True)
-            if not self.alive or idx in self.revealed:
-                return await interaction.response.defer()
-            self.revealed.add(idx)
-            if idx in self.mine_positions:
-                self.alive = False
-                self.cashout_mult = 0
-                embed = discord.Embed(
-                    title="💥 MINES — BOOM!",
-                    description=f"Você pisou numa mina!\nPerdeu **{_fmt(self.bet)}** {CURRENCY}",
-                    color=COLOR_FAIL,
-                )
-                embed.set_footer(text="Bovary Economy · Mines")
-                self._build_buttons()
-                await interaction.response.edit_message(embed=embed, view=self)
-                self.stop()
-                return
-            self.cashout_mult = self._mult_for(len(self.revealed))
-            embed = discord.Embed(
-                title="⛏️ MINES",
-                description=(
-                    f"Células seguras: **{len(self.revealed)}**\n"
-                    f"Multiplicador atual: **x{self.cashout_mult}**\n"
-                    f"Potencial: **{_fmt(int(self.bet * self.cashout_mult))}** {CURRENCY}\n\n"
-                    f"Continue ou faça **Cash Out**!"
-                ),
-                color=COLOR_MAIN,
-            )
-            embed.set_footer(text="Bovary Economy · Mines")
-            self._build_buttons()
-            await interaction.response.edit_message(embed=embed, view=self)
-        return cb
-
-    async def _cashout(self, interaction: discord.Interaction):
-        if interaction.user.id != self.user_id:
-            return await interaction.response.send_message("Esse jogo não é seu!", ephemeral=True)
-        if not self.alive:
-            return await interaction.response.defer()
-        win = int(self.bet * self.cashout_mult)
-        self.cog.data.add_money(self.user_id, win, "mines_win")
-        self.alive = False
-        embed = discord.Embed(
-            title="💰 MINES — CASH OUT!",
-            description=f"Você saiu com **x{self.cashout_mult}**\nGanhou **{_fmt(win)}** {CURRENCY}!",
-            color=COLOR_SUCCESS,
-        )
-        embed.set_footer(text="Bovary Economy · Mines")
-        self._build_buttons()
-        await interaction.response.edit_message(embed=embed, view=self)
-        self.stop()
-
-
-class HackView(discord.ui.View):
-    SEQUENCE_LEN = 5
-    EMOJIS = ["🔴", "🟢", "🔵", "🟡", "🟣"]
-
-    def __init__(self, cog: "Economy", user_id: int, bet: int):
+    def __init__(self, cog: "Economy", action: str, user_id: int):
         super().__init__(timeout=60)
         self.cog = cog
+        self.action = action
         self.user_id = user_id
-        self.bet = bet
-        self.sequence = [random.choice(self.EMOJIS) for _ in range(self.SEQUENCE_LEN)]
-        self.player: List[str] = []
-        self.phase = "show"  # show → input → done
-        for e in self.EMOJIS:
-            btn = discord.ui.Button(label=e, style=discord.ButtonStyle.secondary, custom_id=f"hack_{e}")
-            btn.callback = self._make_input(e)
-            self.add_item(btn)
 
-    def _make_input(self, emoji: str):
-        async def cb(interaction: discord.Interaction):
-            if interaction.user.id != self.user_id:
-                return await interaction.response.send_message("Esse hack não é seu!", ephemeral=True)
-            if self.phase != "input":
-                return await interaction.response.send_message("Aguarde a sequência!", ephemeral=True)
-            self.player.append(emoji)
-            if len(self.player) < self.SEQUENCE_LEN:
-                await interaction.response.defer()
-                return
-            # check
-            self.phase = "done"
-            if self.player == self.sequence:
-                mult = round(random.uniform(1.6, 2.8), 2)
-                win = int(self.bet * mult)
-                self.cog.data.add_money(self.user_id, win, "hack_win")
+    @discord.ui.button(label="🔒 View Privately", style=discord.ButtonStyle.primary, custom_id="vis_private")
+    async def private(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your menu.", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        embed, view = await self.cog.handle_member_action(interaction, self.action, force_private=True)
+        if embed is None:
+            return await interaction.followup.send("Action cancelled or error.", ephemeral=True)
+        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+
+    @discord.ui.button(label="📢 Post to Channel", style=discord.ButtonStyle.secondary, custom_id="vis_public")
+    async def public(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your menu.", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        # Check public cooldown for balance
+        if self.action == "balance":
+            u = self.cog.data.get_user(self.user_id)
+            settings = self.cog.data.get_settings()
+            now = _now_ts()
+            last = float(u.get("last_balance", 0))
+            cd = settings.get("balance_cooldown", 1800)
+            if now - last < cd:
+                rem = int(cd - (now - last))
                 embed = discord.Embed(
-                    title="💻 HACK — SUCESSO!",
-                    description=f"Sistema invadido!\nMultiplicador **x{mult}**\nVocê ganhou **{_fmt(win)}** {CURRENCY}",
-                    color=COLOR_SUCCESS,
-                )
-            else:
-                embed = discord.Embed(
-                    title="💻 HACK — FALHA",
-                    description=f"Firewall ativado.\nVocê perdeu **{_fmt(self.bet)}** {CURRENCY}",
+                    title="⏳ Cooldown",
+                    description=f"Public balance view is on cooldown. Try again in **{_fmt_time(rem)}**.\n\nYou can still view privately anytime.",
                     color=COLOR_FAIL,
                 )
-            embed.set_footer(text="Bovary Economy · Hack")
-            for item in self.children:
-                item.disabled = True
-            await interaction.response.edit_message(embed=embed, view=self)
-            self.stop()
-        return cb
+                return await interaction.followup.send(embed=embed, ephemeral=True)
+            u["last_balance"] = now
+            self.cog.data.save_user(self.user_id, u)
 
-
-class CoinflipView(discord.ui.View):
-    def __init__(self, cog: "Economy", user_id: int, bet: int):
-        super().__init__(timeout=30)
-        self.cog = cog
-        self.user_id = user_id
-        self.bet = bet
-
-    @discord.ui.button(label="🪙 CARA", style=discord.ButtonStyle.primary, custom_id="cf_heads")
-    async def heads(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._play(interaction, "cara")
-
-    @discord.ui.button(label="👑 COROA", style=discord.ButtonStyle.secondary, custom_id="cf_tails")
-    async def tails(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._play(interaction, "coroa")
-
-    async def _play(self, interaction: discord.Interaction, choice: str):
-        if interaction.user.id != self.user_id:
-            return await interaction.response.send_message("Essa aposta não é sua!", ephemeral=True)
-        result = random.choice(["cara", "coroa"])
-        for item in self.children:
-            item.disabled = True
-        if result == choice:
-            win = self.bet * 2
-            self.cog.data.add_money(self.user_id, win, "coinflip_win")
-            embed = discord.Embed(
-                title="🪙 COINFLIP — VITÓRIA!",
-                description=f"Saiu **{result.upper()}**!\nVocê ganhou **{_fmt(win)}** {CURRENCY}",
-                color=COLOR_SUCCESS,
+        embed, view = await self.cog.handle_member_action(interaction, self.action, force_private=False)
+        if embed is None:
+            return await interaction.followup.send("Action cancelled or error.", ephemeral=True)
+        msg = await post_to_market(self.cog.bot, interaction.user, embed, view)
+        if msg:
+            await interaction.followup.send(
+                f"✅ Result posted in <#{MARKET_CHANNEL_ID}> — go to the channel to see it!",
+                ephemeral=True,
             )
         else:
-            embed = discord.Embed(
-                title="🪙 COINFLIP — DERROTA",
-                description=f"Saiu **{result.upper()}**.\nVocê perdeu **{_fmt(self.bet)}** {CURRENCY}",
-                color=COLOR_FAIL,
+            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SHOP BUY VIEW (generic for any item list)
+# ═══════════════════════════════════════════════════════════════════════════
+
+class ShopBuyView(discord.ui.View):
+    def __init__(self, cog: "Economy", user_id: int, items: List[Dict], shop_name: str = "Shop"):
+        super().__init__(timeout=120)
+        self.cog = cog
+        self.user_id = user_id
+        self.shop_name = shop_name
+        options = []
+        for it in items[:25]:
+            options.append(discord.SelectOption(
+                label=f"{it.get('emoji', '')} {it['name']}"[:100],
+                value=it["id"],
+                description=f"{_fmt(it['price'])} {CURRENCY}"[:100],
+            ))
+        if options:
+            select = discord.ui.Select(placeholder="Choose an item to buy…", options=options)
+            select.callback = self._buy
+            self.add_item(select)
+
+    async def _buy(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your shop!", ephemeral=True)
+        item_id = interaction.data["values"][0]
+        # Search all catalogs
+        all_items = self.cog.data.get_all_items()
+        item = all_items.get(item_id)
+        if not item:
+            return await interaction.response.send_message("Item not found.", ephemeral=True)
+        u = self.cog.data.get_user(self.user_id)
+        if u["wallet"] < item["price"]:
+            return await interaction.response.send_message(
+                f"Insufficient balance. You need {_fmt(item['price'])}.", ephemeral=True
             )
-        embed.set_footer(text="Bovary Economy · Coinflip")
-        await interaction.response.edit_message(embed=embed, view=self)
-        self.stop()
+        self.cog.data.add_money(self.user_id, -item["price"], "shop_buy")
+        inv = u.get("inventory", {})
+        inv[item_id] = inv.get(item_id, 0) + 1
+        u = self.cog.data.get_user(self.user_id)
+        u["inventory"] = inv
+        self.cog.data.save_user(self.user_id, u)
+        embed = discord.Embed(
+            title="🛒 Purchase Successful!",
+            description=f"You bought **{item.get('emoji', '')} {item['name']}** for **{_fmt(item['price'])}** {CURRENCY}.",
+            color=COLOR_SUCCESS,
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -417,94 +427,238 @@ class MemberPanelView(discord.ui.View):
         super().__init__(timeout=None)
         self.cog = cog
 
-    async def _route(self, interaction: discord.Interaction, action: str):
-        """Defer ephemeral, post real result to Market."""
-        await interaction.response.defer(ephemeral=True)
-        # Build response in Market
-        result_embed, result_view = await self.cog.handle_member_action(interaction, action)
-        if result_embed is None:
-            await interaction.followup.send("Ação cancelada ou erro.", ephemeral=True)
-            return
-        msg = await post_to_market(self.cog.bot, interaction.user, result_embed, result_view)
-        if msg:
-            await interaction.followup.send(
-                f"✅ Resultado enviado em <#{MARKET_CHANNEL_ID}> — vá até o canal para ver!",
-                ephemeral=True,
-            )
+    async def _cooldown_reply(self, interaction: discord.Interaction, title: str, remaining: int):
+        """Always send cooldown messages as ephemeral."""
+        embed = discord.Embed(
+            title=title,
+            description=f"Please wait **{_fmt_time(remaining)}**.",
+            color=COLOR_FAIL,
+        )
+        if interaction.response.is_done():
+            await interaction.followup.send(embed=embed, ephemeral=True)
         else:
-            # fallback: show here
-            await interaction.followup.send(embed=result_embed, view=result_view, ephemeral=True)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @discord.ui.button(label="💰 Saldo", style=discord.ButtonStyle.primary, custom_id="eco_balance", row=0)
+    async def _send_ephemeral_result(self, interaction: discord.Interaction, action: str):
+        """Handle action and always reply ephemeral."""
+        await interaction.response.defer(ephemeral=True)
+        embed, view = await self.cog.handle_member_action(interaction, action, force_private=True)
+        if embed is None:
+            await interaction.followup.send("Action cancelled or error.", ephemeral=True)
+            return
+        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+
+    # ── Row 0 ──
+    @discord.ui.button(label="💰 Balance", style=discord.ButtonStyle.primary, custom_id="eco_balance", row=0)
     async def btn_balance(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._route(interaction, "balance")
+        # Offer visibility choice
+        view = VisibilityChoiceView(self.cog, "balance", interaction.user.id)
+        embed = discord.Embed(
+            title="💰 Balance",
+            description="Choose how you want to view your balance:",
+            color=COLOR_INFO,
+        )
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
     @discord.ui.button(label="📅 Daily", style=discord.ButtonStyle.success, custom_id="eco_daily", row=0)
     async def btn_daily(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._route(interaction, "daily")
+        await interaction.response.defer(ephemeral=True)
+        uid = interaction.user.id
+        u = self.cog.data.get_user(uid)
+        settings = self.cog.data.get_settings()
+        now = _now_ts()
+        last = float(u.get("last_daily", 0))
+        cd = settings.get("daily_cooldown", 86400)
+        if now - last < cd:
+            rem = int(cd - (now - last))
+            embed = discord.Embed(
+                title="📅 Daily already claimed",
+                description=f"Come back in **{_fmt_time(rem)}**.",
+                color=COLOR_FAIL,
+            )
+            return await interaction.followup.send(embed=embed, ephemeral=True)
 
-    @discord.ui.button(label="💸 Pagar", style=discord.ButtonStyle.secondary, custom_id="eco_pay", row=0)
+        # Success — post to market (public reward) but cooldown was ephemeral
+        embed, _ = await self.cog.handle_member_action(interaction, "daily", force_private=False)
+        if embed:
+            msg = await post_to_market(self.cog.bot, interaction.user, embed)
+            if msg:
+                await interaction.followup.send(
+                    f"✅ Daily claimed! Result posted in <#{MARKET_CHANNEL_ID}>.",
+                    ephemeral=True,
+                )
+            else:
+                await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="💸 Pay", style=discord.ButtonStyle.secondary, custom_id="eco_pay", row=0)
     async def btn_pay(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Pay needs modal
         await interaction.response.send_modal(PayModal(self.cog))
+
+    @discord.ui.button(label="💼 Work", style=discord.ButtonStyle.secondary, custom_id="eco_work", row=0)
+    async def btn_work(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        uid = interaction.user.id
+        u = self.cog.data.get_user(uid)
+        settings = self.cog.data.get_settings()
+        now = _now_ts()
+        last = float(u.get("last_work", 0))
+        cd = settings.get("work_cooldown", 21600)
+        if now - last < cd:
+            rem = int(cd - (now - last))
+            embed = discord.Embed(
+                title="💼 On cooldown",
+                description=f"You can work again in **{_fmt_time(rem)}**.",
+                color=COLOR_FAIL,
+            )
+            return await interaction.followup.send(embed=embed, ephemeral=True)
+
+        embed, _ = await self.cog.handle_member_action(interaction, "work", force_private=False)
+        if embed:
+            msg = await post_to_market(self.cog.bot, interaction.user, embed)
+            if msg:
+                await interaction.followup.send(
+                    f"✅ Work completed! Result posted in <#{MARKET_CHANNEL_ID}>.",
+                    ephemeral=True,
+                )
+            else:
+                await interaction.followup.send(embed=embed, ephemeral=True)
+
+    # ── Row 1 ──
+    @discord.ui.button(label="🎒 Inventory", style=discord.ButtonStyle.secondary, custom_id="eco_inv", row=1)
+    async def btn_inv(self, interaction: discord.Interaction, button: discord.ui.Button):
+        view = VisibilityChoiceView(self.cog, "inventory", interaction.user.id)
+        embed = discord.Embed(
+            title="🎒 Inventory",
+            description="Choose how you want to view your inventory:",
+            color=COLOR_INFO,
+        )
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    @discord.ui.button(label="🏆 Ranking", style=discord.ButtonStyle.primary, custom_id="eco_lb", row=1)
+    async def btn_lb(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Ranking is ALWAYS ephemeral for members
+        await self._send_ephemeral_result(interaction, "leaderboard")
 
     @discord.ui.button(label="🛒 Shop", style=discord.ButtonStyle.primary, custom_id="eco_shop", row=1)
     async def btn_shop(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._route(interaction, "shop")
+        # Shop is ALWAYS ephemeral
+        await self._send_ephemeral_result(interaction, "shop")
 
-    @discord.ui.button(label="💼 Trabalhar", style=discord.ButtonStyle.secondary, custom_id="eco_work", row=1)
-    async def btn_work(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._route(interaction, "work")
-
-    @discord.ui.button(label="🎒 Inventário", style=discord.ButtonStyle.secondary, custom_id="eco_inv", row=1)
-    async def btn_inv(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._route(interaction, "inventory")
-
-    @discord.ui.button(label="⛏️ Mines", style=discord.ButtonStyle.danger, custom_id="eco_mines", row=2)
-    async def btn_mines(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(BetModal(self.cog, "mines"))
-
-    @discord.ui.button(label="💻 Hack", style=discord.ButtonStyle.danger, custom_id="eco_hack", row=2)
-    async def btn_hack(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(BetModal(self.cog, "hack"))
-
-    @discord.ui.button(label="🪙 Coinflip", style=discord.ButtonStyle.danger, custom_id="eco_coinflip", row=2)
-    async def btn_cf(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(BetModal(self.cog, "coinflip"))
-
-    @discord.ui.button(label="🏆 Ranking", style=discord.ButtonStyle.primary, custom_id="eco_lb", row=3)
-    async def btn_lb(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._route(interaction, "leaderboard")
-
-    @discord.ui.button(label="❓ Help", style=discord.ButtonStyle.secondary, custom_id="eco_help", row=3)
+    @discord.ui.button(label="❓ Help", style=discord.ButtonStyle.secondary, custom_id="eco_help", row=1)
     async def btn_help(self, interaction: discord.Interaction, button: discord.ui.Button):
         embed = discord.Embed(
-            title="❓ Bovary Economy — Ajuda",
+            title="❓ Bovary Economy — Help",
             description=(
-                f"**Moeda:** {CURRENCY_EMOJI} {CURRENCY}\n\n"
-                "**Botões do painel:**\n"
-                "💰 **Saldo** — ver sua carteira\n"
-                "📅 **Daily** — recompensa diária (+ streak)\n"
-                "💸 **Pagar** — transferir para outro membro\n"
-                "🛒 **Shop** — ver e comprar itens (pets, carros, brasões)\n"
-                "💼 **Trabalhar** — ganhar coins (cooldown)\n"
-                "🎒 **Inventário** — seus itens\n"
-                "⛏️ **Mines** / 💻 **Hack** / 🪙 **Coinflip** — mini-games de aposta\n"
-                "🏆 **Ranking** — top mais ricos\n\n"
-                f"Todas as respostas aparecem em <#{MARKET_CHANNEL_ID}>."
+                f"**Currency:** {CURRENCY_EMOJI} {CURRENCY}\n\n"
+                "**Panel buttons:**\n"
+                "💰 **Balance** — view your wallet (private or public)\n"
+                "📅 **Daily** — daily reward (+ streak) — 24h cooldown\n"
+                "💸 **Pay** — transfer coins to another member\n"
+                "💼 **Work** — earn coins — 6h cooldown\n"
+                "🎒 **Inventory** — your items (private or public)\n"
+                "🏆 **Ranking** — top richest (private only)\n"
+                "🛒 **Shop** — pets, badges & consumables (private only)\n\n"
+                "**Special shops:**\n"
+                "🏎️ **Benny's** — cars (Southern SA Super Autos & Legendary Motorsport)\n"
+                "🪖 **Warstock** — military vehicles\n"
+                "✈️ **Elitas Travel** — aircraft\n"
+                "🚤 **DockTease** — boats (incl. luxury yacht)\n"
+                "🏠 **Dynasty8** — apartments & houses\n"
+                "🏢 **Maze Bank Foreclosures** — businesses & underworld properties\n"
+                "🎰 **Casino Resort** — coming soon\n"
+                "🎮 **MC Lost** / **CEO Securo Serv** — games under construction\n\n"
+                "Cooldown messages are always private (only you can see them)."
             ),
             color=COLOR_INFO,
         )
         embed.set_footer(text="Bovary Economy")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
+    # ── Row 2 — Vehicle & travel shops ──
+    @discord.ui.button(label="🏎️ Benny's Workshop", style=discord.ButtonStyle.primary, custom_id="eco_bennys", row=2)
+    async def btn_bennys(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._send_ephemeral_result(interaction, "bennys")
 
-class PayModal(discord.ui.Modal, title="💸 Pagar membro"):
+    @discord.ui.button(label="🪖 Warstock", style=discord.ButtonStyle.danger, custom_id="eco_warstock", row=2)
+    async def btn_warstock(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._send_ephemeral_result(interaction, "warstock")
+
+    @discord.ui.button(label="✈️ Elitas Travel", style=discord.ButtonStyle.primary, custom_id="eco_elitas", row=2)
+    async def btn_elitas(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._send_ephemeral_result(interaction, "elitas")
+
+    @discord.ui.button(label="🚤 DockTease", style=discord.ButtonStyle.primary, custom_id="eco_docktease", row=2)
+    async def btn_docktease(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._send_ephemeral_result(interaction, "docktease")
+
+    # ── Row 3 — Properties & Casino ──
+    @discord.ui.button(label="🏠 Dynasty8", style=discord.ButtonStyle.success, custom_id="eco_dynasty8", row=3)
+    async def btn_dynasty8(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._send_ephemeral_result(interaction, "dynasty8")
+
+    @discord.ui.button(label="🏢 Maze Bank Foreclosures", style=discord.ButtonStyle.success, custom_id="eco_foreclosures", row=3)
+    async def btn_foreclosures(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._send_ephemeral_result(interaction, "foreclosures")
+
+    @discord.ui.button(label="🎰 Casino Resort", style=discord.ButtonStyle.primary, custom_id="eco_casino", row=3)
+    async def btn_casino(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = discord.Embed(
+            title="🎰 Casino Resort",
+            description=(
+                "**Under Construction** 🚧\n\n"
+                "The luxurious Casino Resort is being prepared.\n"
+                "High-stakes tables, exclusive rewards and VIP experiences coming soon.\n\n"
+                "*Stay tuned — the house always wins… eventually.*"
+            ),
+            color=COLOR_CASINO,
+        )
+        embed.set_footer(text="Bovary Economy · Casino Resort · Coming Soon")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    # ── Row 4 — Future games ──
+    @discord.ui.button(label="🎮 MC Lost", style=discord.ButtonStyle.secondary, custom_id="eco_mclost", row=4)
+    async def btn_mclost(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = discord.Embed(
+            title="🎮 MC Lost",
+            description=(
+                "**Under Construction** 🚧\n\n"
+                "This mini-game is currently being developed.\n"
+                "Check back later for updates!"
+            ),
+            color=COLOR_CONSTRUCTION,
+        )
+        embed.set_footer(text="Bovary Economy · MC Lost · Coming Soon")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="💼 CEO Securo Serv", style=discord.ButtonStyle.secondary, custom_id="eco_ceosecuro", row=4)
+    async def btn_ceosecuro(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = discord.Embed(
+            title="💼 CEO Securo Serv",
+            description=(
+                "**Under Construction** 🚧\n\n"
+                "This mini-game is currently being developed.\n"
+                "Check back later for updates!"
+            ),
+            color=COLOR_CONSTRUCTION,
+        )
+        embed.set_footer(text="Bovary Economy · CEO Securo Serv · Coming Soon")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+class PayModal(discord.ui.Modal, title="💸 Pay Member"):
     def __init__(self, cog: "Economy"):
         super().__init__()
         self.cog = cog
-        self.user_input = discord.ui.TextInput(label="ID ou @ do usuário", placeholder="123456789 ou mencione", required=True)
-        self.amount_input = discord.ui.TextInput(label="Quantia", placeholder="100", required=True)
+        self.user_input = discord.ui.TextInput(
+            label="User ID or @mention",
+            placeholder="123456789 or mention",
+            required=True,
+        )
+        self.amount_input = discord.ui.TextInput(
+            label="Amount",
+            placeholder="100",
+            required=True,
+        )
         self.add_item(self.user_input)
         self.add_item(self.amount_input)
 
@@ -514,162 +668,43 @@ class PayModal(discord.ui.Modal, title="💸 Pagar membro"):
         try:
             target_id = int(raw)
         except ValueError:
-            return await interaction.followup.send("ID inválido.", ephemeral=True)
+            return await interaction.followup.send("Invalid ID.", ephemeral=True)
         try:
             amount = int(self.amount_input.value.replace(".", "").replace(",", ""))
         except ValueError:
-            return await interaction.followup.send("Quantia inválida.", ephemeral=True)
+            return await interaction.followup.send("Invalid amount.", ephemeral=True)
         if amount <= 0:
-            return await interaction.followup.send("Quantia deve ser positiva.", ephemeral=True)
+            return await interaction.followup.send("Amount must be positive.", ephemeral=True)
         if target_id == interaction.user.id:
-            return await interaction.followup.send("Não pode pagar a si mesmo.", ephemeral=True)
+            return await interaction.followup.send("You cannot pay yourself.", ephemeral=True)
 
         payer = self.cog.data.get_user(interaction.user.id)
         if payer["wallet"] < amount:
-            return await interaction.followup.send(f"Saldo insuficiente. Você tem {_fmt(payer['wallet'])}.", ephemeral=True)
+            return await interaction.followup.send(
+                f"Insufficient balance. You have {_fmt(payer['wallet'])}.", ephemeral=True
+            )
 
         self.cog.data.add_money(interaction.user.id, -amount, "pay")
         self.cog.data.add_money(target_id, amount, "pay_received")
-        target = interaction.guild.get_member(target_id) or await self.cog.bot.fetch_user(target_id)
-        name = target.display_name if hasattr(target, "display_name") else str(target_id)
+        target = interaction.guild.get_member(target_id) if interaction.guild else None
+        if target is None:
+            try:
+                target = await self.cog.bot.fetch_user(target_id)
+            except Exception:
+                target = None
+        name = target.display_name if target and hasattr(target, "display_name") else str(target_id)
 
         embed = discord.Embed(
-            title="💸 Transferência realizada",
-            description=f"{interaction.user.mention} enviou **{_fmt(amount)}** {CURRENCY} para **{name}**.",
+            title="💸 Transfer Completed",
+            description=f"{interaction.user.mention} sent **{_fmt(amount)}** {CURRENCY} to **{name}**.",
             color=COLOR_SUCCESS,
         )
         embed.set_footer(text="Bovary Economy")
         await post_to_market(self.cog.bot, interaction.user, embed)
-        await interaction.followup.send(f"✅ Enviado {_fmt(amount)} para {name}. Veja em <#{MARKET_CHANNEL_ID}>", ephemeral=True)
-
-
-class BetModal(discord.ui.Modal, title="Apostar"):
-    def __init__(self, cog: "Economy", game: str):
-        super().__init__()
-        self.cog = cog
-        self.game = game
-        self.amount_input = discord.ui.TextInput(label="Quantia da aposta", placeholder="100", required=True)
-        self.add_item(self.amount_input)
-        if game == "mines":
-            self.mines_input = discord.ui.TextInput(label="Número de minas (1-10)", placeholder="3", required=True, default="3")
-            self.add_item(self.mines_input)
-
-    async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
-        settings = self.cog.data.get_settings()
-        try:
-            bet = int(self.amount_input.value.replace(".", "").replace(",", ""))
-        except ValueError:
-            return await interaction.followup.send("Quantia inválida.", ephemeral=True)
-        if bet < settings["min_bet"] or bet > settings["max_bet"]:
-            return await interaction.followup.send(
-                f"Aposta deve ser entre {_fmt(settings['min_bet'])} e {_fmt(settings['max_bet'])}.",
-                ephemeral=True,
-            )
-        u = self.cog.data.get_user(interaction.user.id)
-        if u["wallet"] < bet:
-            return await interaction.followup.send(f"Saldo insuficiente ({_fmt(u['wallet'])}).", ephemeral=True)
-
-        # debit
-        self.cog.data.add_money(interaction.user.id, -bet, f"{self.game}_bet")
-
-        if self.game == "mines":
-            try:
-                mines = int(self.mines_input.value)
-                mines = max(1, min(10, mines))
-            except Exception:
-                mines = 3
-            view = MinesView(self.cog, interaction.user.id, bet, mines)
-            embed = discord.Embed(
-                title="⛏️ MINES",
-                description=f"Aposta: **{_fmt(bet)}** | Minas: **{mines}**\nClique nas células. Evite as minas!\nQuanto mais células, maior o multiplicador.",
-                color=COLOR_MAIN,
-            )
-            embed.set_footer(text="Bovary Economy · Mines")
-            await post_to_market(self.cog.bot, interaction.user, embed, view)
-            await interaction.followup.send(f"⛏️ Mines iniciado em <#{MARKET_CHANNEL_ID}>", ephemeral=True)
-
-        elif self.game == "hack":
-            view = HackView(self.cog, interaction.user.id, bet)
-            seq_str = " ".join(view.sequence)
-            embed = discord.Embed(
-                title="💻 HACK EM ANDAMENTO",
-                description=(
-                    f"Aposta: **{_fmt(bet)}**\n\n"
-                    f"**Memorize a sequência:**\n# {seq_str}\n\n"
-                    f"Você tem 8 segundos… depois clique na ordem certa!"
-                ),
-                color=COLOR_INFO,
-            )
-            embed.set_footer(text="Bovary Economy · Hack")
-            msg = await post_to_market(self.cog.bot, interaction.user, embed, view)
-            await interaction.followup.send(f"💻 Hack iniciado em <#{MARKET_CHANNEL_ID}>", ephemeral=True)
-            await asyncio.sleep(8)
-            if view.phase == "show":
-                view.phase = "input"
-                embed.description = (
-                    f"Aposta: **{_fmt(bet)}**\n\n"
-                    f"**Digite a sequência** clicando nos botões na ordem correta!"
-                )
-                if msg:
-                    try:
-                        await msg.edit(embed=embed, view=view)
-                    except Exception:
-                        pass
-
-        elif self.game == "coinflip":
-            view = CoinflipView(self.cog, interaction.user.id, bet)
-            embed = discord.Embed(
-                title="🪙 COINFLIP",
-                description=f"Aposta: **{_fmt(bet)}**\nEscolha **Cara** ou **Coroa**!",
-                color=COLOR_MAIN,
-            )
-            embed.set_footer(text="Bovary Economy · Coinflip")
-            await post_to_market(self.cog.bot, interaction.user, embed, view)
-            await interaction.followup.send(f"🪙 Coinflip em <#{MARKET_CHANNEL_ID}>", ephemeral=True)
-
-
-class ShopBuyView(discord.ui.View):
-    def __init__(self, cog: "Economy", user_id: int, items: List[Dict]):
-        super().__init__(timeout=120)
-        self.cog = cog
-        self.user_id = user_id
-        # limit to 25 options
-        options = []
-        for it in items[:25]:
-            options.append(discord.SelectOption(
-                label=f"{it.get('emoji', '')} {it['name']}"[:100],
-                value=it["id"],
-                description=f"{_fmt(it['price'])} {CURRENCY}"[:100],
-            ))
-        if options:
-            select = discord.ui.Select(placeholder="Escolha um item para comprar…", options=options)
-            select.callback = self._buy
-            self.add_item(select)
-
-    async def _buy(self, interaction: discord.Interaction):
-        if interaction.user.id != self.user_id:
-            return await interaction.response.send_message("Não é sua loja!", ephemeral=True)
-        item_id = interaction.data["values"][0]
-        shop = self.cog.data.get_shop()
-        item = next((i for i in shop if i["id"] == item_id), None)
-        if not item:
-            return await interaction.response.send_message("Item não encontrado.", ephemeral=True)
-        u = self.cog.data.get_user(self.user_id)
-        if u["wallet"] < item["price"]:
-            return await interaction.response.send_message(f"Saldo insuficiente. Precisa de {_fmt(item['price'])}.", ephemeral=True)
-        self.cog.data.add_money(self.user_id, -item["price"], "shop_buy")
-        inv = u.get("inventory", {})
-        inv[item_id] = inv.get(item_id, 0) + 1
-        u = self.cog.data.get_user(self.user_id)
-        u["inventory"] = inv
-        self.cog.data.save_user(self.user_id, u)
-        embed = discord.Embed(
-            title="🛒 Compra realizada!",
-            description=f"Você comprou **{item.get('emoji', '')} {item['name']}** por **{_fmt(item['price'])}** {CURRENCY}.",
-            color=COLOR_SUCCESS,
+        await interaction.followup.send(
+            f"✅ Sent {_fmt(amount)} to {name}. See it in <#{MARKET_CHANNEL_ID}>",
+            ephemeral=True,
         )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -685,7 +720,7 @@ class AdminPanelView(discord.ui.View):
         if not isinstance(interaction.user, discord.Member):
             return False
         if not is_staff(interaction.user, self.cog.bot):
-            await interaction.response.send_message("🔒 Acesso negado. Apenas staff.", ephemeral=True)
+            await interaction.response.send_message("🔒 Access denied. Staff only.", ephemeral=True)
             return False
         return True
 
@@ -716,12 +751,14 @@ class AdminPanelView(discord.ui.View):
     @discord.ui.button(label="💥 Reset Server", style=discord.ButtonStyle.danger, custom_id="adm_reset_server", row=2)
     async def reset_server(self, interaction: discord.Interaction, button: discord.ui.Button):
         view = ConfirmResetView(self.cog)
-        await interaction.response.send_message("⚠️ Confirmar RESET de TODOS os saldos?", view=view, ephemeral=True)
+        await interaction.response.send_message(
+            "⚠️ Confirm RESET of ALL balances?", view=view, ephemeral=True
+        )
 
     @discord.ui.button(label="⚙️ Settings", style=discord.ButtonStyle.secondary, custom_id="adm_settings", row=2)
     async def settings(self, interaction: discord.Interaction, button: discord.ui.Button):
         s = self.cog.data.get_settings()
-        embed = discord.Embed(title="⚙️ Settings atuais", color=COLOR_ADMIN)
+        embed = discord.Embed(title="⚙️ Current Settings", color=COLOR_ADMIN)
         for k, v in s.items():
             embed.add_field(name=k, value=str(v), inline=True)
         await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -750,16 +787,27 @@ class AdminPanelView(discord.ui.View):
             fp=__import__("io").BytesIO(content.encode("utf-8")),
             filename=f"wallets_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
         )
-        await interaction.followup.send("Backup de carteiras:", file=file, ephemeral=True)
+        await interaction.followup.send("Wallet backup:", file=file, ephemeral=True)
+
+    @discord.ui.button(label="🏆 Post Ranking", style=discord.ButtonStyle.primary, custom_id="adm_post_lb", row=4)
+    async def post_ranking(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Admins can post ranking publicly."""
+        await interaction.response.defer(ephemeral=True)
+        embed, _ = await self.cog.handle_member_action(interaction, "leaderboard", force_private=False)
+        if embed:
+            await post_to_market(self.cog.bot, interaction.user, embed)
+            await interaction.followup.send(
+                f"✅ Ranking posted in <#{MARKET_CHANNEL_ID}>.", ephemeral=True
+            )
 
 
-class AdminMoneyModal(discord.ui.Modal, title="Gerenciar saldo"):
+class AdminMoneyModal(discord.ui.Modal, title="Manage Balance"):
     def __init__(self, cog: "Economy", mode: str):
         super().__init__()
         self.cog = cog
         self.mode = mode
         self.uid = discord.ui.TextInput(label="User ID", required=True)
-        self.amt = discord.ui.TextInput(label="Quantia", required=True)
+        self.amt = discord.ui.TextInput(label="Amount", required=True)
         self.add_item(self.uid)
         self.add_item(self.amt)
 
@@ -768,37 +816,37 @@ class AdminMoneyModal(discord.ui.Modal, title="Gerenciar saldo"):
             uid = int(self.uid.value.strip())
             amount = int(self.amt.value.replace(".", "").replace(",", ""))
         except ValueError:
-            return await interaction.response.send_message("Valores inválidos.", ephemeral=True)
+            return await interaction.response.send_message("Invalid values.", ephemeral=True)
         if self.mode == "add":
             bal = self.cog.data.add_money(uid, amount, "admin_add")
-            msg = f"Adicionado {_fmt(amount)}. Novo saldo: {_fmt(bal)}"
+            msg = f"Added {_fmt(amount)}. New balance: {_fmt(bal)}"
         elif self.mode == "remove":
             bal = self.cog.data.add_money(uid, -amount, "admin_remove")
-            msg = f"Removido {_fmt(amount)}. Novo saldo: {_fmt(bal)}"
+            msg = f"Removed {_fmt(amount)}. New balance: {_fmt(bal)}"
         else:
             bal = self.cog.data.set_money(uid, amount)
-            msg = f"Saldo definido para {_fmt(bal)}"
+            msg = f"Balance set to {_fmt(bal)}"
         await interaction.response.send_message(f"✅ {msg}", ephemeral=True)
 
 
-class AdminAllModal(discord.ui.Modal, title="Todos os usuários"):
+class AdminAllModal(discord.ui.Modal, title="All Users"):
     def __init__(self, cog: "Economy", mode: str):
         super().__init__()
         self.cog = cog
         self.mode = mode
-        self.amt = discord.ui.TextInput(label="Quantia", required=True)
+        self.amt = discord.ui.TextInput(label="Amount", required=True)
         self.add_item(self.amt)
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
             amount = int(self.amt.value.replace(".", "").replace(",", ""))
         except ValueError:
-            return await interaction.response.send_message("Inválido.", ephemeral=True)
+            return await interaction.response.send_message("Invalid.", ephemeral=True)
         users = self.cog.data.get_all_users()
         delta = amount if self.mode == "add" else -amount
         for uid in list(users.keys()):
             self.cog.data.add_money(int(uid), delta, f"admin_all_{self.mode}")
-        await interaction.response.send_message(f"✅ Aplicado em {len(users)} usuários.", ephemeral=True)
+        await interaction.response.send_message(f"✅ Applied to {len(users)} users.", ephemeral=True)
 
 
 class AdminResetUserModal(discord.ui.Modal, title="Reset User"):
@@ -812,9 +860,9 @@ class AdminResetUserModal(discord.ui.Modal, title="Reset User"):
         try:
             uid = int(self.uid.value.strip())
         except ValueError:
-            return await interaction.response.send_message("ID inválido.", ephemeral=True)
+            return await interaction.response.send_message("Invalid ID.", ephemeral=True)
         self.cog.data.reset_user(uid)
-        await interaction.response.send_message(f"✅ User {uid} resetado.", ephemeral=True)
+        await interaction.response.send_message(f"✅ User {uid} reset.", ephemeral=True)
 
 
 class ConfirmResetView(discord.ui.View):
@@ -822,38 +870,38 @@ class ConfirmResetView(discord.ui.View):
         super().__init__(timeout=30)
         self.cog = cog
 
-    @discord.ui.button(label="CONFIRMAR RESET SERVER", style=discord.ButtonStyle.danger)
+    @discord.ui.button(label="CONFIRM SERVER RESET", style=discord.ButtonStyle.danger)
     async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.cog.data.reset_all()
-        await interaction.response.edit_message(content="💥 Server economy resetado.", view=None)
+        await interaction.response.edit_message(content="💥 Server economy reset.", view=None)
 
 
 class AdminDailyModal(discord.ui.Modal, title="Set Daily Amount"):
     def __init__(self, cog: "Economy"):
         super().__init__()
         self.cog = cog
-        self.amt = discord.ui.TextInput(label="Valor do daily base", required=True)
+        self.amt = discord.ui.TextInput(label="Base daily amount", required=True)
         self.add_item(self.amt)
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
             v = int(self.amt.value)
         except ValueError:
-            return await interaction.response.send_message("Inválido.", ephemeral=True)
+            return await interaction.response.send_message("Invalid.", ephemeral=True)
         s = self.cog.data.get_settings()
         s["daily_amount"] = v
         self.cog.data.save_settings(s)
         await interaction.response.send_message(f"✅ Daily base = {_fmt(v)}", ephemeral=True)
 
 
-class AdminShopAddModal(discord.ui.Modal, title="Adicionar item ao Shop"):
+class AdminShopAddModal(discord.ui.Modal, title="Add Item to Shop"):
     def __init__(self, cog: "Economy"):
         super().__init__()
         self.cog = cog
-        self.iid = discord.ui.TextInput(label="ID único (ex: pet_novo)", required=True)
-        self.name = discord.ui.TextInput(label="Nome", required=True)
-        self.price = discord.ui.TextInput(label="Preço", required=True)
-        self.typ = discord.ui.TextInput(label="Tipo (pet/car/brasao/consumable)", required=True, default="pet")
+        self.iid = discord.ui.TextInput(label="Unique ID (e.g. pet_new)", required=True)
+        self.name = discord.ui.TextInput(label="Name", required=True)
+        self.price = discord.ui.TextInput(label="Price", required=True)
+        self.typ = discord.ui.TextInput(label="Type (pet/badge/consumable)", required=True, default="pet")
         self.emoji = discord.ui.TextInput(label="Emoji", required=False, default="🎁")
         self.add_item(self.iid)
         self.add_item(self.name)
@@ -865,7 +913,7 @@ class AdminShopAddModal(discord.ui.Modal, title="Adicionar item ao Shop"):
         try:
             price = int(self.price.value)
         except ValueError:
-            return await interaction.response.send_message("Preço inválido.", ephemeral=True)
+            return await interaction.response.send_message("Invalid price.", ephemeral=True)
         shop = self.cog.data.get_shop()
         shop.append({
             "id": self.iid.value.strip(),
@@ -876,23 +924,23 @@ class AdminShopAddModal(discord.ui.Modal, title="Adicionar item ao Shop"):
             "emoji": self.emoji.value or "🎁",
         })
         self.cog.data.save_shop(shop)
-        await interaction.response.send_message(f"✅ Item `{self.iid.value}` adicionado.", ephemeral=True)
+        await interaction.response.send_message(f"✅ Item `{self.iid.value}` added.", ephemeral=True)
 
 
-class AdminShopRemModal(discord.ui.Modal, title="Remover item do Shop"):
+class AdminShopRemModal(discord.ui.Modal, title="Remove Item from Shop"):
     def __init__(self, cog: "Economy"):
         super().__init__()
         self.cog = cog
-        self.iid = discord.ui.TextInput(label="ID do item", required=True)
+        self.iid = discord.ui.TextInput(label="Item ID", required=True)
         self.add_item(self.iid)
 
     async def on_submit(self, interaction: discord.Interaction):
         shop = self.cog.data.get_shop()
         new = [i for i in shop if i["id"] != self.iid.value.strip()]
         if len(new) == len(shop):
-            return await interaction.response.send_message("Item não encontrado.", ephemeral=True)
+            return await interaction.response.send_message("Item not found.", ephemeral=True)
         self.cog.data.save_shop(new)
-        await interaction.response.send_message(f"✅ Item removido.", ephemeral=True)
+        await interaction.response.send_message("✅ Item removed.", ephemeral=True)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -914,7 +962,10 @@ class Economy(commands.Cog):
     # ── Member action handlers ─────────────────────────────────────────────
 
     async def handle_member_action(
-        self, interaction: discord.Interaction, action: str
+        self,
+        interaction: discord.Interaction,
+        action: str,
+        force_private: bool = False,
     ) -> Tuple[Optional[discord.Embed], Optional[discord.ui.View]]:
         uid = interaction.user.id
         u = self.data.get_user(uid)
@@ -922,13 +973,13 @@ class Economy(commands.Cog):
 
         if action == "balance":
             embed = discord.Embed(
-                title=f"{CURRENCY_EMOJI} Sua Carteira",
-                description=f"**Saldo:** {_fmt(u['wallet'])} {CURRENCY}",
+                title=f"{CURRENCY_EMOJI} Your Wallet",
+                description=f"**Balance:** {_fmt(u['wallet'])} {CURRENCY}",
                 color=COLOR_MAIN,
             )
-            embed.add_field(name="Streak Daily", value=str(u.get("streak", 0)), inline=True)
-            embed.add_field(name="Total ganho", value=_fmt(u.get("total_earned", 0)), inline=True)
-            embed.add_field(name="Total gasto", value=_fmt(u.get("total_spent", 0)), inline=True)
+            embed.add_field(name="Daily Streak", value=str(u.get("streak", 0)), inline=True)
+            embed.add_field(name="Total Earned", value=_fmt(u.get("total_earned", 0)), inline=True)
+            embed.add_field(name="Total Spent", value=_fmt(u.get("total_spent", 0)), inline=True)
             embed.set_thumbnail(url=interaction.user.display_avatar.url)
             embed.set_footer(text="Bovary Economy")
             return embed, None
@@ -936,13 +987,12 @@ class Economy(commands.Cog):
         if action == "daily":
             now = _now_ts()
             last = float(u.get("last_daily", 0))
-            # reset window: 20h to allow some flexibility, but streak requires ~22h gap max
-            if now - last < 20 * 3600:
-                remaining = int(20 * 3600 - (now - last))
-                h, m = remaining // 3600, (remaining % 3600) // 60
+            cd = settings.get("daily_cooldown", 86400)
+            if now - last < cd:
+                remaining = int(cd - (now - last))
                 embed = discord.Embed(
-                    title="📅 Daily já resgatado",
-                    description=f"Volte em **{h}h {m}m**.",
+                    title="📅 Daily already claimed",
+                    description=f"Come back in **{_fmt_time(remaining)}**.",
                     color=COLOR_FAIL,
                 )
                 return embed, None
@@ -959,11 +1009,11 @@ class Economy(commands.Cog):
             self.data.save_user(uid, u)
             self.data.add_money(uid, total, "daily")
             embed = discord.Embed(
-                title="📅 Daily Resgatado!",
+                title="📅 Daily Claimed!",
                 description=(
-                    f"Você recebeu **{_fmt(total)}** {CURRENCY}\n"
+                    f"You received **{_fmt(total)}** {CURRENCY}\n"
                     f"(base {_fmt(base)} + streak x{streak} = +{_fmt(bonus)})\n\n"
-                    f"🔥 Streak atual: **{streak}** dias"
+                    f"🔥 Current streak: **{streak}** days"
                 ),
                 color=COLOR_SUCCESS,
             )
@@ -973,30 +1023,30 @@ class Economy(commands.Cog):
         if action == "work":
             now = _now_ts()
             last = float(u.get("last_work", 0))
-            cd = settings["work_cooldown"]
+            cd = settings.get("work_cooldown", 21600)
             if now - last < cd:
                 rem = int(cd - (now - last))
                 embed = discord.Embed(
-                    title="💼 Em cooldown",
-                    description=f"Trabalhe novamente em **{rem // 60}m {rem % 60}s**.",
+                    title="💼 On cooldown",
+                    description=f"You can work again in **{_fmt_time(rem)}**.",
                     color=COLOR_FAIL,
                 )
                 return embed, None
             pay = random.randint(settings["work_min"], settings["work_max"])
             jobs = [
-                "Você entregou pedidos do Bovary Café e ganhou",
-                "Você limpou o servidor Fenrir e recebeu",
-                "Você organizou um meet e ganhou",
-                "Você vendeu memes no chat e faturou",
-                "Você ajudou o Nazar e ele te pagou",
-                "Você fez design de brasão e recebeu",
+                "You delivered orders for Bovary Café and earned",
+                "You cleaned the Fenrir server and received",
+                "You organized a meet and earned",
+                "You sold memes in chat and made",
+                "You helped Nazar and he paid you",
+                "You designed a badge and received",
             ]
             text = random.choice(jobs)
             u["last_work"] = now
             self.data.save_user(uid, u)
             self.data.add_money(uid, pay, "work")
             embed = discord.Embed(
-                title="💼 Trabalho concluído",
+                title="💼 Work Completed",
                 description=f"{text} **{_fmt(pay)}** {CURRENCY}!",
                 color=COLOR_SUCCESS,
             )
@@ -1005,32 +1055,158 @@ class Economy(commands.Cog):
         if action == "shop":
             shop = self.data.get_shop()
             if not shop:
-                embed = discord.Embed(title="🛒 Shop vazia", description="Nenhum item disponível.", color=COLOR_INFO)
+                embed = discord.Embed(
+                    title="🛒 Shop Empty",
+                    description="No items available.",
+                    color=COLOR_INFO,
+                )
                 return embed, None
             lines = []
             for it in shop:
-                lines.append(f"{it.get('emoji','🎁')} **{it['name']}** — {_fmt(it['price'])} {CURRENCY} (`{it['type']}`)")
+                lines.append(
+                    f"{it.get('emoji','🎁')} **{it['name']}** — {_fmt(it['price'])} {CURRENCY} (`{it['type']}`)"
+                )
             embed = discord.Embed(
                 title="🛒 Bovary Shop",
                 description="\n".join(lines[:30]),
                 color=COLOR_MAIN,
             )
-            embed.set_footer(text="Selecione abaixo para comprar")
-            view = ShopBuyView(self, uid, shop)
+            embed.set_footer(text="Select below to purchase · Private view only")
+            view = ShopBuyView(self, uid, shop, "Bovary Shop")
+            return embed, view
+
+        if action == "bennys":
+            embed = discord.Embed(
+                title="🏎️ Benny's Original Motor Workshop",
+                description="Premium vehicles from Los Santos dealers.",
+                color=COLOR_MAIN,
+            )
+            # Southern San Andreas Super Autos
+            southern_lines = []
+            for it in BENNYS_SOUTHERN:
+                southern_lines.append(
+                    f"{it.get('emoji','🚗')} **{it['name']}** — {_fmt(it['price'])} {CURRENCY}"
+                )
+            embed.add_field(
+                name="🏁 Southern San Andreas Super Autos",
+                value="\n".join(southern_lines) or "—",
+                inline=False,
+            )
+            # Legendary Motorsport
+            legendary_lines = []
+            for it in BENNYS_LEGENDARY:
+                legendary_lines.append(
+                    f"{it.get('emoji','🚗')} **{it['name']}** — {_fmt(it['price'])} {CURRENCY}"
+                )
+            embed.add_field(
+                name="🏆 Legendary Motorsport",
+                value="\n".join(legendary_lines) or "—",
+                inline=False,
+            )
+            embed.set_footer(text="Select below to purchase · Private view only")
+            all_cars = BENNYS_SOUTHERN + BENNYS_LEGENDARY
+            view = ShopBuyView(self, uid, all_cars, "Benny's")
+            return embed, view
+
+        if action == "warstock":
+            lines = [
+                f"{it.get('emoji','🪖')} **{it['name']}** — {_fmt(it['price'])} {CURRENCY}"
+                for it in WARSTOCK_ITEMS
+            ]
+            embed = discord.Embed(
+                title="🪖 Warstock Cache & Carry",
+                description="Military vehicles and equipment.\n\n" + "\n".join(lines),
+                color=COLOR_FAIL,
+            )
+            embed.set_footer(text="Select below to purchase · Private view only")
+            view = ShopBuyView(self, uid, WARSTOCK_ITEMS, "Warstock")
+            return embed, view
+
+        if action == "elitas":
+            lines = [
+                f"{it.get('emoji','✈️')} **{it['name']}** — {_fmt(it['price'])} {CURRENCY}"
+                for it in ELITAS_ITEMS
+            ]
+            embed = discord.Embed(
+                title="✈️ Elitas Travel",
+                description="Aircraft for the skies of Los Santos.\n\n" + "\n".join(lines),
+                color=COLOR_INFO,
+            )
+            embed.set_footer(text="Select below to purchase · Private view only")
+            view = ShopBuyView(self, uid, ELITAS_ITEMS, "Elitas Travel")
+            return embed, view
+
+        if action == "docktease":
+            lines = [
+                f"{it.get('emoji','🚤')} **{it['name']}** — {_fmt(it['price'])} {CURRENCY}"
+                for it in DOCKTEASE_ITEMS
+            ]
+            embed = discord.Embed(
+                title="🚤 DockTease",
+                description=(
+                    "Boats and watercraft.\n"
+                    "Includes the exclusive **Galaxy Super Yacht**.\n\n"
+                    + "\n".join(lines)
+                ),
+                color=COLOR_INFO,
+            )
+            embed.set_footer(text="Select below to purchase · Private view only")
+            view = ShopBuyView(self, uid, DOCKTEASE_ITEMS, "DockTease")
+            return embed, view
+
+        if action == "dynasty8":
+            lines = [
+                f"{it.get('emoji','🏠')} **{it['name']}** — {_fmt(it['price'])} {CURRENCY}"
+                for it in DYNASTY8_ITEMS
+            ]
+            embed = discord.Embed(
+                title="🏠 Dynasty8",
+                description="Apartments and common houses.\n\n" + "\n".join(lines),
+                color=COLOR_SUCCESS,
+            )
+            embed.set_footer(text="Select below to purchase · Private view only")
+            view = ShopBuyView(self, uid, DYNASTY8_ITEMS, "Dynasty8")
+            return embed, view
+
+        if action == "foreclosures":
+            lines = [
+                f"{it.get('emoji','🏢')} **{it['name']}** — {_fmt(it['price'])} {CURRENCY}"
+                for it in FORECLOSURES_ITEMS
+            ]
+            embed = discord.Embed(
+                title="🏢 Maze Bank Foreclosures",
+                description=(
+                    "Nightclubs, complexes, warehouses, bunkers,\n"
+                    "MC clubhouses, agencies and underworld properties.\n\n"
+                    + "\n".join(lines)
+                ),
+                color=COLOR_ADMIN,
+            )
+            embed.set_footer(text="Select below to purchase · Private view only")
+            view = ShopBuyView(self, uid, FORECLOSURES_ITEMS, "Foreclosures")
             return embed, view
 
         if action == "inventory":
             inv = u.get("inventory", {})
             if not inv:
-                embed = discord.Embed(title="🎒 Inventário vazio", description="Compre itens na Shop!", color=COLOR_INFO)
+                embed = discord.Embed(
+                    title="🎒 Empty Inventory",
+                    description="Buy items from the shops!",
+                    color=COLOR_INFO,
+                )
                 return embed, None
-            shop = {i["id"]: i for i in self.data.get_shop()}
+            all_items = self.data.get_all_items()
             lines = []
             for iid, qty in inv.items():
-                name = shop.get(iid, {}).get("name", iid)
-                emoji = shop.get(iid, {}).get("emoji", "🎁")
+                item = all_items.get(iid, {})
+                name = item.get("name", iid)
+                emoji = item.get("emoji", "🎁")
                 lines.append(f"{emoji} **{name}** ×{qty}")
-            embed = discord.Embed(title="🎒 Seu Inventário", description="\n".join(lines), color=COLOR_INFO)
+            embed = discord.Embed(
+                title="🎒 Your Inventory",
+                description="\n".join(lines),
+                color=COLOR_INFO,
+            )
             return embed, None
 
         if action == "leaderboard":
@@ -1044,8 +1220,8 @@ class Economy(commands.Cog):
                 name = member.display_name if member else f"User {uid_s}"
                 lines.append(f"{medal} **{name}** — {_fmt(d.get('wallet', 0))} {CURRENCY}")
             embed = discord.Embed(
-                title=f"🏆 Ranking {CURRENCY}",
-                description="\n".join(lines) or "Ninguém ainda.",
+                title=f"🏆 Ranking — {CURRENCY}",
+                description="\n".join(lines) or "Nobody yet.",
                 color=COLOR_MAIN,
             )
             return embed, None
@@ -1054,60 +1230,65 @@ class Economy(commands.Cog):
 
     # ── Slash (admin + optional) ───────────────────────────────────────────
 
-    eco = app_commands.Group(name="economy", description="Bovary Economy (staff + util)")
+    eco = app_commands.Group(name="economy", description="Bovary Economy (staff + utility)")
 
-    @eco.command(name="panel", description="[LOCKED] Postar painel de membros no Maze Bank")
+    @eco.command(name="panel", description="[LOCKED] Post member panel in Maze Bank")
     async def panel_cmd(self, interaction: discord.Interaction):
         if not isinstance(interaction.user, discord.Member) or not is_staff(interaction.user, self.bot):
-            return await interaction.response.send_message("🔒 Apenas staff.", ephemeral=True)
+            return await interaction.response.send_message("🔒 Staff only.", ephemeral=True)
         await interaction.response.defer(ephemeral=True)
         ch = self.bot.get_channel(BANK_CHANNEL_ID) or await self.bot.fetch_channel(BANK_CHANNEL_ID)
         embed = discord.Embed(
             title=f"{CURRENCY_EMOJI} MAZE BANK",
             description=(
-                f"**Bem-vindo ao sistema Bovary Economy!**\n\n"
-                f"Moeda: **{CURRENCY}**\n\n"
-                "Use os botões abaixo para:\n"
-                "• Ver saldo & daily\n"
-                "• Transferir, trabalhar, shop\n"
-                "• Jogar Mines · Hack · Coinflip\n\n"
-                f"📡 **Todas as respostas vão para** <#{MARKET_CHANNEL_ID}>"
+                f"**Welcome to the Bovary Economy system!**\n\n"
+                f"Currency: **{CURRENCY}**\n\n"
+                "Use the buttons below to:\n"
+                "• Check balance & claim daily\n"
+                "• Work, pay others, view inventory\n"
+                "• Browse shops (cars, military, planes, boats, properties)\n"
+                "• Ranking (private only)\n\n"
+                "🔒 Cooldown messages are always private.\n"
+                "🛒 Shops open in private view only."
             ),
             color=COLOR_MAIN,
         )
-        embed.set_footer(text="Bovary Economy · Maze Bank · Clique nos botões")
+        embed.set_footer(text="Bovary Economy · Maze Bank · Click the buttons")
         view = MemberPanelView(self)
         msg = await ch.send(embed=embed, view=view)
         panels = self.data.get_panels()
         panels["member"] = {"channel_id": BANK_CHANNEL_ID, "message_id": msg.id}
         self.data.save_panels(panels)
-        await interaction.followup.send(f"✅ Painel postado em <#{BANK_CHANNEL_ID}> (Maze Bank)", ephemeral=True)
+        await interaction.followup.send(
+            f"✅ Panel posted in <#{BANK_CHANNEL_ID}> (Maze Bank)", ephemeral=True
+        )
 
-    @eco.command(name="adminpanel", description="[LOCKED] Postar painel admin no Bank Admin")
+    @eco.command(name="adminpanel", description="[LOCKED] Post admin panel in Bank Admin")
     async def adminpanel_cmd(self, interaction: discord.Interaction):
         if not isinstance(interaction.user, discord.Member) or not is_staff(interaction.user, self.bot):
-            return await interaction.response.send_message("🔒 Apenas staff.", ephemeral=True)
+            return await interaction.response.send_message("🔒 Staff only.", ephemeral=True)
         if interaction.channel_id != ADMIN_CHANNEL_ID:
             return await interaction.response.send_message(
-                f"Este painel só pode ser postado em <#{ADMIN_CHANNEL_ID}>.", ephemeral=True
+                f"This panel can only be posted in <#{ADMIN_CHANNEL_ID}>.", ephemeral=True
             )
         embed = discord.Embed(
-            title="🛡️ BANK ADMIN — Controle da Economia",
+            title="🛡️ BANK ADMIN — Economy Control",
             description=(
-                "**Painel restrito a staff.**\n\n"
-                "Gerencie saldos, shop, settings e backups."
+                "**Staff-only panel.**\n\n"
+                "Manage balances, shop, settings and backups.\n"
+                "Use **Post Ranking** to publish the leaderboard publicly."
             ),
             color=COLOR_ADMIN,
         )
         view = AdminPanelView(self)
         await interaction.response.send_message(embed=embed, view=view)
 
-    @eco.command(name="balance", description="Ver seu saldo (atalho slash)")
+    @eco.command(name="balance", description="View your balance (slash shortcut)")
     async def bal_slash(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
         target = member or interaction.user
         u = self.data.get_user(target.id)
         embed = discord.Embed(
-            title=f"{CURRENCY_EMOJI} Carteira de {target.display_name}",
+            title=f"{CURRENCY_EMOJI} Wallet of {target.display_name}",
             description=f"**{_fmt(u['wallet'])}** {CURRENCY}",
             color=COLOR_MAIN,
         )
