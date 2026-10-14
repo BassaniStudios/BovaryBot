@@ -1,6 +1,6 @@
 """
 Bova's Bot — Official private bot of Bovary Club Society.
-Version: 2.13.0
+Version: 2.14.0
 """
 from __future__ import annotations
 
@@ -146,6 +146,10 @@ class BovaryBot(commands.Bot):
             "FIVEM_HOSTS_ROLE_ID": load_int_env("FIVEM_HOSTS_ROLE_ID", 1537850168999809215),
             # Anti-spam honeypot channel (any message → 7-day native timeout)
             "ANTISPAM_CHANNEL_ID": _chan("ANTISPAM_CHANNEL_ID", 1559213282638827590),
+            # Bovary Economy channels
+            "ECONOMY_BANK_CHANNEL_ID": _chan("ECONOMY_BANK_CHANNEL_ID", 1559720971437350933),
+            "ECONOMY_MARKET_CHANNEL_ID": _chan("ECONOMY_MARKET_CHANNEL_ID", 1559721230591066182),
+            "ECONOMY_ADMIN_CHANNEL_ID": _chan("ECONOMY_ADMIN_CHANNEL_ID", 1426755523797057536),
             "PANEL_URL": os.getenv("PANEL_URL", "https://bovaryclub.github.io/BovaryBot-Panel/"),
             # Panel secret is read only from the environment; never expose or default it in code.
             "PANEL_ACCESS_KEY": os.getenv("PANEL_ACCESS_KEY", ""),

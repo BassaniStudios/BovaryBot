@@ -1,6 +1,17 @@
-# Bova's Bot — v2.13.0
+# Bova's Bot — v2.14.0
 
 Private bot for **Bovary Club Society**. Developed by **Bassani**.
+
+## What's new in 2.14.0
+- **Bovary Economy** (`cogs/economy.py`) — sistema completo de economia
+  - Moeda: **Bovas coins**
+  - Painel fixo de membros no canal **Bovary Bank** (botões, sem slash para membros)
+  - Respostas dos membros vão para **Bovary Market**
+  - Painel admin [LOCKED] no canal **Bank Admin**
+  - Daily com streak, work, pay, shop (pets / carros / brasões), inventário, ranking
+  - Mini-games interativos: **Mines**, **Hack**, **Coinflip**
+  - Staff: add/remove/set money, all-users, reset, settings, shop CRUD, backup wallets
+  - Slash: `/economy panel`, `/economy adminpanel`, `/economy balance`
 
 ## What's new in 2.13.0
 - **Anti-spam honeypot** (`cogs/antispam.py`)
