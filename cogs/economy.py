@@ -1,5 +1,5 @@
 """
-Bovary Economy — complete economy system for Bova's Bot.
+GTA Economy — complete economy system for Bova's Bot.
 Currency: Bovas coins
 Main panel (members): Maze Bank channel
 Member responses: Bovary Market channel
@@ -206,12 +206,12 @@ DEFAULT_SETTINGS = {
     "work_max": 220,
     "work_cooldown": 21600,     # 6 hours
     "balance_cooldown": 1800,   # 30 minutes (public only)
-    "daily_cooldown": 86400,    # 24 hours
+    "daily_cooldown": 64800,    # 18 hours
     "min_bet": 10,
     "max_bet": 10000,
     "currency_name": CURRENCY,
-    "motoclub_cooldown": 18000,  # 5 hours
-    "ceo_cooldown": 18000,       # 5 hours
+    "motoclub_cooldown": 21600,  # 6 hours
+    "ceo_cooldown": 21600,       # 6 hours
     "motoclub_reward_min": 320,
     "motoclub_reward_max": 850,
     "ceo_fast_reward_min": 450,
@@ -221,8 +221,8 @@ DEFAULT_SETTINGS = {
     "ceo_premium_reward_min": 800,
     "ceo_premium_reward_max": 1800,
     "ceo_premium_cost": 200,
-    "cayo_heist_prize_min": 4000,
-    "cayo_heist_prize_max": 9000,
+    "cayo_heist_prize_min": 8000,
+    "cayo_heist_prize_max": 15000,
     # Casino
     "lucky_wheel_cooldown": 86400,
     "casino_membership_standard": 5000,
@@ -454,26 +454,43 @@ async def post_to_market(
 # ═══════════════════════════════════════════════════════════════════════════
 
 class VisibilityChoiceView(discord.ui.View):
-    """Lets the user choose to view privately or post to channel."""
+    """Lets the user choose to view privately or post to channel.
+    No fixed custom_id — avoids conflicts with the persistent MemberPanelView.
+    """
 
     def __init__(self, cog: "Economy", action: str, user_id: int):
-        super().__init__(timeout=60)
+        super().__init__(timeout=90)
         self.cog = cog
         self.action = action
         self.user_id = user_id
 
-    @discord.ui.button(label="🔒 View Privately", style=discord.ButtonStyle.primary, custom_id="vis_private")
-    async def private(self, interaction: discord.Interaction, button: discord.ui.Button):
+        btn_private = discord.ui.Button(
+            label="🔒 View Privately",
+            style=discord.ButtonStyle.primary,
+        )
+        btn_private.callback = self._private
+        self.add_item(btn_private)
+
+        btn_public = discord.ui.Button(
+            label="📢 Post to Channel",
+            style=discord.ButtonStyle.secondary,
+        )
+        btn_public.callback = self._public
+        self.add_item(btn_public)
+
+    async def _private(self, interaction: discord.Interaction):
         if interaction.user.id != self.user_id:
             return await interaction.response.send_message("This is not your menu.", ephemeral=True)
         await interaction.response.defer(ephemeral=True)
         embed, view = await self.cog.handle_member_action(interaction, self.action, force_private=True)
         if embed is None:
             return await interaction.followup.send("Action cancelled or error.", ephemeral=True)
-        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+        kwargs = {"embed": embed, "ephemeral": True}
+        if view is not None:
+            kwargs["view"] = view
+        await interaction.followup.send(**kwargs)
 
-    @discord.ui.button(label="📢 Post to Channel", style=discord.ButtonStyle.secondary, custom_id="vis_public")
-    async def public(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def _public(self, interaction: discord.Interaction):
         if interaction.user.id != self.user_id:
             return await interaction.response.send_message("This is not your menu.", ephemeral=True)
         await interaction.response.defer(ephemeral=True)
@@ -505,7 +522,10 @@ class VisibilityChoiceView(discord.ui.View):
                 ephemeral=True,
             )
         else:
-            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+            kwargs = {"embed": embed, "ephemeral": True}
+            if view is not None:
+                kwargs["view"] = view
+            await interaction.followup.send(**kwargs)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -557,6 +577,24 @@ class ShopBuyView(discord.ui.View):
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
+        # Post vehicle purchases publicly to Market channel
+        itype = item.get("type", "")
+        is_vehicle = itype in ("car", "motorcycle", "aircraft", "boat", "military") or item.get("dealer") in (
+            "southern", "legendary", "lost_mc", "podium",
+        )
+        if is_vehicle:
+            public = discord.Embed(
+                title="🚗 New Vehicle Purchase!",
+                description=(
+                    f"{interaction.user.mention} just bought "
+                    f"**{item.get('emoji', '')} {item['name']}** "
+                    f"for **{_fmt(item['price'])}** {CURRENCY}!"
+                ),
+                color=COLOR_SUCCESS,
+            )
+            public.set_footer(text=f"GTA Economy · {self.shop_name}")
+            await post_to_market(self.cog.bot, interaction.user, public)
+
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -595,7 +633,7 @@ class MotoClubStartView(discord.ui.View):
         u = self.cog.data.get_user(self.user_id)
         now = _now_ts()
         last = float(u.get("last_motoclub", 0))
-        cd = settings.get("motoclub_cooldown", 18000)
+        cd = settings.get("motoclub_cooldown", 21600)
         if now - last < cd:
             rem = int(cd - (now - last))
             embed = discord.Embed(
@@ -688,7 +726,7 @@ class MotoClubStageView(discord.ui.View):
             ),
             color=COLOR_SUCCESS,
         )
-        embed.set_footer(text="MotoClub · Cooldown started (5h)")
+        embed.set_footer(text="MotoClub · Cooldown started (6h)")
         await interaction.response.edit_message(embed=embed, view=None)
         public = discord.Embed(
             title="🏍️ MotoClub Delivery Complete",
@@ -730,7 +768,7 @@ class CEOMissionView(discord.ui.View):
         u = self.cog.data.get_user(self.user_id)
         now = _now_ts()
         last = float(u.get("last_ceo", 0))
-        cd = settings.get("ceo_cooldown", 18000)
+        cd = settings.get("ceo_cooldown", 21600)
         if now - last < cd:
             rem = int(cd - (now - last))
             embed = discord.Embed(
@@ -791,7 +829,7 @@ class CEOMissionView(discord.ui.View):
                 ),
                 color=COLOR_SUCCESS,
             )
-            embed.set_footer(text="CEO SecuroServ · Cooldown started (5h)")
+            embed.set_footer(text="CEO SecuroServ · Cooldown started (6h)")
             await interaction.response.edit_message(embed=embed, view=None)
             public = discord.Embed(
                 title="💼 CEO SecuroServ — Acquisition Complete",
@@ -809,7 +847,7 @@ class CEOMissionView(discord.ui.View):
                 ),
                 color=COLOR_FAIL,
             )
-            embed.set_footer(text="CEO SecuroServ · Cooldown started (5h)")
+            embed.set_footer(text="CEO SecuroServ · Cooldown started (6h)")
             await interaction.response.edit_message(embed=embed, view=None)
 
 
@@ -1017,8 +1055,9 @@ class CayoQuizView(discord.ui.View):
             select.callback = self._answer
             self.add_item(select)
         else:
-            # Final reward choice — 4 buttons (one random bag is 40%, rest 20%)
-            pcts = [0.20, 0.20, 0.20, 0.40]
+            # Final reward choice — higher shares so payout covers prep cost (~3.9k) and is rewarding
+            # Bags: 60% / 70% / 85% / 100% of total prize (total ~8k–15k → final ~5k–15k)
+            pcts = [0.60, 0.70, 0.85, 1.00]
             random.shuffle(pcts)
             for label, pct in zip("ABCD", pcts):
                 self.add_item(CayoRewardButton(self.cog, self.user_id, label, pct))
@@ -1038,8 +1077,8 @@ class CayoQuizView(discord.ui.View):
             description=(
                 "You reached the compound vault.\n\n"
                 "Choose one of the **4 loot bags**. All are wins:\n"
-                "• Three bags contain **20%** of the total prize\n"
-                "• One bag contains **40%** of the total prize\n\n"
+                "• Bags contain **60% / 70% / 85% / 100%** of the total prize\n"
+                "• Total heist value is high — you will cover prep costs and profit\n\n"
                 "Pick wisely — the values are hidden."
             ),
             color=COLOR_SUCCESS,
@@ -1082,8 +1121,8 @@ class CayoRewardButton(discord.ui.Button):
             return await interaction.response.send_message("This is not your heist.", ephemeral=True)
         settings = self.cog.data.get_settings()
         total = random.randint(
-            settings.get("cayo_heist_prize_min", 3500),
-            settings.get("cayo_heist_prize_max", 7500),
+            settings.get("cayo_heist_prize_min", 8000),
+            settings.get("cayo_heist_prize_max", 15000),
         )
         reward = int(total * self.pct)
         self.cog.data.add_money(self.user_id, reward, "cayo_heist")
@@ -1544,7 +1583,7 @@ class MemberPanelView(discord.ui.View):
             ),
             color=COLOR_CONSTRUCTION,
         )
-        embed.set_footer(text=f"Bovary Economy · {title} · Coming Soon")
+        embed.set_footer(text=f"GTA Economy · {title} · Coming Soon")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     # ── Row 0 — Core actions (green) ──
@@ -1556,7 +1595,7 @@ class MemberPanelView(discord.ui.View):
         settings = self.cog.data.get_settings()
         now = _now_ts()
         last = float(u.get("last_daily", 0))
-        cd = settings.get("daily_cooldown", 86400)
+        cd = settings.get("daily_cooldown", 64800)
         if now - last < cd:
             rem = int(cd - (now - last))
             embed = discord.Embed(
@@ -1686,7 +1725,7 @@ class MemberPanelView(discord.ui.View):
         u = self.cog.data.get_user(interaction.user.id)
         now = _now_ts()
         last = float(u.get("last_ceo", 0))
-        cd = settings.get("ceo_cooldown", 18000)
+        cd = settings.get("ceo_cooldown", 21600)
         if now - last < cd:
             rem = int(cd - (now - last))
             embed = discord.Embed(
@@ -1703,7 +1742,7 @@ class MemberPanelView(discord.ui.View):
                 "⚡ **Fast Route** — High risk, high reward (≈40% success)\n"
                 "🛡️ **Safe Route** — Lower payout, reliable (≈80% success)\n"
                 "💎 **Premium Transport** — Costs coins upfront, best odds (≈90% success)\n\n"
-                "Cooldown: **5 hours** after each attempt."
+                "Cooldown: **6 hours** after each attempt."
             ),
             color=COLOR_PURPLE,
         )
@@ -1717,7 +1756,7 @@ class MemberPanelView(discord.ui.View):
         u = self.cog.data.get_user(interaction.user.id)
         now = _now_ts()
         last = float(u.get("last_motoclub", 0))
-        cd = settings.get("motoclub_cooldown", 18000)
+        cd = settings.get("motoclub_cooldown", 21600)
         if now - last < cd:
             rem = int(cd - (now - last))
             embed = discord.Embed(
@@ -1734,7 +1773,7 @@ class MemberPanelView(discord.ui.View):
                 "Each stage has 4 route options — **3 correct, 1 wrong** (75% chance).\n"
                 "One wrong choice fails the entire run.\n\n"
                 "Products: Weed · Cocaine · Meth · LSD\n"
-                "Cooldown: **5 hours** after each attempt."
+                "Cooldown: **6 hours** after each attempt."
             ),
             color=COLOR_PURPLE,
         )
@@ -1745,20 +1784,20 @@ class MemberPanelView(discord.ui.View):
     @discord.ui.button(label="❓ Help", style=discord.ButtonStyle.secondary, custom_id="eco_help", row=4)
     async def btn_help(self, interaction: discord.Interaction, button: discord.ui.Button):
         embed = discord.Embed(
-            title="❓ Bovary Economy — Help",
+            title="❓ GTA Economy — Help",
             description=(
                 f"**Currency:** {CURRENCY_EMOJI} {CURRENCY}\n\n"
-                "**Core (green):** Daily · Work · Balance · Pay\n\n"
+                "**Core (green):** Daily (18h) · Work · Balance · Pay\n\n"
                 "**Shops:** Benny's (cars + Lost MC) · Elitas · Warstock · DockTease · Dynasty8 · Maze Bank\n\n"
                 "**Lifestyle:** Casino Resort (Lucky Wheel, Membership, Podium, Penthouse) · Music Locker (events + VIP)\n\n"
-                "**Missions (5h):** CEO SecuroServ · MotoClub\n"
+                "**Missions (6h):** CEO SecuroServ · MotoClub\n"
                 "**Cayo Perico Heist:** needs Kosatka Submarine\n\n"
-                "**Utility:** Inventory · Garage · Ranking (private or public)\n\n"
+                "**Utility:** Inventory · Garage · Ranking (choose private or public view)\n\n"
                 "Cooldowns and shops are always private."
             ),
             color=COLOR_INFO,
         )
-        embed.set_footer(text="Bovary Economy")
+        embed.set_footer(text="GTA Economy")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @discord.ui.button(label="🎒 Inventory", style=discord.ButtonStyle.secondary, custom_id="eco_inv", row=4)
@@ -1846,7 +1885,7 @@ class PayModal(discord.ui.Modal, title="💸 Pay Member"):
             description=f"{interaction.user.mention} sent **{_fmt(amount)}** {CURRENCY} to **{name}**.",
             color=COLOR_SUCCESS,
         )
-        embed.set_footer(text="Bovary Economy")
+        embed.set_footer(text="GTA Economy")
         await post_to_market(self.cog.bot, interaction.user, embed)
         await interaction.followup.send(
             f"✅ Sent {_fmt(amount)} to {name}. See it in <#{MARKET_CHANNEL_ID}>",
@@ -1871,6 +1910,7 @@ class AdminPanelView(discord.ui.View):
             return False
         return True
 
+    # ── Row 0 — Money management ──
     @discord.ui.button(label="➕ Add Money", style=discord.ButtonStyle.success, custom_id="adm_add_money", row=0)
     async def add_money(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(AdminMoneyModal(self.cog, "add"))
@@ -1883,6 +1923,11 @@ class AdminPanelView(discord.ui.View):
     async def set_money(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(AdminMoneyModal(self.cog, "set"))
 
+    @discord.ui.button(label="🔍 View User", style=discord.ButtonStyle.secondary, custom_id="adm_view_user", row=0)
+    async def view_user(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(AdminViewUserModal(self.cog))
+
+    # ── Row 1 — Bulk + user reset ──
     @discord.ui.button(label="🌐 All +", style=discord.ButtonStyle.success, custom_id="adm_all_add", row=1)
     async def all_add(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(AdminAllModal(self.cog, "add"))
@@ -1895,12 +1940,14 @@ class AdminPanelView(discord.ui.View):
     async def reset_user(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(AdminResetUserModal(self.cog))
 
+    @discord.ui.button(label="🎁 Give Item", style=discord.ButtonStyle.success, custom_id="adm_give_item", row=1)
+    async def give_item(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(AdminGiveItemModal(self.cog))
+
+    # ── Row 2 — Dangerous + settings ──
     @discord.ui.button(label="💥 Reset Server", style=discord.ButtonStyle.danger, custom_id="adm_reset_server", row=2)
     async def reset_server(self, interaction: discord.Interaction, button: discord.ui.Button):
-        view = ConfirmResetView(self.cog)
-        await interaction.response.send_message(
-            "⚠️ Confirm RESET of ALL balances?", view=view, ephemeral=True
-        )
+        await interaction.response.send_modal(AdminResetServerModal(self.cog))
 
     @discord.ui.button(label="⚙️ Settings", style=discord.ButtonStyle.secondary, custom_id="adm_settings", row=2)
     async def settings(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -1914,7 +1961,18 @@ class AdminPanelView(discord.ui.View):
     async def set_daily(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(AdminDailyModal(self.cog))
 
+    @discord.ui.button(label="💼 Set Work", style=discord.ButtonStyle.secondary, custom_id="adm_set_work", row=2)
+    async def set_work(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(AdminWorkModal(self.cog))
 
+    # ── Row 3 — Cooldowns + backup ──
+    @discord.ui.button(label="⏳ Set Cooldowns", style=discord.ButtonStyle.secondary, custom_id="adm_set_cd", row=3)
+    async def set_cooldowns(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(AdminCooldownModal(self.cog))
+
+    @discord.ui.button(label="🗑️ Remove Item", style=discord.ButtonStyle.danger, custom_id="adm_rem_item", row=3)
+    async def remove_item(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(AdminRemoveItemModal(self.cog))
 
     @discord.ui.button(label="📋 Backup Wallets", style=discord.ButtonStyle.primary, custom_id="adm_backup", row=3)
     async def backup(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -1930,6 +1988,7 @@ class AdminPanelView(discord.ui.View):
         )
         await interaction.followup.send("Wallet backup:", file=file, ephemeral=True)
 
+    # ── Row 4 — Ranking + cooldown reset ──
     @discord.ui.button(label="🏆 Post Ranking", style=discord.ButtonStyle.primary, custom_id="adm_post_lb", row=4)
     async def post_ranking(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Admins can post ranking publicly."""
@@ -1940,6 +1999,36 @@ class AdminPanelView(discord.ui.View):
             await interaction.followup.send(
                 f"✅ Ranking posted in <#{MARKET_CHANNEL_ID}>.", ephemeral=True
             )
+
+    @discord.ui.button(label="🔄 Reset All Cooldowns", style=discord.ButtonStyle.danger, custom_id="adm_reset_all_cd", row=4)
+    async def reset_all_cooldowns(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Clear all cooldown timestamps for every member."""
+        await interaction.response.defer(ephemeral=True)
+        users = self.cog.data.get_all_users()
+        cooldown_keys = (
+            "last_daily",
+            "last_work",
+            "last_balance",
+            "last_motoclub",
+            "last_ceo",
+            "last_lucky_wheel",
+            "last_music_event",
+        )
+        count = 0
+        for uid, data in users.items():
+            changed = False
+            for key in cooldown_keys:
+                if data.get(key, 0):
+                    data[key] = 0
+                    changed = True
+            if changed:
+                self.cog.data.save_user(int(uid), data)
+                count += 1
+        await interaction.followup.send(
+            f"✅ Cooldowns reset for **{count}** member(s).\n"
+            "Daily · Work · Balance · MotoClub · CEO · Lucky Wheel · Music Event are available again.",
+            ephemeral=True,
+        )
 
 
 class AdminMoneyModal(discord.ui.Modal, title="Manage Balance"):
@@ -2006,15 +2095,31 @@ class AdminResetUserModal(discord.ui.Modal, title="Reset User"):
         await interaction.response.send_message(f"✅ User {uid} reset.", ephemeral=True)
 
 
-class ConfirmResetView(discord.ui.View):
-    def __init__(self, cog: "Economy"):
-        super().__init__(timeout=30)
-        self.cog = cog
+class AdminResetServerModal(discord.ui.Modal, title="💥 Reset Server Economy"):
+    """Requires password to confirm full economy wipe."""
 
-    @discord.ui.button(label="CONFIRM SERVER RESET", style=discord.ButtonStyle.danger)
-    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+    RESET_PASSWORD = "199413123"
+
+    def __init__(self, cog: "Economy"):
+        super().__init__()
+        self.cog = cog
+        self.password = discord.ui.TextInput(
+            label="Password",
+            placeholder="Enter reset password",
+            required=True,
+            style=discord.TextStyle.short,
+        )
+        self.add_item(self.password)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        if self.password.value.strip() != self.RESET_PASSWORD:
+            return await interaction.response.send_message(
+                "❌ Incorrect password. Server reset cancelled.", ephemeral=True
+            )
         self.cog.data.reset_all()
-        await interaction.response.edit_message(content="💥 Server economy reset.", view=None)
+        await interaction.response.send_message(
+            "💥 **Server economy fully reset.** All balances wiped.", ephemeral=True
+        )
 
 
 class AdminDailyModal(discord.ui.Modal, title="Set Daily Amount"):
@@ -2035,8 +2140,173 @@ class AdminDailyModal(discord.ui.Modal, title="Set Daily Amount"):
         await interaction.response.send_message(f"✅ Daily base = {_fmt(v)}", ephemeral=True)
 
 
+class AdminWorkModal(discord.ui.Modal, title="Set Work Rewards"):
+    def __init__(self, cog: "Economy"):
+        super().__init__()
+        self.cog = cog
+        self.min_amt = discord.ui.TextInput(label="Work min reward", required=True, placeholder="80")
+        self.max_amt = discord.ui.TextInput(label="Work max reward", required=True, placeholder="220")
+        self.add_item(self.min_amt)
+        self.add_item(self.max_amt)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            vmin = int(self.min_amt.value.replace(".", "").replace(",", ""))
+            vmax = int(self.max_amt.value.replace(".", "").replace(",", ""))
+        except ValueError:
+            return await interaction.response.send_message("Invalid values.", ephemeral=True)
+        if vmin > vmax or vmin < 0:
+            return await interaction.response.send_message("Min must be ≤ max and ≥ 0.", ephemeral=True)
+        s = self.cog.data.get_settings()
+        s["work_min"] = vmin
+        s["work_max"] = vmax
+        self.cog.data.save_settings(s)
+        await interaction.response.send_message(
+            f"✅ Work range set to **{_fmt(vmin)}** – **{_fmt(vmax)}** {CURRENCY}.", ephemeral=True
+        )
+
+
+class AdminCooldownModal(discord.ui.Modal, title="Set Cooldowns (seconds)"):
+    def __init__(self, cog: "Economy"):
+        super().__init__()
+        self.cog = cog
+        self.daily_cd = discord.ui.TextInput(label="Daily cooldown (seconds)", required=True, placeholder="64800 = 18h")
+        self.work_cd = discord.ui.TextInput(label="Work cooldown (seconds)", required=True, placeholder="21600 = 6h")
+        self.add_item(self.daily_cd)
+        self.add_item(self.work_cd)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            d = int(self.daily_cd.value)
+            w = int(self.work_cd.value)
+        except ValueError:
+            return await interaction.response.send_message("Invalid values.", ephemeral=True)
+        if d < 0 or w < 0:
+            return await interaction.response.send_message("Cooldowns must be ≥ 0.", ephemeral=True)
+        s = self.cog.data.get_settings()
+        s["daily_cooldown"] = d
+        s["work_cooldown"] = w
+        self.cog.data.save_settings(s)
+        await interaction.response.send_message(
+            f"✅ Daily CD = **{_fmt_time(d)}** · Work CD = **{_fmt_time(w)}**.", ephemeral=True
+        )
+
+
+class AdminViewUserModal(discord.ui.Modal, title="View User"):
+    def __init__(self, cog: "Economy"):
+        super().__init__()
+        self.cog = cog
+        self.uid = discord.ui.TextInput(label="User ID", required=True)
+        self.add_item(self.uid)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            uid = int(self.uid.value.strip())
+        except ValueError:
+            return await interaction.response.send_message("Invalid ID.", ephemeral=True)
+        u = self.cog.data.get_user(uid)
+        inv = u.get("inventory", {})
+        inv_lines = []
+        all_items = self.cog.data.get_all_items()
+        for iid, qty in list(inv.items())[:20]:
+            item = all_items.get(iid, {})
+            name = item.get("name", iid)
+            inv_lines.append(f"• {name} ×{qty}")
+        embed = discord.Embed(
+            title=f"🔍 User {uid}",
+            description=(
+                f"**Wallet:** {_fmt(u.get('wallet', 0))} {CURRENCY}\n"
+                f"**Streak:** {u.get('streak', 0)}\n"
+                f"**Total earned:** {_fmt(u.get('total_earned', 0))}\n"
+                f"**Total spent:** {_fmt(u.get('total_spent', 0))}\n"
+                f"**Casino membership:** {u.get('casino_membership') or 'None'}\n"
+                f"**Music VIP:** {'Yes' if u.get('music_vip') else 'No'}\n\n"
+                f"**Inventory ({len(inv)} items):**\n"
+                + ("\n".join(inv_lines) if inv_lines else "Empty")
+            ),
+            color=COLOR_ADMIN,
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+class AdminGiveItemModal(discord.ui.Modal, title="Give Item"):
+    def __init__(self, cog: "Economy"):
+        super().__init__()
+        self.cog = cog
+        self.uid = discord.ui.TextInput(label="User ID", required=True)
+        self.item_id = discord.ui.TextInput(label="Item ID (e.g. car_sultan)", required=True)
+        self.qty = discord.ui.TextInput(label="Quantity", required=True, default="1")
+        self.add_item(self.uid)
+        self.add_item(self.item_id)
+        self.add_item(self.qty)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            uid = int(self.uid.value.strip())
+            quantity = int(self.qty.value.strip())
+        except ValueError:
+            return await interaction.response.send_message("Invalid ID or quantity.", ephemeral=True)
+        if quantity <= 0:
+            return await interaction.response.send_message("Quantity must be positive.", ephemeral=True)
+        iid = self.item_id.value.strip()
+        all_items = self.cog.data.get_all_items()
+        if iid not in all_items:
+            return await interaction.response.send_message(
+                f"Unknown item id `{iid}`. Check catalogs.", ephemeral=True
+            )
+        u = self.cog.data.get_user(uid)
+        inv = u.get("inventory", {})
+        inv[iid] = inv.get(iid, 0) + quantity
+        u["inventory"] = inv
+        self.cog.data.save_user(uid, u)
+        name = all_items[iid].get("name", iid)
+        await interaction.response.send_message(
+            f"✅ Gave **{name}** ×{quantity} to user `{uid}`.", ephemeral=True
+        )
+
+
+class AdminRemoveItemModal(discord.ui.Modal, title="Remove Item"):
+    def __init__(self, cog: "Economy"):
+        super().__init__()
+        self.cog = cog
+        self.uid = discord.ui.TextInput(label="User ID", required=True)
+        self.item_id = discord.ui.TextInput(label="Item ID (e.g. car_sultan)", required=True)
+        self.qty = discord.ui.TextInput(label="Quantity (or 0 to remove all)", required=True, default="1")
+        self.add_item(self.uid)
+        self.add_item(self.item_id)
+        self.add_item(self.qty)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            uid = int(self.uid.value.strip())
+            quantity = int(self.qty.value.strip())
+        except ValueError:
+            return await interaction.response.send_message("Invalid ID or quantity.", ephemeral=True)
+        iid = self.item_id.value.strip()
+        u = self.cog.data.get_user(uid)
+        inv = u.get("inventory", {})
+        current = inv.get(iid, 0)
+        if current <= 0:
+            return await interaction.response.send_message(
+                f"User `{uid}` does not own `{iid}`.", ephemeral=True
+            )
+        if quantity <= 0 or quantity >= current:
+            inv.pop(iid, None)
+            removed = current
+        else:
+            inv[iid] = current - quantity
+            removed = quantity
+        u["inventory"] = inv
+        self.cog.data.save_user(uid, u)
+        all_items = self.cog.data.get_all_items()
+        name = all_items.get(iid, {}).get("name", iid)
+        await interaction.response.send_message(
+            f"✅ Removed **{name}** ×{removed} from user `{uid}`.", ephemeral=True
+        )
+
+
 class Economy(commands.Cog):
-    """Bovary Economy system."""
+    """GTA Economy system."""
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -2045,7 +2315,7 @@ class Economy(commands.Cog):
         self.bot.add_view(AdminPanelView(self))
 
     async def cog_load(self):
-        logger.info("Bovary Economy loaded")
+        logger.info("GTA Economy loaded")
 
     # ── Member action handlers ─────────────────────────────────────────────
 
@@ -2069,13 +2339,13 @@ class Economy(commands.Cog):
             embed.add_field(name="Total Earned", value=_fmt(u.get("total_earned", 0)), inline=True)
             embed.add_field(name="Total Spent", value=_fmt(u.get("total_spent", 0)), inline=True)
             embed.set_thumbnail(url=interaction.user.display_avatar.url)
-            embed.set_footer(text="Bovary Economy")
+            embed.set_footer(text="GTA Economy")
             return embed, None
 
         if action == "daily":
             now = _now_ts()
             last = float(u.get("last_daily", 0))
-            cd = settings.get("daily_cooldown", 86400)
+            cd = settings.get("daily_cooldown", 64800)
             if now - last < cd:
                 remaining = int(cd - (now - last))
                 embed = discord.Embed(
@@ -2105,7 +2375,7 @@ class Economy(commands.Cog):
                 ),
                 color=COLOR_SUCCESS,
             )
-            embed.set_footer(text="Bovary Economy")
+            embed.set_footer(text="GTA Economy")
             return embed, None
 
         if action == "work":
@@ -2280,7 +2550,7 @@ class Economy(commands.Cog):
                 color=COLOR_MAIN,
             )
             embed.set_thumbnail(url=interaction.user.display_avatar.url)
-            embed.set_footer(text="Bovary Economy · Garage")
+            embed.set_footer(text="GTA Economy · Garage")
             return embed, None
 
         if action == "inventory":
@@ -2327,7 +2597,7 @@ class Economy(commands.Cog):
 
     # ── Slash (admin + optional) ───────────────────────────────────────────
 
-    eco = app_commands.Group(name="economy", description="Bovary Economy (staff + utility)")
+    eco = app_commands.Group(name="economy", description="GTA Economy (staff + utility)")
 
     @eco.command(name="panel", description="[LOCKED] Post member panel in Maze Bank")
     async def panel_cmd(self, interaction: discord.Interaction):
@@ -2336,20 +2606,23 @@ class Economy(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         ch = self.bot.get_channel(BANK_CHANNEL_ID) or await self.bot.fetch_channel(BANK_CHANNEL_ID)
         embed = discord.Embed(
-            title=f"{CURRENCY_EMOJI} MAZE BANK",
+            title=f"{CURRENCY_EMOJI} GTA Economy",
             description=(
-                f"**Welcome to the Bovary Economy system!**\n\n"
+                f"**Welcome to the GTA Economy system!**\n\n"
                 f"Currency: **{CURRENCY}**\n\n"
                 "Use the buttons below to:\n"
                 "• Daily, Work, Balance & Pay\n"
                 "• Shops: Benny's, Elitas, Warstock, DockTease, Dynasty8, Maze Bank\n"
+                "• Lifestyle: Casino Resort & Music Locker\n"
                 "• Missions: CEO SecuroServ & MotoClub\n"
-                "• Inventory, Garage, Help & more\n\n"
-                "🔒 Cooldown messages and shops are always private."
+                "• Cayo Perico Heist (requires Kosatka)\n"
+                "• Inventory, Garage, Ranking & Help\n\n"
+                "🔒 Cooldown messages and shops are always private.\n"
+                "Balance / Inventory / Garage / Ranking: choose private or public view."
             ),
             color=COLOR_MAIN,
         )
-        embed.set_footer(text="Bovary Economy · Maze Bank · Click the buttons")
+        embed.set_footer(text="GTA Economy · Maze Bank · Click the buttons")
         view = MemberPanelView(self)
         msg = await ch.send(embed=embed, view=view)
         panels = self.data.get_panels()
@@ -2368,11 +2641,16 @@ class Economy(commands.Cog):
                 f"This panel can only be posted in <#{ADMIN_CHANNEL_ID}>.", ephemeral=True
             )
         embed = discord.Embed(
-            title="🛡️ BANK ADMIN — Economy Control",
+            title="🛡️ BANK ADMIN — GTA Economy Control",
             description=(
                 "**Staff-only panel.**\n\n"
-                "Manage balances, shop, settings and backups.\n"
-                "Use **Post Ranking** to publish the leaderboard publicly."
+                "• Money: Add / Remove / Set / View User\n"
+                "• Bulk: All + / All − / Reset User / Give Item\n"
+                "• Settings: Daily · Work · Cooldowns · Full Settings\n"
+                "• Items: Give / Remove\n"
+                "• Backup Wallets · Post Ranking\n"
+                "• **Reset All Cooldowns** — unlocks Daily/Work/Missions for everyone\n"
+                "• **Reset Server** requires password\n"
             ),
             color=COLOR_ADMIN,
         )
