@@ -1,9 +1,10 @@
 """
 GTA Economy — complete economy system for Bova's Bot.
 Currency: Bovas coins
-Main panel (members): Maze Bank channel
+Main panel (members): Maze Bank channel (panel)
 Member responses: Bovary Market channel
 Admin panel [LOCKED]: Bank Admin channel
+Bank deposits handled by Maze Bank (wallet + bank balance)
 """
 from __future__ import annotations
 
@@ -20,9 +21,12 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 from utils.storage import load_json, save_json
-from utils.helpers import make_embed, SERVER_TZ
+from utils.helpers import make_embed
 
 logger = logging.getLogger("bovary_bot.economy")
+
+# Simple lock to reduce race conditions on JSON file I/O
+_economy_lock = asyncio.Lock()
 
 # ── Channel IDs (hardcoded production + env override possible via config) ──
 BANK_CHANNEL_ID = 1559720971437350933       # Maze Bank — member panel
@@ -42,6 +46,27 @@ COLOR_PURPLE = discord.Color.from_rgb(142, 68, 173)
 COLOR_ORANGE = discord.Color.from_rgb(230, 126, 34)
 COLOR_LILAC = discord.Color.from_rgb(155, 89, 182)
 COLOR_LIGHT_BLUE = discord.Color.from_rgb(133, 193, 233)
+
+# ── Embed images (ImageKit CDN — used as thumbnails to keep embeds compact) ──
+IMG = {
+    "casino": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/images.jpg",
+    "kortz": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/6e26753573182f0b6ed9143a0123e616f4b20db3.jpg",
+    "docktease": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/DockTease-GTAV-Logo.webp",
+    "warstock": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/download.jpg",
+    "bennys": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/GTA_Online-_Lowriders_-_Benny's_Original_Motor_Works.youtube",
+    "garage": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/images%20(1).jpg",
+    "maze_bank": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/maze-bank-logo.png",
+    "elitas": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/Elitas_Travel_logo.png",
+    "dynasty8_exec": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/Dynasty8Executive-GTAO.webp",
+    "dynasty8": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/Dynasty8.webp",
+    "music_locker": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/maxresdefault.jpg",
+    "cayo": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/499a97fc07ffaafdd0273ed5a5991a00eacc929a.jpg",
+    "lucky_wheel": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/2025-04-23_de27b53e461b7.webp",
+    "penthouse": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/36a87f762155d0c603760fa047731802c05f2c3e.jpg",
+    "vehicle_exports": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/download.jpg",
+    "acid_lab": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/images.jpg",
+    "doomsday": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/6e26753573182f0b6ed9143a0123e616f4b20db3.jpg",
+}
 
 # ── Default general shop (removed from member panel — empty for compatibility) ──
 DEFAULT_SHOP: List[Dict[str, Any]] = []
@@ -118,10 +143,10 @@ DYNASTY8_ITEMS: List[Dict[str, Any]] = [
     {"id": "prop_apt_mid", "name": "🏢 Mid-Range Apartment", "price": 38000, "type": "property", "desc": "Comfortable living.", "emoji": "🏢"},
     {"id": "prop_apt_high", "name": "🏙️ High-End Apartment", "price": 95000, "type": "property", "desc": "Luxury city living.", "emoji": "🏙️"},
     {"id": "prop_house_suburb", "name": "🏡 Suburban House", "price": 72000, "type": "property", "desc": "Quiet neighborhood house.", "emoji": "🏡"},
-    {"id": "prop_house_mansion", "name": "🏰 Mansion", "price": 220000, "type": "property", "desc": "Spacious luxury mansion.", "emoji": "🏰"},
+    {"id": "prop_house_mansion", "name": "🏰 The Mansion", "price": 220000, "type": "property", "desc": "Spacious luxury mansion. Permanent & unique. Required for The Kortz Center Heist.", "emoji": "🏰", "unique": True},
 ]
 
-# ── Maze Bank Foreclosures (business / underworld properties) ──
+# ── Dynasty8 Executive (business / underworld properties) ──
 FORECLOSURES_ITEMS: List[Dict[str, Any]] = [
     {"id": "biz_nightclub", "name": "🕺 Nightclub", "price": 175000, "type": "business", "desc": "Own a nightclub.", "emoji": "🕺"},
     {"id": "biz_warehouse", "name": "🏭 Warehouse", "price": 65000, "type": "business", "desc": "Storage complex.", "emoji": "🏭"},
@@ -151,9 +176,17 @@ CAYO_INVITE_ITEM = {
     "emoji": "🎟️",
 }
 
+CAYO_ACHIEVEMENT = {
+    "id": "ach_cayo_heist",
+    "name": "🏆 Cayo Perico Heist Trophy",
+    "type": "achievement",
+    "desc": "Proof that you successfully robbed El Rubio's island.",
+    "emoji": "🏆",
+}
+
 CAYO_PREP_IDS = [it["id"] for it in CAYO_PREP_ITEMS]
 
-# Heist quiz questions (Cayo Perico themed)
+# Heist quiz questions (Cayo Perico / GTA themed) — expanded
 CAYO_QUIZ = [
     {
         "q": "What is the name of the island compound owned by El Rubio?",
@@ -163,6 +196,101 @@ CAYO_QUIZ = [
     {
         "q": "Which primary approach vehicle is ideal for a stealth entry to Cayo Perico?",
         "options": ["Rhino Tank", "Longfin Boat", "Buzzard Attack Heli", "Oppressor Mk II"],
+        "correct": 1,
+    },
+    {
+        "q": "Who is the main target of the Cayo Perico Heist?",
+        "options": ["Lester Crest", "El Rubio (Juan Strickler)", "Martin Madrazo", "Pavel"],
+        "correct": 1,
+    },
+    {
+        "q": "What permanent vehicle is required to start the Cayo Perico Heist?",
+        "options": ["Kosatka Submarine", "Oppressor Mk II", "Buzzard", "Tug Boat"],
+        "correct": 0,
+    },
+    {
+        "q": "Which secondary target is commonly found in the compound drainage?",
+        "options": ["Gold bars", "Cash stacks", "Weed packages", "Paintings"],
+        "correct": 0,
+    },
+    {
+        "q": "What tool is used to cut the glass display cases on Cayo Perico?",
+        "options": ["Crowbar", "Plasma Cutter", "Bolt Cutters", "Thermal Charge"],
+        "correct": 1,
+    },
+    {
+        "q": "Who helps you coordinate the Cayo Perico Heist from the Kosatka?",
+        "options": ["Lester", "Pavel", "English Dave", "Lamar"],
+        "correct": 1,
+    },
+    {
+        "q": "What is the name of El Rubio's primary guard dog?",
+        "options": ["Chop", "Charlotte", "Brutus", "Rocky"],
+        "correct": 1,
+    },
+]
+
+# ── The Kortz Center Heist (requires The Mansion) ──
+KORTZ_PREP_ITEMS: List[Dict[str, Any]] = [
+    {"id": "kortz_keycard", "name": "🪪 Security Keycard Clone", "price": 1200, "type": "kortz_prep", "desc": "Cloned staff keycard for the Bell Building entrance.", "emoji": "🪪"},
+    {"id": "kortz_hacker", "name": "💻 Hacking Device", "price": 1500, "type": "kortz_prep", "desc": "Bypasses fingerprint scanners and vault terminals.", "emoji": "💻"},
+    {"id": "kortz_laser", "name": "🔦 Laser Bypass Kit", "price": 1100, "type": "kortz_prep", "desc": "Disables laser tripwire grids in the basement.", "emoji": "🔦"},
+    {"id": "kortz_disguise", "name": "🎭 Staff Disguise", "price": 900, "type": "kortz_prep", "desc": "Museum staff uniform for stealth infiltration.", "emoji": "🎭"},
+    {"id": "kortz_replica", "name": "🖼️ Counterfeit Painting Kit", "price": 1800, "type": "kortz_prep", "desc": "Replica of the primary target to swap in the vault.", "emoji": "🖼️"},
+]
+
+KORTZ_INVITE_ITEM = {
+    "id": "kortz_invite",
+    "name": "🎟️ Kortz Center Heist Invite",
+    "type": "consumable",
+    "desc": "One-time invitation to launch The Kortz Center Heist.",
+    "emoji": "🎟️",
+}
+
+KORTZ_ACHIEVEMENT = {
+    "id": "ach_kortz_heist",
+    "name": "🏆 Kortz Center Heist Trophy",
+    "type": "achievement",
+    "desc": "Proof that you successfully stole the Albert Crisp Collection.",
+    "emoji": "🏆",
+}
+
+KORTZ_PREP_IDS = [it["id"] for it in KORTZ_PREP_ITEMS]
+
+KORTZ_QUIZ = [
+    {
+        "q": "Where is the Kortz Center located in Los Santos?",
+        "options": ["Downtown", "Pacific Bluffs", "Sandy Shores", "Paleto Bay"],
+        "correct": 1,
+    },
+    {
+        "q": "What is the primary target of The Kortz Center Heist?",
+        "options": ["Gold bars", "The Albert Crisp Collection (paintings)", "Diamonds", "Bearer Bonds"],
+        "correct": 1,
+    },
+    {
+        "q": "Which building inside the Kortz Center holds the vault?",
+        "options": ["Low Rotunda", "Bell Building", "Moseley Building", "Biranda Building"],
+        "correct": 1,
+    },
+    {
+        "q": "What property upgrade is required to start The Kortz Center Heist?",
+        "options": ["Arcade", "Art Studio in a Mansion", "Nightclub", "Facility"],
+        "correct": 1,
+    },
+    {
+        "q": "Which of these is a valid entrance to the Kortz Center during the heist?",
+        "options": ["Skylight", "Rooftop Helipad", "Underground Tunnel only", "Main Gate only"],
+        "correct": 0,
+    },
+    {
+        "q": "Who is the contact that helps organize The Kortz Center Heist?",
+        "options": ["Lester Crest", "Mr. Faber / Raf", "Pavel", "English Dave"],
+        "correct": 1,
+    },
+    {
+        "q": "What do you swap the original painting with inside the vault?",
+        "options": ["Nothing", "A counterfeit replica", "A different painting", "Cash"],
         "correct": 1,
     },
 ]
@@ -179,10 +307,12 @@ CASINO_PENTHOUSE = {
 }
 
 CASINO_MEMBERSHIP_TIERS = {
-    "standard": {"name": "Standard", "emoji": "🃏", "price_key": "casino_membership_standard", "discount": 0.05},
-    "vip": {"name": "VIP", "emoji": "💎", "price_key": "casino_membership_vip", "discount": 0.10},
-    "diamond": {"name": "Diamond", "emoji": "👑", "price_key": "casino_membership_diamond", "discount": 0.15},
+    "standard": {"name": "Standard", "emoji": "🃏", "price_key": "casino_membership_standard"},
+    "vip": {"name": "VIP", "emoji": "💎", "price_key": "casino_membership_vip"},
+    "diamond": {"name": "Diamond", "emoji": "👑", "price_key": "casino_membership_diamond"},
 }
+
+CASINO_VIP_ROLE_ID = 1559725006332760064  # Casino Vip Member role given with Master Penthouse
 
 # Podium vehicles (rotating collection — fixed list for now, one can be "featured")
 CASINO_PODIUM = [
@@ -223,6 +353,8 @@ DEFAULT_SETTINGS = {
     "ceo_premium_cost": 200,
     "cayo_heist_prize_min": 8000,
     "cayo_heist_prize_max": 15000,
+    "kortz_heist_prize_min": 10000,
+    "kortz_heist_prize_max": 18000,
     # Casino
     "lucky_wheel_cooldown": 86400,
     "casino_membership_standard": 5000,
@@ -237,6 +369,12 @@ DEFAULT_SETTINGS = {
     "music_vip_price": 12000,
     "music_vip_bonus_mult": 1.5,
     "music_event_cooldown": 86400,
+    # Service bonus (admin adjustable)
+    "service_bonus": 0,
+    # Vehicle export mini-game reward (admin adjustable)
+    "export_reward_min": 400,
+    "export_reward_max": 900,
+    "penthouse_party_reward": 450,  # slightly above base daily
 }
 
 # Street / location names used in MotoClub route choices
@@ -287,6 +425,7 @@ class EconomyData:
     PANELS_KEY = "economy_panels"
 
     def __init__(self):
+        self._lock = asyncio.Lock()
         self._ensure()
 
     def _ensure(self):
@@ -307,9 +446,11 @@ class EconomyData:
     def get_user(self, user_id: int) -> Dict[str, Any]:
         users = load_json(self.USERS_KEY, {})
         uid = str(user_id)
+        changed = False
         if uid not in users:
             users[uid] = {
                 "wallet": 0,
+                "bank": 0,
                 "last_daily": 0,
                 "streak": 0,
                 "inventory": {},
@@ -325,14 +466,33 @@ class EconomyData:
                 "music_vip": False,
                 "created_at": _now_ts(),
             }
-            save_json(self.USERS_KEY, users)
+            changed = True
         u = users[uid]
-        u.setdefault("last_motoclub", 0)
-        u.setdefault("last_ceo", 0)
-        u.setdefault("last_lucky_wheel", 0)
-        u.setdefault("last_music_event", 0)
-        u.setdefault("casino_membership", None)
-        u.setdefault("music_vip", False)
+        defaults = {
+            "last_motoclub": 0,
+            "last_ceo": 0,
+            "last_lucky_wheel": 0,
+            "last_music_event": 0,
+            "casino_membership": None,
+            "music_vip": False,
+            "wallet": 0,
+            "bank": 0,
+            "streak": 0,
+            "inventory": {},
+            "total_earned": 0,
+            "total_spent": 0,
+            "last_daily": 0,
+            "last_work": 0,
+            "last_balance": 0,
+            "last_penthouse_party": 0,
+        }
+        for k, v in defaults.items():
+            if k not in u:
+                u[k] = v
+                changed = True
+        if changed:
+            users[uid] = u
+            save_json(self.USERS_KEY, users)
         return u
 
     def save_user(self, user_id: int, data: Dict[str, Any]):
@@ -342,6 +502,12 @@ class EconomyData:
 
     def add_money(self, user_id: int, amount: int, reason: str = "") -> int:
         u = self.get_user(user_id)
+        # Apply service bonus on positive earnings from services
+        if amount > 0 and reason in ("daily", "work", "motoclub", "ceo_securo", "cayo_heist", "kortz_heist", "music_event", "music_presence", "lucky_wheel"):
+            settings = self.get_settings()
+            bonus = int(settings.get("service_bonus", 0))
+            if bonus > 0:
+                amount += bonus
         u["wallet"] = max(0, int(u.get("wallet", 0)) + amount)
         if amount > 0:
             u["total_earned"] = int(u.get("total_earned", 0)) + amount
@@ -355,6 +521,22 @@ class EconomyData:
         u["wallet"] = max(0, int(amount))
         self.save_user(user_id, u)
         return u["wallet"]
+
+    def get_bank(self, user_id: int) -> int:
+        u = self.get_user(user_id)
+        return int(u.get("bank", 0))
+
+    def set_bank(self, user_id: int, amount: int) -> int:
+        u = self.get_user(user_id)
+        u["bank"] = max(0, int(amount))
+        self.save_user(user_id, u)
+        return u["bank"]
+
+    def add_bank(self, user_id: int, amount: int) -> int:
+        u = self.get_user(user_id)
+        u["bank"] = max(0, int(u.get("bank", 0)) + amount)
+        self.save_user(user_id, u)
+        return u["bank"]
 
     def get_settings(self) -> Dict[str, Any]:
         s = load_json(self.SETTINGS_KEY, DEFAULT_SETTINGS.copy())
@@ -401,10 +583,14 @@ class EconomyData:
             DYNASTY8_ITEMS,
             FORECLOSURES_ITEMS,
             CAYO_PREP_ITEMS,
+            KORTZ_PREP_ITEMS,
         ):
             for it in lst:
                 items[it["id"]] = it
         items[CAYO_INVITE_ITEM["id"]] = CAYO_INVITE_ITEM
+        items[CAYO_ACHIEVEMENT["id"]] = CAYO_ACHIEVEMENT
+        items[KORTZ_INVITE_ITEM["id"]] = KORTZ_INVITE_ITEM
+        items[KORTZ_ACHIEVEMENT["id"]] = KORTZ_ACHIEVEMENT
         items[CASINO_PENTHOUSE["id"]] = CASINO_PENTHOUSE
         for it in CASINO_PODIUM:
             items[it["id"]] = it
@@ -554,22 +740,34 @@ class ShopBuyView(discord.ui.View):
         if interaction.user.id != self.user_id:
             return await interaction.response.send_message("This is not your shop!", ephemeral=True)
         item_id = interaction.data["values"][0]
-        # Search all catalogs
         all_items = self.cog.data.get_all_items()
         item = all_items.get(item_id)
         if not item:
             return await interaction.response.send_message("Item not found.", ephemeral=True)
+
         u = self.cog.data.get_user(self.user_id)
+        inv = u.get("inventory", {})
+
+        # Unique / permanent items (Mansion, Submarine, Penthouse, etc.)
+        if item.get("unique") or item_id in ("mil_submarine", "casino_penthouse", "prop_house_mansion"):
+            if inv.get(item_id, 0) >= 1:
+                return await interaction.response.send_message(
+                    f"You already own **{item.get('emoji', '')} {item['name']}**. It is permanent and unique.",
+                    ephemeral=True,
+                )
+
         if u["wallet"] < item["price"]:
             return await interaction.response.send_message(
-                f"Insufficient balance. You need {_fmt(item['price'])}.", ephemeral=True
+                f"Insufficient balance. You need {_fmt(item['price'])} {CURRENCY}.", ephemeral=True
             )
+
         self.cog.data.add_money(self.user_id, -item["price"], "shop_buy")
+        u = self.cog.data.get_user(self.user_id)
         inv = u.get("inventory", {})
         inv[item_id] = inv.get(item_id, 0) + 1
-        u = self.cog.data.get_user(self.user_id)
         u["inventory"] = inv
         self.cog.data.save_user(self.user_id, u)
+
         embed = discord.Embed(
             title="🛒 Purchase Successful!",
             description=f"You bought **{item.get('emoji', '')} {item['name']}** for **{_fmt(item['price'])}** {CURRENCY}.",
@@ -577,23 +775,18 @@ class ShopBuyView(discord.ui.View):
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-        # Post vehicle purchases publicly to Market channel
-        itype = item.get("type", "")
-        is_vehicle = itype in ("car", "motorcycle", "aircraft", "boat", "military") or item.get("dealer") in (
-            "southern", "legendary", "lost_mc", "podium",
+        # Announce ALL purchases publicly in Market channel
+        public = discord.Embed(
+            title="🛒 New Acquisition!",
+            description=(
+                f"{interaction.user.mention} just bought "
+                f"**{item.get('emoji', '')} {item['name']}** "
+                f"for **{_fmt(item['price'])}** {CURRENCY}!"
+            ),
+            color=COLOR_SUCCESS,
         )
-        if is_vehicle:
-            public = discord.Embed(
-                title="🚗 New Vehicle Purchase!",
-                description=(
-                    f"{interaction.user.mention} just bought "
-                    f"**{item.get('emoji', '')} {item['name']}** "
-                    f"for **{_fmt(item['price'])}** {CURRENCY}!"
-                ),
-                color=COLOR_SUCCESS,
-            )
-            public.set_footer(text=f"GTA Economy · {self.shop_name}")
-            await post_to_market(self.cog.bot, interaction.user, public)
+        public.set_footer(text=f"GTA Economy · {self.shop_name}")
+        await post_to_market(self.cog.bot, interaction.user, public)
 
 
 
@@ -904,6 +1097,7 @@ class CayoMainView(discord.ui.View):
             ),
             color=COLOR_LIGHT_BLUE,
         )
+        embed.set_thumbnail(url=IMG["cayo"])
         embed.set_footer(text="Requires Kosatka Submarine · All actions private")
         return embed
 
@@ -1126,12 +1320,20 @@ class CayoRewardButton(discord.ui.Button):
         )
         reward = int(total * self.pct)
         self.cog.data.add_money(self.user_id, reward, "cayo_heist")
+        # Achievement item (once)
+        u = self.cog.data.get_user(self.user_id)
+        inv = u.get("inventory", {})
+        if inv.get("ach_cayo_heist", 0) < 1:
+            inv["ach_cayo_heist"] = 1
+            u["inventory"] = inv
+            self.cog.data.save_user(self.user_id, u)
         embed = discord.Embed(
             title="🏆 Heist Complete!",
             description=(
                 f"You grabbed **Loot Bag** and escaped Cayo Perico!\n\n"
                 f"Total heist value: **{_fmt(total)}** {CURRENCY}\n"
-                f"Your share (**{int(self.pct*100)}%**): **{_fmt(reward)}** {CURRENCY}"
+                f"Your share (**{int(self.pct*100)}%**): **{_fmt(reward)}** {CURRENCY}\n\n"
+                f"Achievement unlocked: **{CAYO_ACHIEVEMENT['emoji']} {CAYO_ACHIEVEMENT['name']}**"
             ),
             color=COLOR_SUCCESS,
         )
@@ -1147,7 +1349,296 @@ class CayoRewardButton(discord.ui.Button):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# MEMBER PANEL VIEW (persistent)
+# THE KORTZ CENTER HEIST
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _has_mansion(u: Dict) -> bool:
+    inv = u.get("inventory", {})
+    return inv.get("prop_house_mansion", 0) >= 1
+
+
+def _kortz_prep_progress(u: Dict) -> Tuple[int, List[str]]:
+    inv = u.get("inventory", {})
+    owned = []
+    missing = []
+    for it in KORTZ_PREP_ITEMS:
+        if inv.get(it["id"], 0) >= 1:
+            owned.append(it["id"])
+        else:
+            missing.append(it["id"])
+    return len(owned), missing
+
+
+class KortzMainView(discord.ui.View):
+    """Main Kortz Center Heist panel (ephemeral). Requires The Mansion."""
+
+    def __init__(self, cog: "Economy", user_id: int):
+        super().__init__(timeout=120)
+        self.cog = cog
+        self.user_id = user_id
+
+    def build_embed(self, u: Dict) -> discord.Embed:
+        inv = u.get("inventory", {})
+        lines = []
+        for it in KORTZ_PREP_ITEMS:
+            qty = inv.get(it["id"], 0)
+            status = "✅" if qty >= 1 else "❌"
+            lines.append(
+                f"{status} {it.get('emoji', '')} **{it['name']}** — {_fmt(it['price'])} {CURRENCY}"
+                + (f" (owned ×{qty})" if qty else "")
+            )
+        owned_count, _ = _kortz_prep_progress(u)
+        invite_qty = inv.get("kortz_invite", 0)
+        embed = discord.Embed(
+            title="🖼️ The Kortz Center Heist",
+            description=(
+                "Infiltrate the Bell Building at the Kortz Center and steal the "
+                "**Albert Crisp Collection**.\n\n"
+                "Prepare your gear, deliver the full set for an **Invite**, "
+                "then launch the Heist for a big payout + trophy.\n\n"
+                f"**Prep progress:** {owned_count}/5 items\n"
+                f"**Invites owned:** {invite_qty}\n\n"
+                + "\n".join(lines)
+            ),
+            color=COLOR_ORANGE,
+        )
+        embed.set_thumbnail(url=IMG["kortz"])
+        embed.set_footer(text="Requires The Mansion · All actions private")
+        return embed
+
+    @discord.ui.button(label="🛒 Buy Prep Items", style=discord.ButtonStyle.primary, row=0)
+    async def buy_prep(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your panel.", ephemeral=True)
+        view = KortzBuyView(self.cog, self.user_id)
+        embed = discord.Embed(
+            title="🛒 Kortz Center — Prep Shop",
+            description="Select an item to purchase. You need **all 5** to deliver for an Invite.",
+            color=COLOR_ORANGE,
+        )
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    @discord.ui.button(label="📦 Deliver Prep Set", style=discord.ButtonStyle.success, row=0)
+    async def deliver(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your panel.", ephemeral=True)
+        u = self.cog.data.get_user(self.user_id)
+        owned_count, missing = _kortz_prep_progress(u)
+        if owned_count < 5:
+            names = [it["name"] for it in KORTZ_PREP_ITEMS if it["id"] in missing]
+            embed = discord.Embed(
+                title="📦 Incomplete Set",
+                description=f"You still need:\n• " + "\n• ".join(names) + "\n\nBuy the missing items first.",
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        inv = u.get("inventory", {})
+        for iid in KORTZ_PREP_IDS:
+            inv[iid] = max(0, inv.get(iid, 0) - 1)
+            if inv[iid] == 0:
+                inv.pop(iid, None)
+        inv["kortz_invite"] = inv.get("kortz_invite", 0) + 1
+        u["inventory"] = inv
+        self.cog.data.save_user(self.user_id, u)
+
+        embed = discord.Embed(
+            title="✅ Prep Set Delivered!",
+            description=(
+                "You handed over the full preparation kit to the Art Studio.\n\n"
+                f"Received: **🎟️ Kortz Center Heist Invite** ×1\n"
+                f"Invites now: **{inv['kortz_invite']}**\n\n"
+                "Use **Launch Heist** when you are ready."
+            ),
+            color=COLOR_SUCCESS,
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="🚀 Launch Heist", style=discord.ButtonStyle.danger, row=0)
+    async def launch(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your panel.", ephemeral=True)
+        u = self.cog.data.get_user(self.user_id)
+        inv = u.get("inventory", {})
+        if inv.get("kortz_invite", 0) < 1:
+            embed = discord.Embed(
+                title="🎟️ No Invite",
+                description="You need a **Kortz Center Heist Invite**. Deliver a full prep set first.",
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        inv["kortz_invite"] -= 1
+        if inv["kortz_invite"] <= 0:
+            inv.pop("kortz_invite", None)
+        u["inventory"] = inv
+        self.cog.data.save_user(self.user_id, u)
+
+        view = KortzQuizView(self.cog, self.user_id, stage=0)
+        embed = view.build_embed()
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+
+class KortzBuyView(discord.ui.View):
+    def __init__(self, cog: "Economy", user_id: int):
+        super().__init__(timeout=90)
+        self.cog = cog
+        self.user_id = user_id
+        options = [
+            discord.SelectOption(
+                label=f"{it.get('emoji', '')} {it['name']}"[:100],
+                value=it["id"],
+                description=f"{_fmt(it['price'])} {CURRENCY}"[:100],
+            )
+            for it in KORTZ_PREP_ITEMS
+        ]
+        select = discord.ui.Select(placeholder="Choose prep item to buy…", options=options)
+        select.callback = self._buy
+        self.add_item(select)
+
+    async def _buy(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your shop.", ephemeral=True)
+        item_id = interaction.data["values"][0]
+        item = next((it for it in KORTZ_PREP_ITEMS if it["id"] == item_id), None)
+        if not item:
+            return await interaction.response.send_message("Item not found.", ephemeral=True)
+        u = self.cog.data.get_user(self.user_id)
+        if u["wallet"] < item["price"]:
+            return await interaction.response.send_message(
+                f"Insufficient balance. You need {_fmt(item['price'])} {CURRENCY}.",
+                ephemeral=True,
+            )
+        self.cog.data.add_money(self.user_id, -item["price"], "kortz_prep_buy")
+        u = self.cog.data.get_user(self.user_id)
+        inv = u.get("inventory", {})
+        inv[item_id] = inv.get(item_id, 0) + 1
+        u["inventory"] = inv
+        self.cog.data.save_user(self.user_id, u)
+        owned, _ = _kortz_prep_progress(u)
+        embed = discord.Embed(
+            title="✅ Purchase Successful",
+            description=(
+                f"You bought **{item.get('emoji', '')} {item['name']}** "
+                f"for **{_fmt(item['price'])}** {CURRENCY}.\n\n"
+                f"Prep progress: **{owned}/5**"
+            ),
+            color=COLOR_SUCCESS,
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+class KortzQuizView(discord.ui.View):
+    def __init__(self, cog: "Economy", user_id: int, stage: int):
+        super().__init__(timeout=120)
+        self.cog = cog
+        self.user_id = user_id
+        self.stage = stage
+
+        if stage < 2:
+            qdata = KORTZ_QUIZ[stage % len(KORTZ_QUIZ)]
+            options = [
+                discord.SelectOption(label=opt[:100], value=str(i))
+                for i, opt in enumerate(qdata["options"])
+            ]
+            select = discord.ui.Select(placeholder="Choose your answer…", options=options)
+            select.callback = self._answer
+            self.add_item(select)
+        else:
+            pcts = [0.60, 0.70, 0.85, 1.00]
+            random.shuffle(pcts)
+            for label, pct in zip("ABCD", pcts):
+                self.add_item(KortzRewardButton(self.cog, self.user_id, label, pct))
+
+    def build_embed(self) -> discord.Embed:
+        if self.stage < 2:
+            qdata = KORTZ_QUIZ[self.stage % len(KORTZ_QUIZ)]
+            embed = discord.Embed(
+                title=f"🖼️ Kortz Center Heist — Question {self.stage + 1}/2",
+                description=f"**{qdata['q']}**\n\nSelect the correct answer below.",
+                color=COLOR_ORANGE,
+            )
+            embed.set_footer(text="Wrong answer ends the heist with no payout")
+            return embed
+        embed = discord.Embed(
+            title="🖼️ Kortz Center Heist — Vault!",
+            description=(
+                "You reached the basement vault of the Bell Building.\n\n"
+                "Choose one of the **4 art cases**. All are wins:\n"
+                "• Cases contain **60% / 70% / 85% / 100%** of the total prize\n"
+                "• Primary target: Albert Crisp Collection painting\n\n"
+                "Pick wisely — the values are hidden."
+            ),
+            color=COLOR_SUCCESS,
+        )
+        embed.set_footer(text="All choices succeed — higher % is better")
+        return embed
+
+    async def _answer(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your heist.", ephemeral=True)
+        choice = int(interaction.data["values"][0])
+        qdata = KORTZ_QUIZ[self.stage % len(KORTZ_QUIZ)]
+        if choice != qdata["correct"]:
+            embed = discord.Embed(
+                title="💥 Heist Failed",
+                description=(
+                    f"Wrong answer.\n"
+                    f"Correct was: **{qdata['options'][qdata['correct']]}**\n\n"
+                    "Security was alerted. No payout this run."
+                ),
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.edit_message(embed=embed, view=None)
+
+        next_stage = self.stage + 1
+        next_view = KortzQuizView(self.cog, self.user_id, stage=next_stage)
+        embed = next_view.build_embed()
+        await interaction.response.edit_message(embed=embed, view=next_view)
+
+
+class KortzRewardButton(discord.ui.Button):
+    def __init__(self, cog: "Economy", user_id: int, label: str, pct: float):
+        super().__init__(label=f"Art Case {label}", style=discord.ButtonStyle.primary)
+        self.cog = cog
+        self.user_id = user_id
+        self.pct = pct
+
+    async def callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your heist.", ephemeral=True)
+        settings = self.cog.data.get_settings()
+        total = random.randint(
+            settings.get("kortz_heist_prize_min", 10000),
+            settings.get("kortz_heist_prize_max", 18000),
+        )
+        reward = int(total * self.pct)
+        self.cog.data.add_money(self.user_id, reward, "kortz_heist")
+        u = self.cog.data.get_user(self.user_id)
+        inv = u.get("inventory", {})
+        if inv.get("ach_kortz_heist", 0) < 1:
+            inv["ach_kortz_heist"] = 1
+            u["inventory"] = inv
+            self.cog.data.save_user(self.user_id, u)
+        embed = discord.Embed(
+            title="🏆 Heist Complete!",
+            description=(
+                f"You swapped the painting and escaped the Kortz Center!\n\n"
+                f"Total heist value: **{_fmt(total)}** {CURRENCY}\n"
+                f"Your share (**{int(self.pct*100)}%**): **{_fmt(reward)}** {CURRENCY}\n\n"
+                f"Achievement unlocked: **{KORTZ_ACHIEVEMENT['emoji']} {KORTZ_ACHIEVEMENT['name']}**"
+            ),
+            color=COLOR_SUCCESS,
+        )
+        embed.set_footer(text="Kortz Center Heist · Invite consumed")
+        await interaction.response.edit_message(embed=embed, view=None)
+        public = discord.Embed(
+            title="🖼️ Kortz Center Heist Successful",
+            description=f"{interaction.user.mention} completed The Kortz Center Heist and earned **{_fmt(reward)}** {CURRENCY}!",
+            color=COLOR_ORANGE,
+        )
+        await post_to_market(self.cog.bot, interaction.user, public)
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # CASINO RESORT
@@ -1176,11 +1667,13 @@ class CasinoMainView(discord.ui.View):
                 f"**Master Penthouse:** {'✅ Owned' if has_ph else '❌ Not owned'}\n\n"
                 "• **Lucky Wheel** — one spin per day\n"
                 "• **Membership** — Standard / VIP / Diamond perks\n"
-                "• **Podium Collection** — exclusive vehicles\n"
+                "• **Podium Collection** — exclusive vehicles (Penthouse)\n"
+                "• **Slot Machines** — high rollers (Penthouse)\n"
                 "• **Master Penthouse** — premium residence"
             ),
             color=COLOR_CASINO,
         )
+        embed.set_thumbnail(url=IMG["casino"])
         embed.set_footer(text="Casino Resort · All actions private")
         return embed
 
@@ -1261,6 +1754,7 @@ class CasinoMainView(discord.ui.View):
                 description="The wheel stopped on nothing this time.\nCome back tomorrow!",
                 color=COLOR_FAIL,
             )
+        embed.set_thumbnail(url=IMG["lucky_wheel"])
         embed.set_footer(text="Lucky Wheel · 1 spin per day")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
@@ -1276,13 +1770,12 @@ class CasinoMainView(discord.ui.View):
             price = settings.get(tier["price_key"], 0)
             owned = "✅" if current == key else ""
             lines.append(
-                f"{tier['emoji']} **{tier['name']}** — {_fmt(price)} {CURRENCY} "
-                f"({int(tier['discount']*100)}% shop discount) {owned}"
+                f"{tier['emoji']} **{tier['name']}** — {_fmt(price)} {CURRENCY} {owned}"
             )
         embed = discord.Embed(
             title="🃏 Casino Membership",
             description=(
-                "Higher tiers unlock better discounts and prestige.\n"
+                "Higher tiers unlock prestige status at the Diamond Casino.\n"
                 "Purchasing a higher tier replaces your current one.\n\n"
                 + "\n".join(lines)
             ),
@@ -1295,6 +1788,17 @@ class CasinoMainView(discord.ui.View):
     async def podium(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id != self.user_id:
             return await interaction.response.send_message("Not your menu.", ephemeral=True)
+        u = self.cog.data.get_user(self.user_id)
+        if u.get("inventory", {}).get("casino_penthouse", 0) < 1:
+            embed = discord.Embed(
+                title="🏨 Master Penthouse Required",
+                description=(
+                    "Only owners of the **Master Penthouse** can access the Podium Collection.\n"
+                    "Purchase the Master Penthouse first."
+                ),
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
         lines = [
             f"{it.get('emoji','🏎️')} **{it['name']}** — {_fmt(it['price'])} {CURRENCY}"
             for it in CASINO_PODIUM
@@ -1303,7 +1807,7 @@ class CasinoMainView(discord.ui.View):
             title="🏎️ Podium Collection",
             description=(
                 "Exclusive vehicles displayed on the casino podium.\n"
-                "Collection rotates periodically in future updates.\n\n"
+                "Available only to **Master Penthouse** owners.\n\n"
                 + "\n".join(lines)
             ),
             color=COLOR_CASINO,
@@ -1312,8 +1816,66 @@ class CasinoMainView(discord.ui.View):
         view = ShopBuyView(self.cog, self.user_id, CASINO_PODIUM, "Podium Collection")
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
-    @discord.ui.button(label="🏨 Master Penthouse", style=discord.ButtonStyle.success, row=1)
+    @discord.ui.button(label="🎰 Slot Machines", style=discord.ButtonStyle.danger, row=1)
+    async def slots(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("Not your menu.", ephemeral=True)
+        u = self.cog.data.get_user(self.user_id)
+        if u.get("inventory", {}).get("casino_penthouse", 0) < 1:
+            embed = discord.Embed(
+                title="🏨 Master Penthouse Required",
+                description=(
+                    "The high-roller **Slot Machines** are exclusive to **Master Penthouse** owners.\n"
+                    "Purchase the Master Penthouse to unlock jackpot games."
+                ),
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+        view = CasinoSlotsView(self.cog, self.user_id)
+        embed = view.build_embed()
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    @discord.ui.button(label="🏨 Master Penthouse", style=discord.ButtonStyle.success, row=2)
     async def penthouse(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("Not your menu.", ephemeral=True)
+        view = MasterPenthouseView(self.cog, self.user_id)
+        embed = view.build_embed()
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+
+class MasterPenthouseView(discord.ui.View):
+    """Master Penthouse suite — buy, party, and future features."""
+
+    def __init__(self, cog: "Economy", user_id: int):
+        super().__init__(timeout=120)
+        self.cog = cog
+        self.user_id = user_id
+
+    def build_embed(self) -> discord.Embed:
+        settings = self.cog.data.get_settings()
+        price = settings.get("casino_penthouse_price", CASINO_PENTHOUSE["price"])
+        u = self.cog.data.get_user(self.user_id)
+        owned = u.get("inventory", {}).get("casino_penthouse", 0) >= 1
+        party_reward = settings.get("penthouse_party_reward", 450)
+        embed = discord.Embed(
+            title="🏨 Master Penthouse",
+            description=(
+                "The most exclusive residence on the Strip.\n"
+                "Private elevators, VIP lounges and the best view in Los Santos.\n\n"
+                f"**Status:** {'✅ Owned' if owned else '❌ Not owned'}\n"
+                f"**Purchase price:** {_fmt(price)} {CURRENCY}\n"
+                f"**Throw a Party reward:** ~{_fmt(party_reward)} {CURRENCY} (owners only)\n\n"
+                "Owning the penthouse unlocks Podium vehicles, Slot Machines and the Casino Vip Member role."
+            ),
+            color=COLOR_CASINO,
+        )
+        embed.set_thumbnail(url=IMG["penthouse"])
+        embed.set_footer(text="Master Penthouse · Diamond Casino & Resort")
+        return embed
+
+    @discord.ui.button(label="🛒 Buy Penthouse", style=discord.ButtonStyle.success, row=0)
+    async def buy(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id != self.user_id:
             return await interaction.response.send_message("Not your menu.", ephemeral=True)
         settings = self.cog.data.get_settings()
@@ -1321,34 +1883,94 @@ class CasinoMainView(discord.ui.View):
         u = self.cog.data.get_user(self.user_id)
         inv = u.get("inventory", {})
         if inv.get("casino_penthouse", 0) >= 1:
-            embed = discord.Embed(
-                title="🏨 Master Penthouse",
-                description="You already own the **Master Penthouse**.\nEnjoy private services and exclusive casino access.",
-                color=COLOR_SUCCESS,
+            return await interaction.response.send_message(
+                "You already own the **Master Penthouse**.", ephemeral=True
             )
-            return await interaction.response.send_message(embed=embed, ephemeral=True)
         if u["wallet"] < price:
-            embed = discord.Embed(
-                title="💸 Insufficient Funds",
-                description=f"Master Penthouse costs **{_fmt(price)}** {CURRENCY}.\nYou have **{_fmt(u['wallet'])}**.",
-                color=COLOR_FAIL,
+            return await interaction.response.send_message(
+                f"Need **{_fmt(price)}** {CURRENCY}. You have **{_fmt(u['wallet'])}**.",
+                ephemeral=True,
             )
-            return await interaction.response.send_message(embed=embed, ephemeral=True)
         self.cog.data.add_money(self.user_id, -price, "casino_penthouse")
         u = self.cog.data.get_user(self.user_id)
         inv = u.get("inventory", {})
         inv["casino_penthouse"] = 1
         u["inventory"] = inv
         self.cog.data.save_user(self.user_id, u)
+        try:
+            if interaction.guild:
+                role = interaction.guild.get_role(CASINO_VIP_ROLE_ID)
+                member = interaction.guild.get_member(self.user_id)
+                if role and member and role not in member.roles:
+                    await member.add_roles(role, reason="Master Penthouse purchase")
+        except Exception:
+            logger.exception("Failed to assign Casino Vip Member role")
         embed = discord.Embed(
             title="🏨 Welcome Home!",
             description=(
                 f"You purchased the **Master Penthouse** for **{_fmt(price)}** {CURRENCY}.\n\n"
-                "Private elevators, exclusive lounges and the best view of the Strip are yours."
+                "Private elevators, exclusive lounges and the best view of the Strip are yours.\n"
+                "You received the **Casino Vip Member** role."
             ),
             color=COLOR_SUCCESS,
         )
+        embed.set_thumbnail(url=IMG["penthouse"])
         await interaction.response.send_message(embed=embed, ephemeral=True)
+        public = discord.Embed(
+            title="🏨 Master Penthouse Acquired!",
+            description=f"{interaction.user.mention} just purchased the **Master Penthouse**!",
+            color=COLOR_CASINO,
+        )
+        await post_to_market(self.cog.bot, interaction.user, public)
+
+    @discord.ui.button(label="🎉 Throw a Party", style=discord.ButtonStyle.primary, row=0)
+    async def party(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("Not your menu.", ephemeral=True)
+        u = self.cog.data.get_user(self.user_id)
+        if u.get("inventory", {}).get("casino_penthouse", 0) < 1:
+            return await interaction.response.send_message(
+                "You need to own the **Master Penthouse** to throw a party.", ephemeral=True
+            )
+        settings = self.cog.data.get_settings()
+        # Party reward slightly above base daily
+        base = settings.get("penthouse_party_reward", 450)
+        daily = settings.get("daily_amount", 300)
+        reward = max(base, daily + 100)
+        # Simple daily party cooldown using last_music_event style — use a dedicated key
+        now = _now_ts()
+        last = float(u.get("last_penthouse_party", 0))
+        if now - last < 86400:
+            rem = int(86400 - (now - last))
+            return await interaction.response.send_message(
+                f"You already threw a party recently. Try again in **{_fmt_time(rem)}**.",
+                ephemeral=True,
+            )
+        u["last_penthouse_party"] = now
+        self.cog.data.save_user(self.user_id, u)
+        self.cog.data.add_money(self.user_id, reward, "penthouse_party")
+        embed = discord.Embed(
+            title="🎉 Party Night!",
+            description=(
+                f"Your penthouse was packed all night.\n"
+                f"Guests tipped **{_fmt(reward)}** {CURRENCY}."
+            ),
+            color=COLOR_SUCCESS,
+        )
+        embed.set_thumbnail(url=IMG["penthouse"])
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="🛋️ Interior — Soon", style=discord.ButtonStyle.secondary, row=1)
+    async def soon_a(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("Not your menu.", ephemeral=True)
+        await interaction.response.send_message("**Soon** — this feature is under construction.", ephemeral=True)
+
+    @discord.ui.button(label="🚁 Helipad — Soon", style=discord.ButtonStyle.secondary, row=1)
+    async def soon_b(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("Not your menu.", ephemeral=True)
+        await interaction.response.send_message("**Soon** — this feature is under construction.", ephemeral=True)
 
 
 class CasinoMembershipView(discord.ui.View):
@@ -1360,7 +1982,7 @@ class CasinoMembershipView(discord.ui.View):
             discord.SelectOption(
                 label=f"{t['emoji']} {t['name']}",
                 value=key,
-                description=f"{int(t['discount']*100)}% discount",
+                description="Casino prestige tier",
             )
             for key, t in CASINO_MEMBERSHIP_TIERS.items()
         ]
@@ -1393,12 +2015,113 @@ class CasinoMembershipView(discord.ui.View):
             title=f"{tier['emoji']} Membership Upgraded",
             description=(
                 f"You are now a **{tier['name']}** member.\n"
-                f"Shop discount: **{int(tier['discount']*100)}%**\n"
                 f"Paid: **{_fmt(price)}** {CURRENCY}"
             ),
             color=COLOR_SUCCESS,
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+class CasinoSlotsView(discord.ui.View):
+    """High-roller slot machines — Master Penthouse only."""
+
+    def __init__(self, cog: "Economy", user_id: int):
+        super().__init__(timeout=90)
+        self.cog = cog
+        self.user_id = user_id
+
+    def build_embed(self) -> discord.Embed:
+        embed = discord.Embed(
+            title="🎰 High-Roller Slot Machines",
+            description=(
+                "Exclusive to **Master Penthouse** owners.\n\n"
+                "Choose your bet and spin the reels.\n"
+                "• 🍒🍒🍒 Small win\n"
+                "• 🍋🍋🍋 Medium win\n"
+                "• 💎💎💎 Big win\n"
+                "• 7️⃣7️⃣7️⃣ **JACKPOT**\n\n"
+                "House edge applies — gamble responsibly."
+            ),
+            color=COLOR_CASINO,
+        )
+        embed.set_footer(text="Casino · High Roller · Private")
+        return embed
+
+    @discord.ui.button(label="Bet 100", style=discord.ButtonStyle.secondary, row=0)
+    async def bet_100(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._spin(interaction, 100)
+
+    @discord.ui.button(label="Bet 500", style=discord.ButtonStyle.primary, row=0)
+    async def bet_500(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._spin(interaction, 500)
+
+    @discord.ui.button(label="Bet 2000", style=discord.ButtonStyle.danger, row=0)
+    async def bet_2000(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._spin(interaction, 2000)
+
+    async def _spin(self, interaction: discord.Interaction, bet: int):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("Not your machine.", ephemeral=True)
+        u = self.cog.data.get_user(self.user_id)
+        if u["wallet"] < bet:
+            return await interaction.response.send_message(
+                f"Need **{_fmt(bet)}** {CURRENCY}. You have **{_fmt(u['wallet'])}**.",
+                ephemeral=True,
+            )
+        self.cog.data.add_money(self.user_id, -bet, "slots_bet")
+
+        # Weighted outcomes
+        roll = random.random()
+        symbols = ["🍒", "🍋", "🔔", "💎", "7️⃣"]
+        if roll < 0.02:  # Jackpot ~2%
+            mult = 15
+            result = "7️⃣ 7️⃣ 7️⃣"
+            title = "🎰 JACKPOT!!!"
+            color = COLOR_SUCCESS
+        elif roll < 0.08:  # Big ~6%
+            mult = 6
+            result = "💎 💎 💎"
+            title = "🎰 Big Win!"
+            color = COLOR_SUCCESS
+        elif roll < 0.20:  # Medium ~12%
+            mult = 3
+            result = "🍋 🍋 🍋"
+            title = "🎰 Nice Win"
+            color = COLOR_INFO
+        elif roll < 0.40:  # Small ~20%
+            mult = 1.5
+            result = "🍒 🍒 🍒"
+            title = "🎰 Small Win"
+            color = COLOR_INFO
+        else:
+            mult = 0
+            result = f"{random.choice(symbols)} {random.choice(symbols)} {random.choice(symbols)}"
+            title = "🎰 No Win"
+            color = COLOR_FAIL
+
+        payout = int(bet * mult)
+        if payout > 0:
+            self.cog.data.add_money(self.user_id, payout, "slots_win")
+        net = payout - bet
+        embed = discord.Embed(
+            title=title,
+            description=(
+                f"**Reels:** {result}\n\n"
+                f"Bet: **{_fmt(bet)}**\n"
+                f"Payout: **{_fmt(payout)}**\n"
+                f"Net: **{_fmt(net)}** {CURRENCY}"
+            ),
+            color=color,
+        )
+        embed.set_footer(text="High-Roller Slots · Master Penthouse")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        if payout >= bet * 6:
+            public = discord.Embed(
+                title="🎰 Casino Jackpot!",
+                description=f"{interaction.user.mention} hit a big win on the slots and took home **{_fmt(payout)}** {CURRENCY}!",
+                color=COLOR_CASINO,
+            )
+            await post_to_market(self.cog.bot, interaction.user, public)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1430,6 +2153,7 @@ class MusicLockerView(discord.ui.View):
             ),
             color=COLOR_PURPLE,
         )
+        embed.set_thumbnail(url=IMG["music_locker"])
         embed.set_footer(text="Music Locker · Underground · Private")
         return embed
 
@@ -1545,6 +2269,123 @@ class MusicLockerView(discord.ui.View):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# MAZE BANK (wallet + bank deposit)
+# ═══════════════════════════════════════════════════════════════════════════
+
+class MazeBankMainView(discord.ui.View):
+    def __init__(self, cog: "Economy", user_id: int):
+        super().__init__(timeout=120)
+        self.cog = cog
+        self.user_id = user_id
+
+    def build_embed(self, u: Dict) -> discord.Embed:
+        wallet = int(u.get("wallet", 0))
+        bank = int(u.get("bank", 0))
+        total = wallet + bank
+        embed = discord.Embed(
+            title="🏦 Maze Bank",
+            description=(
+                "Secure banking services in Los Santos.\n\n"
+                f"**Wallet:** {_fmt(wallet)} {CURRENCY}\n"
+                f"**Bank Deposit:** {_fmt(bank)} {CURRENCY}\n"
+                f"**Total Assets:** {_fmt(total)} {CURRENCY}\n\n"
+                "Deposit or withdraw funds. View your statement privately or post it publicly."
+            ),
+            color=COLOR_MAIN,
+        )
+        embed.set_thumbnail(url=IMG["maze_bank"])
+        embed.set_footer(text="Maze Bank · Private by default")
+        return embed
+
+    @discord.ui.button(label="📥 Deposit", style=discord.ButtonStyle.success, row=0)
+    async def deposit(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your bank menu.", ephemeral=True)
+        await interaction.response.send_modal(MazeBankTransferModal(self.cog, "deposit"))
+
+    @discord.ui.button(label="📤 Withdraw", style=discord.ButtonStyle.danger, row=0)
+    async def withdraw(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your bank menu.", ephemeral=True)
+        await interaction.response.send_modal(MazeBankTransferModal(self.cog, "withdraw"))
+
+    @discord.ui.button(label="📋 View Statement", style=discord.ButtonStyle.primary, row=0)
+    async def statement(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your bank menu.", ephemeral=True)
+        view = VisibilityChoiceView(self.cog, "maze_statement", interaction.user.id)
+        embed = discord.Embed(
+            title="📋 Maze Bank Statement",
+            description="Choose how you want to view your statement:",
+            color=COLOR_INFO,
+        )
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+
+class MazeBankTransferModal(discord.ui.Modal):
+    def __init__(self, cog: "Economy", mode: str):
+        title = "Deposit to Maze Bank" if mode == "deposit" else "Withdraw from Maze Bank"
+        super().__init__(title=title)
+        self.cog = cog
+        self.mode = mode
+        self.amount = discord.ui.TextInput(
+            label="Amount",
+            placeholder="1000",
+            required=True,
+        )
+        self.add_item(self.amount)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            amount = int(self.amount.value.replace(".", "").replace(",", ""))
+        except ValueError:
+            return await interaction.response.send_message("Invalid amount.", ephemeral=True)
+        if amount <= 0:
+            return await interaction.response.send_message("Amount must be positive.", ephemeral=True)
+
+        uid = interaction.user.id
+        u = self.cog.data.get_user(uid)
+        wallet = int(u.get("wallet", 0))
+        bank = int(u.get("bank", 0))
+
+        if self.mode == "deposit":
+            if wallet < amount:
+                return await interaction.response.send_message(
+                    f"Insufficient wallet funds. You have **{_fmt(wallet)}** {CURRENCY}.",
+                    ephemeral=True,
+                )
+            self.cog.data.add_money(uid, -amount, "bank_deposit")
+            self.cog.data.add_bank(uid, amount)
+            embed = discord.Embed(
+                title="📥 Deposit Successful",
+                description=(
+                    f"You deposited **{_fmt(amount)}** {CURRENCY} into your Maze Bank account.\n\n"
+                    f"**Wallet:** {_fmt(wallet - amount)} {CURRENCY}\n"
+                    f"**Bank Deposit:** {_fmt(bank + amount)} {CURRENCY}"
+                ),
+                color=COLOR_SUCCESS,
+            )
+        else:
+            if bank < amount:
+                return await interaction.response.send_message(
+                    f"Insufficient bank funds. You have **{_fmt(bank)}** {CURRENCY} deposited.",
+                    ephemeral=True,
+                )
+            self.cog.data.add_bank(uid, -amount)
+            self.cog.data.add_money(uid, amount, "bank_withdraw")
+            embed = discord.Embed(
+                title="📤 Withdrawal Successful",
+                description=(
+                    f"You withdrew **{_fmt(amount)}** {CURRENCY} from your Maze Bank account.\n\n"
+                    f"**Wallet:** {_fmt(wallet + amount)} {CURRENCY}\n"
+                    f"**Bank Deposit:** {_fmt(bank - amount)} {CURRENCY}"
+                ),
+                color=COLOR_SUCCESS,
+            )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 
 class MemberPanelView(discord.ui.View):
     def __init__(self, cog: "Economy"):
@@ -1586,6 +2427,26 @@ class MemberPanelView(discord.ui.View):
         embed.set_footer(text=f"GTA Economy · {title} · Coming Soon")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
+    async def _coming_soon(
+        self,
+        interaction: discord.Interaction,
+        title: str,
+        image_url: str,
+        blurb: str,
+    ):
+        embed = discord.Embed(
+            title=title,
+            description=(
+                f"{blurb}\n\n"
+                "**Coming soon.** This mission line is under construction.\n"
+                "Stay tuned for the full experience."
+            ),
+            color=COLOR_CONSTRUCTION,
+        )
+        embed.set_thumbnail(url=image_url)
+        embed.set_footer(text=f"GTA Economy · {title} · Coming Soon")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
     # ── Row 0 — Core actions (green) ──
     @discord.ui.button(label="📅 Daily", style=discord.ButtonStyle.success, custom_id="eco_daily", row=0)
     async def btn_daily(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -1618,7 +2479,6 @@ class MemberPanelView(discord.ui.View):
 
     @discord.ui.button(label="💼 Work", style=discord.ButtonStyle.success, custom_id="eco_work", row=0)
     async def btn_work(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.defer(ephemeral=True)
         uid = interaction.user.id
         u = self.cog.data.get_user(uid)
         settings = self.cog.data.get_settings()
@@ -1632,18 +2492,15 @@ class MemberPanelView(discord.ui.View):
                 description=f"You can work again in **{_fmt_time(rem)}**.",
                 color=COLOR_FAIL,
             )
-            return await interaction.followup.send(embed=embed, ephemeral=True)
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
 
-        embed, _ = await self.cog.handle_member_action(interaction, "work", force_private=False)
-        if embed:
-            msg = await post_to_market(self.cog.bot, interaction.user, embed)
-            if msg:
-                await interaction.followup.send(
-                    f"✅ Work completed! Result posted in <#{MARKET_CHANNEL_ID}>.",
-                    ephemeral=True,
-                )
-            else:
-                await interaction.followup.send(embed=embed, ephemeral=True)
+        view = VisibilityChoiceView(self.cog, "work", interaction.user.id)
+        embed = discord.Embed(
+            title="💼 Work",
+            description="Choose how you want to complete work:",
+            color=COLOR_INFO,
+        )
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
     @discord.ui.button(label="💰 Balance", style=discord.ButtonStyle.success, custom_id="eco_balance", row=0)
     async def btn_balance(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -1659,6 +2516,12 @@ class MemberPanelView(discord.ui.View):
     async def btn_pay(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(PayModal(self.cog))
 
+    @discord.ui.button(label="🏦 Maze Bank", style=discord.ButtonStyle.success, custom_id="eco_maze_bank", row=0)
+    async def btn_maze_bank(self, interaction: discord.Interaction, button: discord.ui.Button):
+        view = MazeBankMainView(self.cog, interaction.user.id)
+        embed = view.build_embed(self.cog.data.get_user(interaction.user.id))
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
     # ── Row 1 — Blue shops ──
     @discord.ui.button(label="🏎️ Benny's Workshop", style=discord.ButtonStyle.primary, custom_id="eco_bennys", row=1)
     async def btn_bennys(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -1667,6 +2530,34 @@ class MemberPanelView(discord.ui.View):
     @discord.ui.button(label="✈️ Elitas Travel", style=discord.ButtonStyle.primary, custom_id="eco_elitas", row=1)
     async def btn_elitas(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._send_ephemeral_result(interaction, "elitas")
+
+    @discord.ui.button(label="🚚 Vehicle Exports", style=discord.ButtonStyle.secondary, custom_id="eco_vehicle_exports", row=1)
+    async def btn_vehicle_exports(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._coming_soon(
+            interaction,
+            "🚚 Vehicle Exports",
+            IMG["vehicle_exports"],
+            "Source high-value vehicles across Los Santos and deliver them for a payout.",
+        )
+
+    @discord.ui.button(label="🧪 Acid Lab", style=discord.ButtonStyle.secondary, custom_id="eco_acid_lab", row=1)
+    async def btn_acid_lab(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._coming_soon(
+            interaction,
+            "🧪 Acid Lab",
+            IMG["acid_lab"],
+            "Produce and sell product from your mobile Acid Lab operation.",
+        )
+
+    # Row 1 now has 5 buttons — Doomsday on row 2 with shops
+    @discord.ui.button(label="☢️ Doomsday", style=discord.ButtonStyle.secondary, custom_id="eco_doomsday", row=2)
+    async def btn_doomsday(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._coming_soon(
+            interaction,
+            "☢️ Doomsday Heist",
+            IMG["doomsday"],
+            "Coordinate the three-act Doomsday scenario against global threats.",
+        )
 
     # ── Row 2 — Red shops ──
     @discord.ui.button(label="🪖 Warstock", style=discord.ButtonStyle.danger, custom_id="eco_warstock", row=2)
@@ -1696,8 +2587,8 @@ class MemberPanelView(discord.ui.View):
     async def btn_dynasty8(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._send_ephemeral_result(interaction, "dynasty8")
 
-    @discord.ui.button(label="🏦 Maze Bank", style=discord.ButtonStyle.secondary, custom_id="eco_mazebank", row=3)
-    async def btn_mazebank(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="🏢 Dynasty8 Executive", style=discord.ButtonStyle.secondary, custom_id="eco_dynasty8_exec", row=3)
+    async def btn_dynasty8_exec(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._send_ephemeral_result(interaction, "foreclosures")
 
     @discord.ui.button(label="🏝️ Cayo Perico Heist", style=discord.ButtonStyle.primary, custom_id="eco_cayo", row=3)
@@ -1718,7 +2609,25 @@ class MemberPanelView(discord.ui.View):
         embed = view.build_embed(u)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
-    # ── Row 4 — Missions + utility + extras ──
+    @discord.ui.button(label="🏰 The Mansion", style=discord.ButtonStyle.primary, custom_id="eco_mansion", row=4)
+    async def btn_mansion(self, interaction: discord.Interaction, button: discord.ui.Button):
+        u = self.cog.data.get_user(interaction.user.id)
+        if not _has_mansion(u):
+            embed = discord.Embed(
+                title="🏰 The Mansion Required",
+                description=(
+                    "You need **The Mansion** to access The Kortz Center Heist.\n\n"
+                    "Buy it at **Dynasty8** (permanent & unique property)."
+                ),
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        view = KortzMainView(self.cog, interaction.user.id)
+        embed = view.build_embed(u)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    # ── Row 2/4 — Missions + utility ──
     @discord.ui.button(label="💼 CEO SecuroServ", style=discord.ButtonStyle.secondary, custom_id="eco_ceo", row=2)
     async def btn_ceo(self, interaction: discord.Interaction, button: discord.ui.Button):
         settings = self.cog.data.get_settings()
@@ -1787,12 +2696,13 @@ class MemberPanelView(discord.ui.View):
             title="❓ GTA Economy — Help",
             description=(
                 f"**Currency:** {CURRENCY_EMOJI} {CURRENCY}\n\n"
-                "**Core (green):** Daily (18h) · Work · Balance · Pay\n\n"
-                "**Shops:** Benny's (cars + Lost MC) · Elitas · Warstock · DockTease · Dynasty8 · Maze Bank\n\n"
-                "**Lifestyle:** Casino Resort (Lucky Wheel, Membership, Podium, Penthouse) · Music Locker (events + VIP)\n\n"
+                "**Core (green):** Daily (18h) · Work (private/public) · Balance · Pay · Maze Bank\n\n"
+                "**Shops:** Benny's · Elitas · Warstock · DockTease · Dynasty8 · Dynasty8 Executive\n\n"
+                "**Lifestyle:** Casino Resort · Music Locker · Master Penthouse suite\n\n"
                 "**Missions (6h):** CEO SecuroServ · MotoClub\n"
-                "**Cayo Perico Heist:** needs Kosatka Submarine\n\n"
-                "**Utility:** Inventory · Garage · Ranking (choose private or public view)\n\n"
+                "**Coming soon:** Vehicle Exports · Acid Lab · Doomsday\n"
+                "**Heists:** Cayo Perico (Kosatka) · Kortz Center (The Mansion)\n\n"
+                "**Utility:** Inventory · Garage (by class) · Ranking\n\n"
                 "Cooldowns and shops are always private."
             ),
             color=COLOR_INFO,
@@ -2030,6 +2940,405 @@ class AdminPanelView(discord.ui.View):
             ephemeral=True,
         )
 
+    @discord.ui.button(label="🚗 Clear Vehicles", style=discord.ButtonStyle.danger, custom_id="adm_clear_veh", row=1)
+    async def clear_vehicles(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(AdminClearVehiclesModal(self.cog))
+
+    @discord.ui.button(label="🏠 Clear Permanents", style=discord.ButtonStyle.danger, custom_id="adm_clear_perm", row=2)
+    async def clear_permanents(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(AdminClearPermanentsModal(self.cog))
+
+    @discord.ui.button(label="📈 Set Service Bonus", style=discord.ButtonStyle.primary, custom_id="adm_service_bonus", row=3)
+    async def service_bonus(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(AdminServiceBonusModal(self.cog))
+
+    @discord.ui.button(label="📊 All Balances", style=discord.ButtonStyle.secondary, custom_id="adm_all_balances", row=4)
+    async def all_balances(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        users = self.cog.data.get_all_users()
+        ranked = sorted(
+            users.items(),
+            key=lambda x: int(x[1].get("wallet", 0)) + int(x[1].get("bank", 0)),
+            reverse=True,
+        )
+        lines = ["user_id,wallet,bank,total"]
+        desc_lines = []
+        for i, (uid, d) in enumerate(ranked[:50]):
+            w = int(d.get("wallet", 0))
+            b = int(d.get("bank", 0))
+            total = w + b
+            lines.append(f"{uid},{w},{b},{total}")
+            member = interaction.guild.get_member(int(uid)) if interaction.guild else None
+            name = member.display_name if member else f"User {uid}"
+            desc_lines.append(f"`{i+1}.` **{name}** — W {_fmt(w)} · B {_fmt(b)} · Σ {_fmt(total)}")
+        content = "\n".join(lines)
+        file = discord.File(
+            fp=__import__("io").BytesIO(content.encode("utf-8")),
+            filename=f"balances_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+        )
+        embed = discord.Embed(
+            title="📊 All Member Balances (Top 50)",
+            description="\n".join(desc_lines) if desc_lines else "No users yet.",
+            color=COLOR_ADMIN,
+        )
+        await interaction.followup.send(embed=embed, file=file, ephemeral=True)
+
+    @discord.ui.button(label="👑 Richest Member", style=discord.ButtonStyle.primary, custom_id="adm_richest", row=4)
+    async def richest(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        users = self.cog.data.get_all_users()
+        if not users:
+            return await interaction.followup.send("No users yet.", ephemeral=True)
+        ranked = sorted(
+            users.items(),
+            key=lambda x: int(x[1].get("wallet", 0)) + int(x[1].get("bank", 0)),
+            reverse=True,
+        )
+        uid, d = ranked[0]
+        w = int(d.get("wallet", 0))
+        b = int(d.get("bank", 0))
+        total = w + b
+        member = interaction.guild.get_member(int(uid)) if interaction.guild else None
+        name = member.display_name if member else f"User {uid}"
+        mention = member.mention if member else f"`{uid}`"
+        embed = discord.Embed(
+            title="👑 THE RICHEST IN LOS SANTOS",
+            description=(
+                f"💰💰💰 **WE HAVE A WINNER** 💰💰💰\n\n"
+                f"🏆 {mention}\n"
+                f"**{name}**\n\n"
+                f"💵 Wallet: **{_fmt(w)}** {CURRENCY}\n"
+                f"🏦 Bank: **{_fmt(b)}** {CURRENCY}\n"
+                f"✨ **Total Assets: {_fmt(total)} {CURRENCY}** ✨\n\n"
+                f"🔥🔥🔥 Respect the empire 🔥🔥🔥"
+            ),
+            color=COLOR_MAIN,
+        )
+        if member:
+            embed.set_thumbnail(url=member.display_avatar.url)
+        embed.set_footer(text="Maze Bank · Official Ranking · Top 1")
+        await post_to_market(self.cog.bot, interaction.user, embed)
+        await interaction.followup.send("✅ Richest member posted in the Market channel.", ephemeral=True)
+
+    @discord.ui.button(label="💹 Bank Yield Deposit", style=discord.ButtonStyle.success, custom_id="adm_bank_yield", row=3)
+    async def bank_yield(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(AdminBankYieldModal(self.cog))
+
+    @discord.ui.button(label="🚚 Spawn Export Event", style=discord.ButtonStyle.primary, custom_id="adm_export_event", row=4)
+    async def export_event(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        panels = self.cog.data.get_panels()
+        panels["export_claimed"] = False
+        self.cog.data.save_panels(panels)
+        embed = discord.Embed(
+            title="🚚 Vehicle Export Sighted",
+            description=(
+                "**An export vehicle was spotted, and the owner left it in a nearby parking lot.**\n\n"
+                "First agent to claim it can attempt the delivery.\n"
+                "Success is not guaranteed — watch for griefers."
+            ),
+            color=COLOR_ORANGE,
+        )
+        embed.set_thumbnail(url=IMG["vehicle_exports"])
+        embed.set_footer(text="GTA Economy · Vehicle Export · First claim only")
+        view = ExportClaimView(self.cog)
+        ch = self.cog.bot.get_channel(MARKET_CHANNEL_ID)
+        if ch is None:
+            try:
+                ch = await self.cog.bot.fetch_channel(MARKET_CHANNEL_ID)
+            except Exception:
+                return await interaction.followup.send("Could not reach Market channel.", ephemeral=True)
+        await ch.send(embed=embed, view=view)
+        await interaction.followup.send("✅ Export event posted in the Market channel.", ephemeral=True)
+
+    @discord.ui.button(label="💵 Set Export Reward", style=discord.ButtonStyle.secondary, custom_id="adm_export_reward", row=0)
+    async def export_reward(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(AdminExportRewardModal(self.cog))
+
+
+class ExportClaimView(discord.ui.View):
+    """Public one-shot claim for the admin-spawned vehicle export event."""
+
+    def __init__(self, cog: "Economy"):
+        super().__init__(timeout=None)
+        self.cog = cog
+
+    @discord.ui.button(
+        label="🚗 Claim Export",
+        style=discord.ButtonStyle.success,
+        custom_id="eco_export_claim",
+    )
+    async def claim(self, interaction: discord.Interaction, button: discord.ui.Button):
+        panels = self.cog.data.get_panels()
+        if panels.get("export_claimed"):
+            return await interaction.response.send_message(
+                "This export was already claimed by another agent.",
+                ephemeral=True,
+            )
+        panels["export_claimed"] = True
+        self.cog.data.save_panels(panels)
+
+        settings = self.cog.data.get_settings()
+        success = random.random() < 0.50
+        if success:
+            rmin = settings.get("export_reward_min", 400)
+            rmax = settings.get("export_reward_max", 900)
+            reward = random.randint(rmin, rmax)
+            self.cog.data.add_money(interaction.user.id, reward, "vehicle_export")
+            result = discord.Embed(
+                title="✅ Export Delivered",
+                description=(
+                    f"{interaction.user.mention} claimed the vehicle.\n\n"
+                    f"**Congratulations, you successfully delivered with the vehicle.**\n"
+                    f"Reward: **{_fmt(reward)}** {CURRENCY}"
+                ),
+                color=COLOR_SUCCESS,
+            )
+        else:
+            result = discord.Embed(
+                title="💥 Export Failed",
+                description=(
+                    f"{interaction.user.mention} claimed the vehicle.\n\n"
+                    "**Mission failed; a griefer got you with the Oppressor Mk II.**"
+                ),
+                color=COLOR_FAIL,
+            )
+        result.set_thumbnail(url=IMG["vehicle_exports"])
+        result.set_footer(text="GTA Economy · Vehicle Export")
+        await interaction.response.edit_message(view=None)
+        await post_to_market(self.cog.bot, interaction.user, result)
+
+
+class AdminExportRewardModal(discord.ui.Modal, title="Set Export Reward Range"):
+    def __init__(self, cog: "Economy"):
+        super().__init__()
+        self.cog = cog
+        self.min_amt = discord.ui.TextInput(label="Min reward", required=True, placeholder="400")
+        self.max_amt = discord.ui.TextInput(label="Max reward", required=True, placeholder="900")
+        self.add_item(self.min_amt)
+        self.add_item(self.max_amt)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            vmin = int(self.min_amt.value.replace(".", "").replace(",", ""))
+            vmax = int(self.max_amt.value.replace(".", "").replace(",", ""))
+        except ValueError:
+            return await interaction.response.send_message("Invalid values.", ephemeral=True)
+        if vmin > vmax or vmin < 0:
+            return await interaction.response.send_message("Min must be ≤ max and ≥ 0.", ephemeral=True)
+        s = self.cog.data.get_settings()
+        s["export_reward_min"] = vmin
+        s["export_reward_max"] = vmax
+        self.cog.data.save_settings(s)
+        await interaction.response.send_message(
+            f"✅ Export reward range: **{_fmt(vmin)}** – **{_fmt(vmax)}** {CURRENCY}.",
+            ephemeral=True,
+        )
+
+
+class AdminClearVehiclesModal(discord.ui.Modal, title="Clear All Vehicles"):
+    def __init__(self, cog: "Economy"):
+        super().__init__()
+        self.cog = cog
+        self.uid = discord.ui.TextInput(label="User ID (or ALL)", required=True, placeholder="123456 or ALL")
+        self.add_item(self.uid)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        raw = self.uid.value.strip().upper()
+        vehicle_types = {"car", "motorcycle", "aircraft", "boat", "military"}
+        vehicle_dealers = {"southern", "legendary", "lost_mc", "podium"}
+        all_items = self.cog.data.get_all_items()
+
+        def _strip_vehicles(u: Dict) -> int:
+            inv = u.get("inventory", {})
+            removed = 0
+            for iid in list(inv.keys()):
+                item = all_items.get(iid, {})
+                if item.get("type") in vehicle_types or item.get("dealer") in vehicle_dealers:
+                    removed += inv.pop(iid, 0)
+            u["inventory"] = inv
+            return removed
+
+        if raw == "ALL":
+            users = self.cog.data.get_all_users()
+            total = 0
+            for uid, data in users.items():
+                total += _strip_vehicles(data)
+                self.cog.data.save_user(int(uid), data)
+            await interaction.response.send_message(f"✅ Removed vehicles from all users (total items: {total}).", ephemeral=True)
+        else:
+            try:
+                uid = int(raw)
+            except ValueError:
+                return await interaction.response.send_message("Invalid ID.", ephemeral=True)
+            u = self.cog.data.get_user(uid)
+            removed = _strip_vehicles(u)
+            self.cog.data.save_user(uid, u)
+            await interaction.response.send_message(f"✅ Removed **{removed}** vehicle(s) from user `{uid}`.", ephemeral=True)
+
+
+class AdminClearPermanentsModal(discord.ui.Modal, title="Clear Permanent Items"):
+    PERMANENT_IDS = (
+        "casino_penthouse", "mil_submarine", "prop_house_mansion",
+        "ach_cayo_heist", "ach_kortz_heist", "music_vip",
+    )
+
+    def __init__(self, cog: "Economy"):
+        super().__init__()
+        self.cog = cog
+        self.uid = discord.ui.TextInput(label="User ID (or ALL)", required=True, placeholder="123456 or ALL")
+        self.add_item(self.uid)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        raw = self.uid.value.strip().upper()
+
+        def _strip(u: Dict) -> int:
+            inv = u.get("inventory", {})
+            removed = 0
+            for iid in self.PERMANENT_IDS:
+                if iid in inv:
+                    removed += inv.pop(iid, 0)
+            if u.get("music_vip"):
+                u["music_vip"] = False
+                removed += 1
+            if u.get("casino_membership"):
+                u["casino_membership"] = None
+                removed += 1
+            u["inventory"] = inv
+            return removed
+
+        if raw == "ALL":
+            users = self.cog.data.get_all_users()
+            total = 0
+            for uid, data in users.items():
+                total += _strip(data)
+                self.cog.data.save_user(int(uid), data)
+            await interaction.response.send_message(f"✅ Cleared permanent items from all users (total: {total}).", ephemeral=True)
+        else:
+            try:
+                uid = int(raw)
+            except ValueError:
+                return await interaction.response.send_message("Invalid ID.", ephemeral=True)
+            u = self.cog.data.get_user(uid)
+            removed = _strip(u)
+            self.cog.data.save_user(uid, u)
+            await interaction.response.send_message(f"✅ Cleared **{removed}** permanent item(s) from user `{uid}`.", ephemeral=True)
+
+
+class AdminServiceBonusModal(discord.ui.Modal, title="Set Service Bonus"):
+    def __init__(self, cog: "Economy"):
+        super().__init__()
+        self.cog = cog
+        self.amt = discord.ui.TextInput(
+            label="Bonus amount (added to Daily/Work/Missions/etc.)",
+            required=True,
+            placeholder="0 to disable, e.g. 50",
+        )
+        self.add_item(self.amt)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            v = int(self.amt.value.replace(".", "").replace(",", ""))
+        except ValueError:
+            return await interaction.response.send_message("Invalid number.", ephemeral=True)
+        if v < 0:
+            return await interaction.response.send_message("Bonus must be ≥ 0.", ephemeral=True)
+        s = self.cog.data.get_settings()
+        s["service_bonus"] = v
+        self.cog.data.save_settings(s)
+        await interaction.response.send_message(
+            f"✅ Service bonus set to **{_fmt(v)}** {CURRENCY}.\n"
+            "Applied to: Daily · Work · MotoClub · CEO · Cayo · Kortz · Music · Lucky Wheel.",
+            ephemeral=True,
+        )
+
+
+class AdminBankYieldModal(discord.ui.Modal, title="Maze Bank Investment Yield"):
+    def __init__(self, cog: "Economy"):
+        super().__init__()
+        self.cog = cog
+        self.target = discord.ui.TextInput(
+            label="User ID or ALL",
+            placeholder="123456789 or ALL",
+            required=True,
+        )
+        self.amt = discord.ui.TextInput(
+            label="Amount to credit to bank deposit",
+            placeholder="5000",
+            required=True,
+        )
+        self.pct = discord.ui.TextInput(
+            label="Yield % to display (cosmetic)",
+            placeholder="e.g. 4.5",
+            required=True,
+            default="3.5",
+        )
+        self.add_item(self.target)
+        self.add_item(self.amt)
+        self.add_item(self.pct)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            amount = int(self.amt.value.replace(".", "").replace(",", ""))
+            yield_pct = float(self.pct.value.replace(",", "."))
+        except ValueError:
+            return await interaction.response.send_message("Invalid amount or yield %.", ephemeral=True)
+        if amount <= 0:
+            return await interaction.response.send_message("Amount must be positive.", ephemeral=True)
+
+        raw = self.target.value.strip().upper()
+        await interaction.response.defer(ephemeral=True)
+
+        if raw == "ALL":
+            users = self.cog.data.get_all_users()
+            count = 0
+            for uid in list(users.keys()):
+                self.cog.data.add_bank(int(uid), amount)
+                count += 1
+            public = discord.Embed(
+                title="💹 Maze Bank — Investment Yield",
+                description=(
+                    f"All account holders received a **{yield_pct:g}%** quarterly investment return.\n\n"
+                    f"**Yield credited per account:** {_fmt(amount)} {CURRENCY}\n"
+                    f"**Accounts updated:** {count}\n\n"
+                    "Your funds are working hard in Los Santos markets."
+                ),
+                color=COLOR_SUCCESS,
+            )
+            public.set_footer(text="Maze Bank · Official Investment Notice")
+            await post_to_market(self.cog.bot, interaction.user, public)
+            await interaction.followup.send(f"✅ Credited **{_fmt(amount)}** bank deposit to **{count}** members.", ephemeral=True)
+        else:
+            try:
+                uid = int(raw)
+            except ValueError:
+                return await interaction.followup.send("Invalid User ID.", ephemeral=True)
+            self.cog.data.add_bank(uid, amount)
+            member = interaction.guild.get_member(uid) if interaction.guild else None
+            if member is None:
+                try:
+                    member = await self.cog.bot.fetch_user(uid)
+                except Exception:
+                    member = None
+            mention = member.mention if member and hasattr(member, "mention") else f"`{uid}`"
+            name = member.display_name if member and hasattr(member, "display_name") else str(uid)
+            public = discord.Embed(
+                title="💹 Maze Bank — Investment Yield",
+                description=(
+                    f"{mention} received a **{yield_pct:g}%** return on their Maze Bank portfolio.\n\n"
+                    f"**Yield credited:** {_fmt(amount)} {CURRENCY}\n"
+                    f"**Account:** {name}\n\n"
+                    "Smart investments pay off in Los Santos."
+                ),
+                color=COLOR_SUCCESS,
+            )
+            public.set_footer(text="Maze Bank · Official Investment Notice")
+            await post_to_market(self.cog.bot, interaction.user, public)
+            await interaction.followup.send(
+                f"✅ Credited **{_fmt(amount)}** bank deposit to user `{uid}` (displayed as {yield_pct:g}% yield).",
+                ephemeral=True,
+            )
+
 
 class AdminMoneyModal(discord.ui.Modal, title="Manage Balance"):
     def __init__(self, cog: "Economy", mode: str):
@@ -2098,7 +3407,7 @@ class AdminResetUserModal(discord.ui.Modal, title="Reset User"):
 class AdminResetServerModal(discord.ui.Modal, title="💥 Reset Server Economy"):
     """Requires password to confirm full economy wipe."""
 
-    RESET_PASSWORD = "199413123"
+    RESET_PASSWORD = "xoxolated"
 
     def __init__(self, cog: "Economy"):
         super().__init__()
@@ -2208,14 +3517,19 @@ class AdminViewUserModal(discord.ui.Modal, title="View User"):
         inv = u.get("inventory", {})
         inv_lines = []
         all_items = self.cog.data.get_all_items()
-        for iid, qty in list(inv.items())[:20]:
+        for iid, qty in list(inv.items())[:40]:
             item = all_items.get(iid, {})
             name = item.get("name", iid)
-            inv_lines.append(f"• {name} ×{qty}")
+            emoji = item.get("emoji", "•")
+            inv_lines.append(f"{emoji} {name} ×{qty}")
+        wallet = int(u.get("wallet", 0))
+        bank = int(u.get("bank", 0))
         embed = discord.Embed(
             title=f"🔍 User {uid}",
             description=(
-                f"**Wallet:** {_fmt(u.get('wallet', 0))} {CURRENCY}\n"
+                f"**Wallet:** {_fmt(wallet)} {CURRENCY}\n"
+                f"**Bank Deposit:** {_fmt(bank)} {CURRENCY}\n"
+                f"**Total Assets:** {_fmt(wallet + bank)} {CURRENCY}\n"
                 f"**Streak:** {u.get('streak', 0)}\n"
                 f"**Total earned:** {_fmt(u.get('total_earned', 0))}\n"
                 f"**Total spent:** {_fmt(u.get('total_spent', 0))}\n"
@@ -2313,6 +3627,7 @@ class Economy(commands.Cog):
         self.data = EconomyData()
         self.bot.add_view(MemberPanelView(self))
         self.bot.add_view(AdminPanelView(self))
+        self.bot.add_view(ExportClaimView(self))
 
     async def cog_load(self):
         logger.info("GTA Economy loaded")
@@ -2340,6 +3655,24 @@ class Economy(commands.Cog):
             embed.add_field(name="Total Spent", value=_fmt(u.get("total_spent", 0)), inline=True)
             embed.set_thumbnail(url=interaction.user.display_avatar.url)
             embed.set_footer(text="GTA Economy")
+            return embed, None
+
+        if action == "maze_statement":
+            wallet = int(u.get("wallet", 0))
+            bank = int(u.get("bank", 0))
+            total = wallet + bank
+            embed = discord.Embed(
+                title="🏦 Maze Bank Statement",
+                description=(
+                    f"**Account holder:** {interaction.user.display_name}\n\n"
+                    f"**Wallet:** {_fmt(wallet)} {CURRENCY}\n"
+                    f"**Bank Deposit:** {_fmt(bank)} {CURRENCY}\n"
+                    f"**Total Assets:** {_fmt(total)} {CURRENCY}"
+                ),
+                color=COLOR_MAIN,
+            )
+            embed.set_thumbnail(url=interaction.user.display_avatar.url)
+            embed.set_footer(text="Maze Bank · Official Statement")
             return embed, None
 
         if action == "daily":
@@ -2443,6 +3776,7 @@ class Economy(commands.Cog):
                 value="\n".join(lost_lines) or "—",
                 inline=False,
             )
+            embed.set_thumbnail(url=IMG["bennys"])
             embed.set_footer(text="Select below to purchase · Private view only")
             all_cars = BENNYS_SOUTHERN + BENNYS_LEGENDARY + BENNYS_LOST_MC
             view = ShopBuyView(self, uid, all_cars, "Benny's")
@@ -2458,6 +3792,7 @@ class Economy(commands.Cog):
                 description="Military vehicles and equipment.\n\n" + "\n".join(lines),
                 color=COLOR_FAIL,
             )
+            embed.set_thumbnail(url=IMG["warstock"])
             embed.set_footer(text="Select below to purchase · Private view only")
             view = ShopBuyView(self, uid, WARSTOCK_ITEMS, "Warstock")
             return embed, view
@@ -2472,6 +3807,7 @@ class Economy(commands.Cog):
                 description="Aircraft for the skies of Los Santos.\n\n" + "\n".join(lines),
                 color=COLOR_INFO,
             )
+            embed.set_thumbnail(url=IMG["elitas"])
             embed.set_footer(text="Select below to purchase · Private view only")
             view = ShopBuyView(self, uid, ELITAS_ITEMS, "Elitas Travel")
             return embed, view
@@ -2490,6 +3826,7 @@ class Economy(commands.Cog):
                 ),
                 color=COLOR_INFO,
             )
+            embed.set_thumbnail(url=IMG["docktease"])
             embed.set_footer(text="Select below to purchase · Private view only")
             view = ShopBuyView(self, uid, DOCKTEASE_ITEMS, "DockTease")
             return embed, view
@@ -2504,6 +3841,7 @@ class Economy(commands.Cog):
                 description="Apartments and common houses.\n\n" + "\n".join(lines),
                 color=COLOR_SUCCESS,
             )
+            embed.set_thumbnail(url=IMG["dynasty8"])
             embed.set_footer(text="Select below to purchase · Private view only")
             view = ShopBuyView(self, uid, DYNASTY8_ITEMS, "Dynasty8")
             return embed, view
@@ -2514,7 +3852,7 @@ class Economy(commands.Cog):
                 for it in FORECLOSURES_ITEMS
             ]
             embed = discord.Embed(
-                title="🏢 Maze Bank Foreclosures",
+                title="🏢 Dynasty8 Executive",
                 description=(
                     "Nightclubs, complexes, warehouses, bunkers,\n"
                     "MC clubhouses, agencies and underworld properties.\n\n"
@@ -2522,35 +3860,68 @@ class Economy(commands.Cog):
                 ),
                 color=COLOR_ADMIN,
             )
+            embed.set_thumbnail(url=IMG["dynasty8_exec"])
             embed.set_footer(text="Select below to purchase · Private view only")
-            view = ShopBuyView(self, uid, FORECLOSURES_ITEMS, "Foreclosures")
+            view = ShopBuyView(self, uid, FORECLOSURES_ITEMS, "Dynasty8 Executive")
             return embed, view
 
         if action == "garage":
             inv = u.get("inventory", {})
             all_items = self.data.get_all_items()
-            cars = []
+            categories = {
+                "🚗 Cars (Sports / Muscle / Sedan)": [],
+                "🏍️ Motorcycles": [],
+                "✈️ Aircraft": [],
+                "🚤 Boats": [],
+                "🪖 Military": [],
+                "🏎️ Special / Podium": [],
+            }
             for iid, qty in inv.items():
                 item = all_items.get(iid, {})
                 itype = item.get("type", "")
-                if itype in ("car", "motorcycle") or item.get("dealer") in ("southern", "legendary", "lost_mc"):
-                    name = item.get("name", iid)
-                    emoji = item.get("emoji", "🚗")
-                    cars.append(f"{emoji} **{name}** ×{qty}")
-            if not cars:
+                dealer = item.get("dealer", "")
+                name = item.get("name", iid)
+                emoji = item.get("emoji", "🚗")
+                line = f"{emoji} **{name}** ×{qty}"
+                if itype == "motorcycle" or dealer == "lost_mc":
+                    categories["🏍️ Motorcycles"].append(line)
+                elif itype == "aircraft":
+                    categories["✈️ Aircraft"].append(line)
+                elif itype == "boat":
+                    categories["🚤 Boats"].append(line)
+                elif itype == "military":
+                    categories["🪖 Military"].append(line)
+                elif dealer == "podium" or itype == "car":
+                    if dealer == "podium":
+                        categories["🏎️ Special / Podium"].append(line)
+                    else:
+                        categories["🚗 Cars (Sports / Muscle / Sedan)"].append(line)
+            total = sum(len(v) for v in categories.values())
+            if total == 0:
                 embed = discord.Embed(
                     title="🚗 Empty Garage",
-                    description="You don't own any vehicles yet.\nBuy cars and bikes at **Benny's Workshop**!",
+                    description=(
+                        "You don't own any vehicles yet.\n"
+                        "Buy cars & bikes at **Benny's**, planes at **Elitas**, "
+                        "boats at **DockTease**, military at **Warstock**!"
+                    ),
                     color=COLOR_INFO,
                 )
                 return embed, None
             embed = discord.Embed(
                 title=f"🚗 {interaction.user.display_name}'s Garage",
-                description="\n".join(cars),
+                description=f"Total vehicles: **{total}**",
                 color=COLOR_MAIN,
             )
-            embed.set_thumbnail(url=interaction.user.display_avatar.url)
-            embed.set_footer(text="GTA Economy · Garage")
+            for cat_name, lines in categories.items():
+                if lines:
+                    embed.add_field(
+                        name=cat_name,
+                        value="\n".join(lines),
+                        inline=False,
+                    )
+            embed.set_thumbnail(url=IMG["garage"])
+            embed.set_footer(text="GTA Economy · Personal Garage")
             return embed, None
 
         if action == "inventory":
@@ -2611,14 +3982,15 @@ class Economy(commands.Cog):
                 f"**Welcome to the GTA Economy system!**\n\n"
                 f"Currency: **{CURRENCY}**\n\n"
                 "Use the buttons below to:\n"
-                "• Daily, Work, Balance & Pay\n"
-                "• Shops: Benny's, Elitas, Warstock, DockTease, Dynasty8, Maze Bank\n"
-                "• Lifestyle: Casino Resort & Music Locker\n"
+                "• Daily, Work (private/public), Balance, Pay & Maze Bank\n"
+                "• Shops: Benny's, Elitas, Warstock, DockTease, Dynasty8, Dynasty8 Executive\n"
+                "• Lifestyle: Casino Resort, Music Locker & Master Penthouse\n"
                 "• Missions: CEO SecuroServ & MotoClub\n"
-                "• Cayo Perico Heist (requires Kosatka)\n"
-                "• Inventory, Garage, Ranking & Help\n\n"
+                "• Coming soon: Vehicle Exports · Acid Lab · Doomsday\n"
+                "• Heists: Cayo Perico (Kosatka) · Kortz Center (The Mansion)\n"
+                "• Inventory, Garage (by class), Ranking & Help\n\n"
                 "🔒 Cooldown messages and shops are always private.\n"
-                "Balance / Inventory / Garage / Ranking: choose private or public view."
+                "Balance / Work / Inventory / Garage / Ranking: choose private or public view."
             ),
             color=COLOR_MAIN,
         )
@@ -2644,13 +4016,14 @@ class Economy(commands.Cog):
             title="🛡️ BANK ADMIN — GTA Economy Control",
             description=(
                 "**Staff-only panel.**\n\n"
-                "• Money: Add / Remove / Set / View User\n"
+                "• Money: Add / Remove / Set / View User (full inventory + bank)\n"
                 "• Bulk: All + / All − / Reset User / Give Item\n"
-                "• Settings: Daily · Work · Cooldowns · Full Settings\n"
-                "• Items: Give / Remove\n"
-                "• Backup Wallets · Post Ranking\n"
-                "• **Reset All Cooldowns** — unlocks Daily/Work/Missions for everyone\n"
-                "• **Reset Server** requires password\n"
+                "• Settings: Daily · Work · Cooldowns · Service Bonus · Export Reward\n"
+                "• Items: Give / Remove · Clear Vehicles · Clear Permanents\n"
+                "• **All Balances** · **Richest Member** · **Bank Yield Deposit**\n"
+                "• **Spawn Export Event** (Market mini-game, first claim only)\n"
+                "• Backup Wallets · Post Ranking · Reset All Cooldowns\n"
+                "• **Reset Server** requires password `xoxolated`\n"
             ),
             color=COLOR_ADMIN,
         )
