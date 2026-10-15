@@ -63,9 +63,10 @@ IMG = {
     "cayo": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/499a97fc07ffaafdd0273ed5a5991a00eacc929a.jpg",
     "lucky_wheel": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/2025-04-23_de27b53e461b7.webp",
     "penthouse": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/36a87f762155d0c603760fa047731802c05f2c3e.jpg",
-    "vehicle_exports": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/download.jpg",
-    "acid_lab": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/images.jpg",
-    "doomsday": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/6e26753573182f0b6ed9143a0123e616f4b20db3.jpg",
+    "vehicle_exports": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/artworks-000198441669-i3q9x4-t1080x1080.jpg?updatedAt=1792032853732",
+    "acid_lab": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/images%20(2).jpg?updatedAt=1792032853376",
+    "doomsday": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/TheHeistChallenge2024Week2-GTAOe-Header.webp?updatedAt=1792032853654",
+    "cayo_success": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/o5eNyCNcZKmvdNZHyitmuQ.jpg",
 }
 
 # ── Default general shop (removed from member panel — empty for compatibility) ──
@@ -368,13 +369,19 @@ DEFAULT_SETTINGS = {
     "music_event_reward_max": 280,
     "music_vip_price": 12000,
     "music_vip_bonus_mult": 1.5,
-    "music_event_cooldown": 86400,
+    "music_event_cooldown": 36000,   # 10 hours
+    "music_entry_cooldown": 14400,   # 4 hours
     # Service bonus (admin adjustable)
     "service_bonus": 0,
     # Vehicle export mini-game reward (admin adjustable)
     "export_reward_min": 400,
     "export_reward_max": 900,
     "penthouse_party_reward": 450,  # slightly above base daily
+    # Casino slots: 3 uses per 24 hours
+    "slots_max_uses": 3,
+    "slots_cooldown_window": 86400,  # 24 hours
+    # Cayo Perico Launch Heist cooldown
+    "cayo_heist_cooldown": 172800,   # 48 hours
 }
 
 # Street / location names used in MotoClub route choices
@@ -462,8 +469,12 @@ class EconomyData:
                 "last_ceo": 0,
                 "last_lucky_wheel": 0,
                 "last_music_event": 0,
+                "last_music_entry": 0,
                 "casino_membership": None,
                 "music_vip": False,
+                "slots_uses": 0,
+                "slots_window_start": 0,
+                "last_cayo_heist": 0,
                 "created_at": _now_ts(),
             }
             changed = True
@@ -473,6 +484,7 @@ class EconomyData:
             "last_ceo": 0,
             "last_lucky_wheel": 0,
             "last_music_event": 0,
+            "last_music_entry": 0,
             "casino_membership": None,
             "music_vip": False,
             "wallet": 0,
@@ -485,6 +497,9 @@ class EconomyData:
             "last_work": 0,
             "last_balance": 0,
             "last_penthouse_party": 0,
+            "slots_uses": 0,
+            "slots_window_start": 0,
+            "last_cayo_heist": 0,
         }
         for k, v in defaults.items():
             if k not in u:
@@ -1160,6 +1175,23 @@ class CayoMainView(discord.ui.View):
         if interaction.user.id != self.user_id:
             return await interaction.response.send_message("This is not your panel.", ephemeral=True)
         u = self.cog.data.get_user(self.user_id)
+        settings = self.cog.data.get_settings()
+        now = _now_ts()
+        last = float(u.get("last_cayo_heist", 0))
+        cd = settings.get("cayo_heist_cooldown", 172800)
+        if now - last < cd:
+            rem = int(cd - (now - last))
+            embed = discord.Embed(
+                title="⏳ Cayo Perico on Cooldown",
+                description=(
+                    f"**Mr. Rubio is still on alert, wait for the dust to settle. "
+                    f"For now, you can gather the preparations and stockpile as well.**\n\n"
+                    f"You can launch another heist in **{_fmt_time(rem)}**."
+                ),
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
         inv = u.get("inventory", {})
         if inv.get("cayo_invite", 0) < 1:
             embed = discord.Embed(
@@ -1169,11 +1201,12 @@ class CayoMainView(discord.ui.View):
             )
             return await interaction.response.send_message(embed=embed, ephemeral=True)
 
-        # Consume invite
+        # Consume invite and start cooldown
         inv["cayo_invite"] -= 1
         if inv["cayo_invite"] <= 0:
             inv.pop("cayo_invite", None)
         u["inventory"] = inv
+        u["last_cayo_heist"] = now
         self.cog.data.save_user(self.user_id, u)
 
         # Start quiz stage 1
@@ -1344,6 +1377,7 @@ class CayoRewardButton(discord.ui.Button):
             description=f"{interaction.user.mention} completed the Cayo Perico Heist and earned **{_fmt(reward)}** {CURRENCY}!",
             color=COLOR_SUCCESS,
         )
+        public.set_image(url=IMG["cayo_success"])
         await post_to_market(self.cog.bot, interaction.user, public)
 
 
@@ -2040,11 +2074,12 @@ class CasinoSlotsView(discord.ui.View):
                 "• 🍋🍋🍋 Medium win\n"
                 "• 💎💎💎 Big win\n"
                 "• 7️⃣7️⃣7️⃣ **JACKPOT**\n\n"
+                "**Limit:** 3 spins every 24 hours.\n"
                 "House edge applies — gamble responsibly."
             ),
             color=COLOR_CASINO,
         )
-        embed.set_footer(text="Casino · High Roller · Private")
+        embed.set_footer(text="Casino · High Roller · Private · 3 spins / 24h")
         return embed
 
     @discord.ui.button(label="Bet 100", style=discord.ButtonStyle.secondary, row=0)
@@ -2063,11 +2098,33 @@ class CasinoSlotsView(discord.ui.View):
         if interaction.user.id != self.user_id:
             return await interaction.response.send_message("Not your machine.", ephemeral=True)
         u = self.cog.data.get_user(self.user_id)
+        settings = self.cog.data.get_settings()
+        now = _now_ts()
+        window = settings.get("slots_cooldown_window", 86400)
+        max_uses = settings.get("slots_max_uses", 3)
+        window_start = float(u.get("slots_window_start", 0))
+        uses = int(u.get("slots_uses", 0))
+        if now - window_start >= window:
+            uses = 0
+            window_start = now
+            u["slots_uses"] = 0
+            u["slots_window_start"] = now
+            self.cog.data.save_user(self.user_id, u)
+        if uses >= max_uses:
+            rem = int(window - (now - window_start))
+            return await interaction.response.send_message(
+                f"⏳ Slot Machines limit reached (**{max_uses}** spins per 24h).\n"
+                f"Try again in **{_fmt_time(rem)}**.",
+                ephemeral=True,
+            )
         if u["wallet"] < bet:
             return await interaction.response.send_message(
                 f"Need **{_fmt(bet)}** {CURRENCY}. You have **{_fmt(u['wallet'])}**.",
                 ephemeral=True,
             )
+        u["slots_uses"] = uses + 1
+        u["slots_window_start"] = window_start if window_start else now
+        self.cog.data.save_user(self.user_id, u)
         self.cog.data.add_money(self.user_id, -bet, "slots_bet")
 
         # Weighted outcomes
@@ -2147,8 +2204,8 @@ class MusicLockerView(discord.ui.View):
                 f"Tonight's event: **{event_name}**\n"
                 f"VIP Access: {'✅ Unlocked (free entry + bonus rewards)' if is_vip else '❌ Not unlocked'}\n\n"
                 f"• **Enter Club** — pay {_fmt(settings.get('music_entry_fee', 50))} "
-                f"(free for VIP) · small presence bonus\n"
-                f"• **Join Event** — daily musical event reward (1× / day)\n"
+                f"(free for VIP) · small presence bonus · **4h cooldown**\n"
+                f"• **Join Event** — event reward · **10h cooldown**\n"
                 f"• **Unlock VIP** — permanent VIP for {_fmt(settings.get('music_vip_price', 12000))} {CURRENCY}"
             ),
             color=COLOR_PURPLE,
@@ -2163,6 +2220,18 @@ class MusicLockerView(discord.ui.View):
             return await interaction.response.send_message("Not your menu.", ephemeral=True)
         settings = self.cog.data.get_settings()
         u = self.cog.data.get_user(self.user_id)
+        now = _now_ts()
+        last_entry = float(u.get("last_music_entry", 0))
+        entry_cd = settings.get("music_entry_cooldown", 14400)
+        if now - last_entry < entry_cd:
+            rem = int(entry_cd - (now - last_entry))
+            embed = discord.Embed(
+                title="⏳ Enter Club Cooldown",
+                description=f"You can enter the club again in **{_fmt_time(rem)}**.",
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
         fee = settings.get("music_entry_fee", 50)
         reward = settings.get("music_entry_reward", 80)
         is_vip = bool(u.get("music_vip"))
@@ -2172,6 +2241,9 @@ class MusicLockerView(discord.ui.View):
                     f"Entry costs **{_fmt(fee)}** {CURRENCY}.", ephemeral=True
                 )
             self.cog.data.add_money(self.user_id, -fee, "music_entry")
+        u = self.cog.data.get_user(self.user_id)
+        u["last_music_entry"] = now
+        self.cog.data.save_user(self.user_id, u)
         self.cog.data.add_money(self.user_id, reward, "music_presence")
         net = reward if is_vip else reward - fee
         embed = discord.Embed(
@@ -2183,6 +2255,7 @@ class MusicLockerView(discord.ui.View):
             ),
             color=COLOR_SUCCESS,
         )
+        embed.set_footer(text="Music Locker · Enter Club cooldown: 4h")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @discord.ui.button(label="🎧 Join Event", style=discord.ButtonStyle.success, row=0)
@@ -2225,7 +2298,7 @@ class MusicLockerView(discord.ui.View):
             ),
             color=COLOR_SUCCESS,
         )
-        embed.set_footer(text="Music Locker · Daily event")
+        embed.set_footer(text="Music Locker · Event cooldown: 10h")
         await interaction.response.send_message(embed=embed, ephemeral=True)
         public = discord.Embed(
             title="🎵 Music Locker",
@@ -2450,6 +2523,7 @@ class MemberPanelView(discord.ui.View):
     # ── Row 0 — Core actions (green) ──
     @discord.ui.button(label="📅 Daily", style=discord.ButtonStyle.success, custom_id="eco_daily", row=0)
     async def btn_daily(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Daily is always ephemeral — only visible to the member who claimed it."""
         await interaction.response.defer(ephemeral=True)
         uid = interaction.user.id
         u = self.cog.data.get_user(uid)
@@ -2466,19 +2540,14 @@ class MemberPanelView(discord.ui.View):
             )
             return await interaction.followup.send(embed=embed, ephemeral=True)
 
-        embed, _ = await self.cog.handle_member_action(interaction, "daily", force_private=False)
+        embed, _ = await self.cog.handle_member_action(interaction, "daily", force_private=True)
         if embed:
-            msg = await post_to_market(self.cog.bot, interaction.user, embed)
-            if msg:
-                await interaction.followup.send(
-                    f"✅ Daily claimed! Result posted in <#{MARKET_CHANNEL_ID}>.",
-                    ephemeral=True,
-                )
-            else:
-                await interaction.followup.send(embed=embed, ephemeral=True)
+            await interaction.followup.send(embed=embed, ephemeral=True)
 
     @discord.ui.button(label="💼 Work", style=discord.ButtonStyle.success, custom_id="eco_work", row=0)
     async def btn_work(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Work is always ephemeral — only visible to the member who worked."""
+        await interaction.response.defer(ephemeral=True)
         uid = interaction.user.id
         u = self.cog.data.get_user(uid)
         settings = self.cog.data.get_settings()
@@ -2492,15 +2561,11 @@ class MemberPanelView(discord.ui.View):
                 description=f"You can work again in **{_fmt_time(rem)}**.",
                 color=COLOR_FAIL,
             )
-            return await interaction.response.send_message(embed=embed, ephemeral=True)
+            return await interaction.followup.send(embed=embed, ephemeral=True)
 
-        view = VisibilityChoiceView(self.cog, "work", interaction.user.id)
-        embed = discord.Embed(
-            title="💼 Work",
-            description="Choose how you want to complete work:",
-            color=COLOR_INFO,
-        )
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        embed, _ = await self.cog.handle_member_action(interaction, "work", force_private=True)
+        if embed:
+            await interaction.followup.send(embed=embed, ephemeral=True)
 
     @discord.ui.button(label="💰 Balance", style=discord.ButtonStyle.success, custom_id="eco_balance", row=0)
     async def btn_balance(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -2696,14 +2761,14 @@ class MemberPanelView(discord.ui.View):
             title="❓ GTA Economy — Help",
             description=(
                 f"**Currency:** {CURRENCY_EMOJI} {CURRENCY}\n\n"
-                "**Core (green):** Daily (18h) · Work (private/public) · Balance · Pay · Maze Bank\n\n"
+                "**Core (green):** Daily (18h, private) · Work (6h, private) · Balance · Pay · Maze Bank\n\n"
                 "**Shops:** Benny's · Elitas · Warstock · DockTease · Dynasty8 · Dynasty8 Executive\n\n"
-                "**Lifestyle:** Casino Resort · Music Locker · Master Penthouse suite\n\n"
+                "**Lifestyle:** Casino Resort (Slots: 3/24h) · Music Locker (Enter 4h · Event 10h) · Master Penthouse\n\n"
                 "**Missions (6h):** CEO SecuroServ · MotoClub\n"
                 "**Coming soon:** Vehicle Exports · Acid Lab · Doomsday\n"
-                "**Heists:** Cayo Perico (Kosatka) · Kortz Center (The Mansion)\n\n"
+                "**Heists:** Cayo Perico (Kosatka, Launch 48h) · Kortz Center (The Mansion)\n\n"
                 "**Utility:** Inventory · Garage (by class) · Ranking\n\n"
-                "Cooldowns and shops are always private."
+                "Daily, Work, cooldowns and shops are always private (ephemeral)."
             ),
             color=COLOR_INFO,
         )
@@ -2923,6 +2988,11 @@ class AdminPanelView(discord.ui.View):
             "last_ceo",
             "last_lucky_wheel",
             "last_music_event",
+            "last_music_entry",
+            "last_cayo_heist",
+            "slots_uses",
+            "slots_window_start",
+            "last_penthouse_party",
         )
         count = 0
         for uid, data in users.items():
@@ -2936,7 +3006,8 @@ class AdminPanelView(discord.ui.View):
                 count += 1
         await interaction.followup.send(
             f"✅ Cooldowns reset for **{count}** member(s).\n"
-            "Daily · Work · Balance · MotoClub · CEO · Lucky Wheel · Music Event are available again.",
+            "Daily · Work · Balance · MotoClub · CEO · Lucky Wheel · Music Entry/Event · "
+            "Cayo Heist · Slots · Penthouse Party are available again.",
             ephemeral=True,
         )
 
@@ -3982,15 +4053,15 @@ class Economy(commands.Cog):
                 f"**Welcome to the GTA Economy system!**\n\n"
                 f"Currency: **{CURRENCY}**\n\n"
                 "Use the buttons below to:\n"
-                "• Daily, Work (private/public), Balance, Pay & Maze Bank\n"
+                "• Daily & Work (always private) · Balance · Pay · Maze Bank\n"
                 "• Shops: Benny's, Elitas, Warstock, DockTease, Dynasty8, Dynasty8 Executive\n"
                 "• Lifestyle: Casino Resort, Music Locker & Master Penthouse\n"
                 "• Missions: CEO SecuroServ & MotoClub\n"
                 "• Coming soon: Vehicle Exports · Acid Lab · Doomsday\n"
                 "• Heists: Cayo Perico (Kosatka) · Kortz Center (The Mansion)\n"
                 "• Inventory, Garage (by class), Ranking & Help\n\n"
-                "🔒 Cooldown messages and shops are always private.\n"
-                "Balance / Work / Inventory / Garage / Ranking: choose private or public view."
+                "🔒 Daily, Work, cooldowns and shops are always private.\n"
+                "Balance / Inventory / Garage / Ranking: choose private or public view."
             ),
             color=COLOR_MAIN,
         )
