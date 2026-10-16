@@ -47,6 +47,20 @@ COLOR_ORANGE = discord.Color.from_rgb(230, 126, 34)
 COLOR_LILAC = discord.Color.from_rgb(155, 89, 182)
 COLOR_LIGHT_BLUE = discord.Color.from_rgb(133, 193, 233)
 
+# ── Local GIF assets (place these files in assets/ at bot root) ──────────────
+# mission_passed.gif | lose_game.gif | cayo_perico_heist.gif
+# musiclocker_technonight_response.gif | mainpanelmember.gif
+# acid_lab.gif | music_locker.gif
+GIF = {
+    "mission_passed": "assets/mission_passed.gif",
+    "lose_game": "assets/lose_game.gif",
+    "cayo_heist": "assets/cayo_perico_heist.gif",
+    "music_event": "assets/musiclocker_technonight_response.gif",
+    "main_panel": "assets/mainpanelmember.gif",
+    "acid_lab": "assets/acid_lab.gif",
+    "music_locker": "assets/music_locker.gif",
+}
+
 # ── Embed images (ImageKit CDN — used as large bottom images via set_image) ──
 IMG = {
     "casino": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/images.jpg",
@@ -68,6 +82,32 @@ IMG = {
     "doomsday": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/TheHeistChallenge2024Week2-GTAOe-Header.webp?updatedAt=1792032853654",
     "cayo_success": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/o5eNyCNcZKmvdNZHyitmuQ.jpg",
 }
+
+
+def _gif_file(key: str) -> Optional["discord.File"]:
+    """Return a discord.File for a local GIF asset, or None if the file is missing."""
+    path = GIF.get(key)
+    if not path:
+        return None
+    from pathlib import Path
+    candidates = [
+        Path(path),
+        Path.cwd() / path,
+        Path(__file__).resolve().parent.parent / path,
+    ]
+    for p in candidates:
+        if p.is_file():
+            return discord.File(str(p), filename=p.name)
+    return None
+
+
+def _apply_gif_image(embed: discord.Embed, key: str) -> Optional["discord.File"]:
+    """Set embed image to a local GIF attachment. Returns File to include in send(), or None."""
+    f = _gif_file(key)
+    if f is None:
+        return None
+    embed.set_image(url=f"attachment://{f.filename}")
+    return f
 
 # ── Default general shop (removed from member panel — empty for compatibility) ──
 DEFAULT_SHOP: List[Dict[str, Any]] = []
@@ -187,7 +227,7 @@ CAYO_ACHIEVEMENT = {
 
 CAYO_PREP_IDS = [it["id"] for it in CAYO_PREP_ITEMS]
 
-# Heist quiz questions (Cayo Perico / GTA themed) — expanded
+# Heist quiz questions (Cayo Perico / GTA themed) — pool; each run picks 2 at random
 CAYO_QUIZ = [
     {
         "q": "What is the name of the island compound owned by El Rubio?",
@@ -227,6 +267,46 @@ CAYO_QUIZ = [
     {
         "q": "What is the name of El Rubio's primary guard dog?",
         "options": ["Chop", "Charlotte", "Brutus", "Rocky"],
+        "correct": 1,
+    },
+    {
+        "q": "What is the name of El Rubio's private island airstrip area?",
+        "options": ["North Dock", "Main Dock", "Airstrip", "Drainage Tunnel"],
+        "correct": 2,
+    },
+    {
+        "q": "Which approach is known for using a dirt bike on Cayo Perico?",
+        "options": ["Main Dock", "Velum drop / airstrip", "Kosatka periscope only", "Rhino tank"],
+        "correct": 1,
+    },
+    {
+        "q": "What does Pavel primarily use to guide you during the finale?",
+        "options": ["A paper map", "Radio from the Kosatka", "Text messages only", "A second player"],
+        "correct": 1,
+    },
+    {
+        "q": "Which of these is a valid primary target on Cayo Perico?",
+        "options": ["Panther statue", "Rhino tank", "Oppressor Mk II", "Galaxy Super Yacht"],
+        "correct": 0,
+    },
+    {
+        "q": "Where is the main compound gate controlled from?",
+        "options": ["The tower office", "The drainage", "The airstrip hangar", "The party beach"],
+        "correct": 0,
+    },
+    {
+        "q": "What must you gather before Pavel issues a Cayo Perico Invite in this system?",
+        "options": ["All 5 prep items", "Only the Longfin", "Only the Kosatka", "A mansion"],
+        "correct": 0,
+    },
+    {
+        "q": "Which secondary loot is often stacked in the airport hangar?",
+        "options": ["Weed", "Cocaine", "Gold", "Tequila"],
+        "correct": 1,
+    },
+    {
+        "q": "What happens if you alert the guards during a stealth approach?",
+        "options": ["Nothing", "The island goes on full alert", "You get free loot", "El Rubio leaves"],
         "correct": 1,
     },
 ]
@@ -364,7 +444,7 @@ DEFAULT_SETTINGS = {
     "casino_penthouse_price": 320000,
     # Music Locker
     "music_entry_fee": 50,
-    "music_entry_reward": 80,
+    "music_entry_reward": 300,
     "music_event_reward_min": 120,
     "music_event_reward_max": 280,
     "music_vip_price": 12000,
@@ -633,8 +713,12 @@ async def post_to_market(
     embed: discord.Embed,
     view: Optional[discord.ui.View] = None,
     content: str = "",
+    file: Optional[discord.File] = None,
+    gif_key: Optional[str] = None,
 ) -> Optional[discord.Message]:
-    """Post result to Bovary Market and try to ping the user."""
+    """Post result to Bovary Market and try to ping the user.
+    Optionally attach a local GIF via file= or gif_key= (from GIF dict).
+    """
     ch = bot.get_channel(MARKET_CHANNEL_ID)
     if ch is None:
         try:
@@ -643,8 +727,16 @@ async def post_to_market(
             logger.exception("Cannot fetch Market channel")
             return None
     text = content or f"{user.mention}"
+    attach = file
+    if attach is None and gif_key:
+        attach = _apply_gif_image(embed, gif_key)
     try:
-        return await ch.send(content=text, embed=embed, view=view)
+        kwargs: Dict[str, Any] = {"content": text, "embed": embed}
+        if view is not None:
+            kwargs["view"] = view
+        if attach is not None:
+            kwargs["file"] = attach
+        return await ch.send(**kwargs)
     except Exception:
         logger.exception("Failed to post to Market")
         return None
@@ -910,7 +1002,18 @@ class MotoClubStageView(discord.ui.View):
                 color=COLOR_FAIL,
             )
             embed.set_footer(text="MotoClub · Cooldown started")
-            return await interaction.response.edit_message(embed=embed, view=None)
+            lose = _apply_gif_image(embed, "lose_game")
+            kwargs = {"embed": embed, "view": None}
+            if lose:
+                kwargs["attachments"] = [lose]
+            await interaction.response.edit_message(**kwargs)
+            public = discord.Embed(
+                title="💥 MotoClub Delivery Failed",
+                description=f"{interaction.user.mention} failed a MotoClub delivery run.",
+                color=COLOR_FAIL,
+            )
+            await post_to_market(self.cog.bot, interaction.user, public, gif_key="lose_game")
+            return
 
         if self.stage == 1:
             next_view = MotoClubStageView(self.cog, self.user_id, self.product, stage=2)
@@ -941,7 +1044,7 @@ class MotoClubStageView(discord.ui.View):
             description=f"{interaction.user.mention} successfully delivered **{self.product['name']}** and earned **{_fmt(reward)}** {CURRENCY}!",
             color=COLOR_SUCCESS,
         )
-        await post_to_market(self.cog.bot, interaction.user, public)
+        await post_to_market(self.cog.bot, interaction.user, public, gif_key="mission_passed")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1044,7 +1147,7 @@ class CEOMissionView(discord.ui.View):
                 description=f"{interaction.user.mention} completed a **{route_name}** acquisition and earned **{_fmt(reward)}** {CURRENCY}!",
                 color=COLOR_SUCCESS,
             )
-            await post_to_market(self.cog.bot, interaction.user, public)
+            await post_to_market(self.cog.bot, interaction.user, public, gif_key="mission_passed")
         else:
             embed = discord.Embed(
                 title="💥 Acquisition Failed",
@@ -1056,8 +1159,17 @@ class CEOMissionView(discord.ui.View):
                 color=COLOR_FAIL,
             )
             embed.set_footer(text="CEO SecuroServ · Cooldown started (6h)")
-            await interaction.response.edit_message(embed=embed, view=None)
-
+            lose = _apply_gif_image(embed, "lose_game")
+            kwargs = {"embed": embed, "view": None}
+            if lose:
+                kwargs["attachments"] = [lose]
+            await interaction.response.edit_message(**kwargs)
+            public = discord.Embed(
+                title="💥 CEO SecuroServ — Acquisition Failed",
+                description=f"{interaction.user.mention} failed a **{route_name}** acquisition.",
+                color=COLOR_FAIL,
+            )
+            await post_to_market(self.cog.bot, interaction.user, public, gif_key="lose_game")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1112,9 +1224,18 @@ class CayoMainView(discord.ui.View):
             ),
             color=COLOR_LIGHT_BLUE,
         )
-        embed.set_image(url=IMG["cayo"])
+        # Prefer local cayo heist GIF; fall back to static ImageKit image
+        gif = _gif_file("cayo_heist")
+        if gif is not None:
+            embed.set_image(url=f"attachment://{gif.filename}")
+        else:
+            embed.set_image(url=IMG["cayo"])
         embed.set_footer(text="Requires Kosatka Submarine · All actions private")
         return embed
+
+    def build_files(self) -> List[discord.File]:
+        f = _gif_file("cayo_heist")
+        return [f] if f else []
 
     @discord.ui.button(label="🛒 Buy Prep Items", style=discord.ButtonStyle.primary, row=0)
     async def buy_prep(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -1209,8 +1330,9 @@ class CayoMainView(discord.ui.View):
         u["last_cayo_heist"] = now
         self.cog.data.save_user(self.user_id, u)
 
-        # Start quiz stage 1
-        view = CayoQuizView(self.cog, self.user_id, stage=0)
+        # Pick 2 random questions from the pool (no repeats within this run)
+        q_indices = random.sample(range(len(CAYO_QUIZ)), k=min(2, len(CAYO_QUIZ)))
+        view = CayoQuizView(self.cog, self.user_id, stage=0, question_indices=q_indices)
         embed = view.build_embed()
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
@@ -1264,16 +1386,25 @@ class CayoBuyView(discord.ui.View):
 
 
 class CayoQuizView(discord.ui.View):
-    """Stages 0 and 1: multiple-choice quiz. Stage 2: reward choice."""
+    """Stages 0 and 1: multiple-choice quiz (2 random from pool). Stage 2: reward choice."""
 
-    def __init__(self, cog: "Economy", user_id: int, stage: int):
+    def __init__(
+        self,
+        cog: "Economy",
+        user_id: int,
+        stage: int,
+        question_indices: Optional[List[int]] = None,
+    ):
         super().__init__(timeout=120)
         self.cog = cog
         self.user_id = user_id
         self.stage = stage  # 0, 1, or 2
+        if question_indices is None:
+            question_indices = random.sample(range(len(CAYO_QUIZ)), k=min(2, len(CAYO_QUIZ)))
+        self.question_indices = question_indices
 
         if stage < 2:
-            qdata = CAYO_QUIZ[stage]
+            qdata = CAYO_QUIZ[self.question_indices[stage]]
             options = [
                 discord.SelectOption(label=opt[:100], value=str(i))
                 for i, opt in enumerate(qdata["options"])
@@ -1282,8 +1413,6 @@ class CayoQuizView(discord.ui.View):
             select.callback = self._answer
             self.add_item(select)
         else:
-            # Final reward choice — higher shares so payout covers prep cost (~3.9k) and is rewarding
-            # Bags: 60% / 70% / 85% / 100% of total prize (total ~8k–15k → final ~5k–15k)
             pcts = [0.60, 0.70, 0.85, 1.00]
             random.shuffle(pcts)
             for label, pct in zip("ABCD", pcts):
@@ -1291,7 +1420,7 @@ class CayoQuizView(discord.ui.View):
 
     def build_embed(self) -> discord.Embed:
         if self.stage < 2:
-            qdata = CAYO_QUIZ[self.stage]
+            qdata = CAYO_QUIZ[self.question_indices[self.stage]]
             embed = discord.Embed(
                 title=f"🏝️ Cayo Perico Heist — Question {self.stage + 1}/2",
                 description=f"**{qdata['q']}**\n\nSelect the correct answer below.",
@@ -1317,7 +1446,7 @@ class CayoQuizView(discord.ui.View):
         if interaction.user.id != self.user_id:
             return await interaction.response.send_message("This is not your heist.", ephemeral=True)
         choice = int(interaction.data["values"][0])
-        qdata = CAYO_QUIZ[self.stage]
+        qdata = CAYO_QUIZ[self.question_indices[self.stage]]
         if choice != qdata["correct"]:
             embed = discord.Embed(
                 title="💥 Heist Failed",
@@ -1331,7 +1460,9 @@ class CayoQuizView(discord.ui.View):
             return await interaction.response.edit_message(embed=embed, view=None)
 
         next_stage = self.stage + 1
-        next_view = CayoQuizView(self.cog, self.user_id, stage=next_stage)
+        next_view = CayoQuizView(
+            self.cog, self.user_id, stage=next_stage, question_indices=self.question_indices
+        )
         embed = next_view.build_embed()
         await interaction.response.edit_message(embed=embed, view=next_view)
 
@@ -1377,8 +1508,7 @@ class CayoRewardButton(discord.ui.Button):
             description=f"{interaction.user.mention} completed the Cayo Perico Heist and earned **{_fmt(reward)}** {CURRENCY}!",
             color=COLOR_SUCCESS,
         )
-        public.set_image(url=IMG["cayo_success"])
-        await post_to_market(self.cog.bot, interaction.user, public)
+        await post_to_market(self.cog.bot, interaction.user, public, gif_key="mission_passed")
 
 
 
@@ -2127,26 +2257,26 @@ class CasinoSlotsView(discord.ui.View):
         self.cog.data.save_user(self.user_id, u)
         self.cog.data.add_money(self.user_id, -bet, "slots_bet")
 
-        # Weighted outcomes
+        # Weighted outcomes — reduced payouts (house edge stronger)
         roll = random.random()
         symbols = ["🍒", "🍋", "🔔", "💎", "7️⃣"]
-        if roll < 0.02:  # Jackpot ~2%
-            mult = 15
+        if roll < 0.015:  # Jackpot ~1.5%
+            mult = 8
             result = "7️⃣ 7️⃣ 7️⃣"
             title = "🎰 JACKPOT!!!"
             color = COLOR_SUCCESS
-        elif roll < 0.08:  # Big ~6%
-            mult = 6
+        elif roll < 0.06:  # Big ~4.5%
+            mult = 3.5
             result = "💎 💎 💎"
             title = "🎰 Big Win!"
             color = COLOR_SUCCESS
-        elif roll < 0.20:  # Medium ~12%
-            mult = 3
+        elif roll < 0.15:  # Medium ~9%
+            mult = 2
             result = "🍋 🍋 🍋"
             title = "🎰 Nice Win"
             color = COLOR_INFO
-        elif roll < 0.40:  # Small ~20%
-            mult = 1.5
+        elif roll < 0.30:  # Small ~15%
+            mult = 1.2
             result = "🍒 🍒 🍒"
             title = "🎰 Small Win"
             color = COLOR_INFO
@@ -2172,13 +2302,13 @@ class CasinoSlotsView(discord.ui.View):
         )
         embed.set_footer(text="High-Roller Slots · Master Penthouse")
         await interaction.response.send_message(embed=embed, ephemeral=True)
-        if payout >= bet * 6:
+        if payout >= bet * 3.5:
             public = discord.Embed(
                 title="🎰 Casino Jackpot!",
                 description=f"{interaction.user.mention} hit a big win on the slots and took home **{_fmt(payout)}** {CURRENCY}!",
                 color=COLOR_CASINO,
             )
-            await post_to_market(self.cog.bot, interaction.user, public)
+            await post_to_market(self.cog.bot, interaction.user, public, gif_key="mission_passed")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -2210,9 +2340,17 @@ class MusicLockerView(discord.ui.View):
             ),
             color=COLOR_PURPLE,
         )
-        embed.set_image(url=IMG["music_locker"])
+        gif = _gif_file("music_locker")
+        if gif is not None:
+            embed.set_image(url=f"attachment://{gif.filename}")
+        else:
+            embed.set_image(url=IMG["music_locker"])
         embed.set_footer(text="Music Locker · Underground · Private")
         return embed
+
+    def build_files(self) -> List[discord.File]:
+        f = _gif_file("music_locker")
+        return [f] if f else []
 
     @discord.ui.button(label="🚪 Enter Club", style=discord.ButtonStyle.primary, row=0)
     async def enter(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -2233,7 +2371,7 @@ class MusicLockerView(discord.ui.View):
             return await interaction.response.send_message(embed=embed, ephemeral=True)
 
         fee = settings.get("music_entry_fee", 50)
-        reward = settings.get("music_entry_reward", 80)
+        reward = settings.get("music_entry_reward", 300)
         is_vip = bool(u.get("music_vip"))
         if not is_vip:
             if u["wallet"] < fee:
@@ -2299,13 +2437,17 @@ class MusicLockerView(discord.ui.View):
             color=COLOR_SUCCESS,
         )
         embed.set_footer(text="Music Locker · Event cooldown: 10h")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        event_gif = _apply_gif_image(embed, "music_event")
+        kwargs = {"embed": embed, "ephemeral": True}
+        if event_gif:
+            kwargs["file"] = event_gif
+        await interaction.response.send_message(**kwargs)
         public = discord.Embed(
             title="🎵 Music Locker",
             description=f"{interaction.user.mention} hit **{event_name}** and earned **{_fmt(reward)}** {CURRENCY}!",
             color=COLOR_PURPLE,
         )
-        await post_to_market(self.cog.bot, interaction.user, public)
+        await post_to_market(self.cog.bot, interaction.user, public, gif_key="music_event")
 
     @discord.ui.button(label="⭐ Unlock VIP", style=discord.ButtonStyle.secondary, row=0)
     async def vip(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -2506,6 +2648,7 @@ class MemberPanelView(discord.ui.View):
         title: str,
         image_url: str,
         blurb: str,
+        gif_key: Optional[str] = None,
     ):
         embed = discord.Embed(
             title=title,
@@ -2516,9 +2659,14 @@ class MemberPanelView(discord.ui.View):
             ),
             color=COLOR_CONSTRUCTION,
         )
-        embed.set_image(url=image_url)
+        gif = _apply_gif_image(embed, gif_key) if gif_key else None
+        if gif is None:
+            embed.set_image(url=image_url)
         embed.set_footer(text=f"GTA Economy · {title} · Coming Soon")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        kwargs = {"embed": embed, "ephemeral": True}
+        if gif is not None:
+            kwargs["file"] = gif
+        await interaction.response.send_message(**kwargs)
 
     # ── Row 0 — Core actions (green) ──
     @discord.ui.button(label="📅 Daily", style=discord.ButtonStyle.success, custom_id="eco_daily", row=0)
@@ -2567,16 +2715,6 @@ class MemberPanelView(discord.ui.View):
         if embed:
             await interaction.followup.send(embed=embed, ephemeral=True)
 
-    @discord.ui.button(label="💰 Balance", style=discord.ButtonStyle.success, custom_id="eco_balance", row=0)
-    async def btn_balance(self, interaction: discord.Interaction, button: discord.ui.Button):
-        view = VisibilityChoiceView(self.cog, "balance", interaction.user.id)
-        embed = discord.Embed(
-            title="💰 Balance",
-            description="Choose how you want to view your balance:",
-            color=COLOR_INFO,
-        )
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
-
     @discord.ui.button(label="💸 Pay", style=discord.ButtonStyle.success, custom_id="eco_pay", row=0)
     async def btn_pay(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(PayModal(self.cog))
@@ -2612,6 +2750,7 @@ class MemberPanelView(discord.ui.View):
             "🧪 Acid Lab",
             IMG["acid_lab"],
             "Produce and sell product from your mobile Acid Lab operation.",
+            gif_key="acid_lab",
         )
 
     # Row 1 now has 5 buttons — Doomsday on row 2 with shops
@@ -2646,7 +2785,11 @@ class MemberPanelView(discord.ui.View):
         u = self.cog.data.get_user(interaction.user.id)
         view = MusicLockerView(self.cog, interaction.user.id)
         embed = view.build_embed(u)
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        files = view.build_files()
+        kwargs = {"embed": embed, "view": view, "ephemeral": True}
+        if files:
+            kwargs["file"] = files[0]
+        await interaction.response.send_message(**kwargs)
 
     @discord.ui.button(label="🏠 Dynasty8", style=discord.ButtonStyle.secondary, custom_id="eco_dynasty8", row=3)
     async def btn_dynasty8(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -2672,7 +2815,11 @@ class MemberPanelView(discord.ui.View):
 
         view = CayoMainView(self.cog, interaction.user.id)
         embed = view.build_embed(u)
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        files = view.build_files()
+        kwargs = {"embed": embed, "view": view, "ephemeral": True}
+        if files:
+            kwargs["file"] = files[0]
+        await interaction.response.send_message(**kwargs)
 
     @discord.ui.button(label="🏰 The Mansion", style=discord.ButtonStyle.primary, custom_id="eco_mansion", row=4)
     async def btn_mansion(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -2761,12 +2908,12 @@ class MemberPanelView(discord.ui.View):
             title="❓ GTA Economy — Help",
             description=(
                 f"**Currency:** {CURRENCY_EMOJI} {CURRENCY}\n\n"
-                "**Core (green):** Daily (18h, private) · Work (6h, private) · Balance · Pay · Maze Bank\n\n"
+                "**Core (green):** Daily (18h, private) · Work (6h, private) · Pay · Maze Bank\n\n"
                 "**Shops:** Benny's · Elitas · Warstock · DockTease · Dynasty8 · Dynasty8 Executive\n\n"
-                "**Lifestyle:** Casino Resort (Slots: 3/24h) · Music Locker (Enter 4h · Event 10h) · Master Penthouse\n\n"
+                "**Lifestyle:** Casino Resort (Slots: 3/24h) · Music Locker (Enter 4h · Event 10h · presence +300) · Master Penthouse\n\n"
                 "**Missions (6h):** CEO SecuroServ · MotoClub\n"
                 "**Coming soon:** Vehicle Exports · Acid Lab · Doomsday\n"
-                "**Heists:** Cayo Perico (Kosatka, Launch 48h) · Kortz Center (The Mansion)\n\n"
+                "**Heists:** Cayo Perico (Kosatka, Launch 48h, random quiz) · Kortz Center (The Mansion)\n\n"
                 "**Utility:** Inventory · Garage (by class) · Ranking\n\n"
                 "Daily, Work, cooldowns and shops are always private (ephemeral)."
             ),
@@ -3165,6 +3312,7 @@ class ExportClaimView(discord.ui.View):
                 ),
                 color=COLOR_SUCCESS,
             )
+            gif_key = "mission_passed"
         else:
             result = discord.Embed(
                 title="💥 Export Failed",
@@ -3174,10 +3322,10 @@ class ExportClaimView(discord.ui.View):
                 ),
                 color=COLOR_FAIL,
             )
-        result.set_image(url=IMG["vehicle_exports"])
+            gif_key = "lose_game"
         result.set_footer(text="GTA Economy · Vehicle Export")
         await interaction.response.edit_message(view=None)
-        await post_to_market(self.cog.bot, interaction.user, result)
+        await post_to_market(self.cog.bot, interaction.user, result, gif_key=gif_key)
 
 
 class AdminExportRewardModal(discord.ui.Modal, title="Set Export Reward Range"):
@@ -4053,7 +4201,7 @@ class Economy(commands.Cog):
                 f"**Welcome to the GTA Economy system!**\n\n"
                 f"Currency: **{CURRENCY}**\n\n"
                 "Use the buttons below to:\n"
-                "• Daily & Work (always private) · Balance · Pay · Maze Bank\n"
+                "• Daily & Work (always private) · Pay · Maze Bank\n"
                 "• Shops: Benny's, Elitas, Warstock, DockTease, Dynasty8, Dynasty8 Executive\n"
                 "• Lifestyle: Casino Resort, Music Locker & Master Penthouse\n"
                 "• Missions: CEO SecuroServ & MotoClub\n"
@@ -4061,13 +4209,17 @@ class Economy(commands.Cog):
                 "• Heists: Cayo Perico (Kosatka) · Kortz Center (The Mansion)\n"
                 "• Inventory, Garage (by class), Ranking & Help\n\n"
                 "🔒 Daily, Work, cooldowns and shops are always private.\n"
-                "Balance / Inventory / Garage / Ranking: choose private or public view."
+                "Inventory / Garage / Ranking: choose private or public view."
             ),
             color=COLOR_MAIN,
         )
         embed.set_footer(text="GTA Economy · Maze Bank · Click the buttons")
         view = MemberPanelView(self)
-        msg = await ch.send(embed=embed, view=view)
+        panel_gif = _apply_gif_image(embed, "main_panel")
+        send_kwargs: Dict[str, Any] = {"embed": embed, "view": view}
+        if panel_gif is not None:
+            send_kwargs["file"] = panel_gif
+        msg = await ch.send(**send_kwargs)
         panels = self.data.get_panels()
         panels["member"] = {"channel_id": BANK_CHANNEL_ID, "message_id": msg.id}
         self.data.save_panels(panels)
