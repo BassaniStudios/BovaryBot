@@ -189,15 +189,124 @@ DYNASTY8_ITEMS: List[Dict[str, Any]] = [
 
 # ── Dynasty8 Executive (business / underworld properties) ──
 FORECLOSURES_ITEMS: List[Dict[str, Any]] = [
-    {"id": "biz_nightclub", "name": "🕺 Nightclub", "price": 175000, "type": "business", "desc": "Own a nightclub.", "emoji": "🕺"},
-    {"id": "biz_warehouse", "name": "🏭 Warehouse", "price": 65000, "type": "business", "desc": "Storage complex.", "emoji": "🏭"},
-    {"id": "biz_bunker", "name": "🪖 Bunker", "price": 155000, "type": "business", "desc": "Underground bunker.", "emoji": "🪖"},
-    {"id": "biz_mc_clubhouse", "name": "🏍️ MC Clubhouse", "price": 85000, "type": "business", "desc": "Motorcycle club HQ.", "emoji": "🏍️"},
-    {"id": "biz_agency", "name": "🕵️ Agency", "price": 140000, "type": "business", "desc": "Private investigation agency.", "emoji": "🕵️"},
-    {"id": "biz_arcade", "name": "🕹️ Arcade", "price": 95000, "type": "business", "desc": "Arcade business front.", "emoji": "🕹️"},
-    {"id": "biz_hangar", "name": "✈️ Hangar", "price": 125000, "type": "business", "desc": "Aircraft hangar.", "emoji": "✈️"},
-    {"id": "biz_facility", "name": "🔬 Facility", "price": 210000, "type": "business", "desc": "High-tech facility.", "emoji": "🔬"},
+    {"id": "biz_warehouse", "name": "🏭 Warehouse", "price": 50000, "type": "business", "desc": "Storage complex. Permanent & unique. Required for Car Theft Job. Holds up to 30 stolen vehicles.", "emoji": "🏭", "unique": True},
+    {"id": "biz_hangar", "name": "✈️ Hangar", "price": 20000, "type": "business", "desc": "Aircraft hangar. Permanent & unique.", "emoji": "✈️", "unique": True},
+    {"id": "biz_bunker", "name": "🪖 Bunker", "price": 20000, "type": "business", "desc": "Underground bunker. Permanent & unique.", "emoji": "🪖", "unique": True},
 ]
+
+
+# ── Car Theft Job — GTA Online vehicles by class (hidden catalog) ──
+# class: "low" | "medium" | "high"   price = export payout
+CAR_THEFT_VEHICLES: List[Dict[str, Any]] = [
+    # ── LOW CLASS (common / cheap) — ~28 cars ──
+    {"id": "theft_blista", "name": "Blista", "class": "low", "price": 3200, "emoji": "🚗", "type": "stolen_car"},
+    {"id": "theft_issi", "name": "Issi", "class": "low", "price": 2800, "emoji": "🚗", "type": "stolen_car"},
+    {"id": "theft_panto", "name": "Panto", "class": "low", "price": 2500, "emoji": "🚗", "type": "stolen_car"},
+    {"id": "theft_prairie", "name": "Prairie", "class": "low", "price": 3100, "emoji": "🚗", "type": "stolen_car"},
+    {"id": "theft_asea", "name": "Asea", "class": "low", "price": 2700, "emoji": "🚗", "type": "stolen_car"},
+    {"id": "theft_emperor", "name": "Emperor", "class": "low", "price": 2900, "emoji": "🚗", "type": "stolen_car"},
+    {"id": "theft_glendale", "name": "Glendale", "class": "low", "price": 3400, "emoji": "🚗", "type": "stolen_car"},
+    {"id": "theft_intruder", "name": "Intruder", "class": "low", "price": 3000, "emoji": "🚗", "type": "stolen_car"},
+    {"id": "theft_premier", "name": "Premier", "class": "low", "price": 3300, "emoji": "🚗", "type": "stolen_car"},
+    {"id": "theft_primo", "name": "Primo", "class": "low", "price": 3100, "emoji": "🚗", "type": "stolen_car"},
+    {"id": "theft_regina", "name": "Regina", "class": "low", "price": 2600, "emoji": "🚗", "type": "stolen_car"},
+    {"id": "theft_romero", "name": "Romero Hearse", "class": "low", "price": 3800, "emoji": "🚗", "type": "stolen_car"},
+    {"id": "theft_stanier", "name": "Stanier", "class": "low", "price": 2900, "emoji": "🚗", "type": "stolen_car"},
+    {"id": "theft_stratum", "name": "Stratum", "class": "low", "price": 3200, "emoji": "🚗", "type": "stolen_car"},
+    {"id": "theft_surge", "name": "Surge", "class": "low", "price": 3500, "emoji": "🚗", "type": "stolen_car"},
+    {"id": "theft_tailgater", "name": "Tailgater", "class": "low", "price": 3600, "emoji": "🚗", "type": "stolen_car"},
+    {"id": "theft_warrener", "name": "Warrener", "class": "low", "price": 3400, "emoji": "🚗", "type": "stolen_car"},
+    {"id": "theft_washington", "name": "Washington", "class": "low", "price": 3100, "emoji": "🚗", "type": "stolen_car"},
+    {"id": "theft_asterope", "name": "Asterope", "class": "low", "price": 3000, "emoji": "🚗", "type": "stolen_car"},
+    {"id": "theft_fugitive", "name": "Fugitive", "class": "low", "price": 3700, "emoji": "🚗", "type": "stolen_car"},
+    {"id": "theft_ingot", "name": "Ingot", "class": "low", "price": 2500, "emoji": "🚗", "type": "stolen_car"},
+    {"id": "theft_minivan", "name": "Minivan", "class": "low", "price": 2800, "emoji": "🚗", "type": "stolen_car"},
+    {"id": "theft_phoenix", "name": "Phoenix", "class": "low", "price": 3900, "emoji": "🚗", "type": "stolen_car"},
+    {"id": "theft_picador", "name": "Picador", "class": "low", "price": 2700, "emoji": "🚗", "type": "stolen_car"},
+    {"id": "theft_premier_classic", "name": "Premier Classic", "class": "low", "price": 3200, "emoji": "🚗", "type": "stolen_car"},
+    {"id": "theft_rhapsody", "name": "Rhapsody", "class": "low", "price": 2600, "emoji": "🚗", "type": "stolen_car"},
+    {"id": "theft_sabregt", "name": "Sabre Turbo", "class": "low", "price": 4100, "emoji": "🚗", "type": "stolen_car"},
+    {"id": "theft_voodoo", "name": "Voodoo", "class": "low", "price": 3500, "emoji": "🚗", "type": "stolen_car"},
+    # ── MEDIUM CLASS (sports / muscle / suv) — ~30 cars ──
+    {"id": "theft_sultan", "name": "Sultan", "class": "medium", "price": 8500, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_elegy", "name": "Elegy RH8", "class": "medium", "price": 9200, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_comet", "name": "Comet", "class": "medium", "price": 9800, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_feltzer", "name": "Feltzer", "class": "medium", "price": 8900, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_futo", "name": "Futo", "class": "medium", "price": 7200, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_khamelion", "name": "Khamelion", "class": "medium", "price": 9500, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_lynx", "name": "Lynx", "class": "medium", "price": 10500, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_massacro", "name": "Massacro", "class": "medium", "price": 11200, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_ninef", "name": "9F", "class": "medium", "price": 10800, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_rapidgt", "name": "Rapid GT", "class": "medium", "price": 10200, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_schafter", "name": "Schafter", "class": "medium", "price": 7800, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_schwarzer", "name": "Schwarzer", "class": "medium", "price": 8200, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_surano", "name": "Surano", "class": "medium", "price": 9900, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_carbonizzare", "name": "Carbonizzare", "class": "medium", "price": 11500, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_coquette", "name": "Coquette", "class": "medium", "price": 10100, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_jester", "name": "Jester", "class": "medium", "price": 10900, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_penumbra", "name": "Penumbra", "class": "medium", "price": 7600, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_alpha", "name": "Alpha", "class": "medium", "price": 8700, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_banshee", "name": "Banshee", "class": "medium", "price": 9400, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_buffalo", "name": "Buffalo", "class": "medium", "price": 8100, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_dominator", "name": "Dominator", "class": "medium", "price": 8800, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_gauntlet", "name": "Gauntlet", "class": "medium", "price": 8600, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_phoenix_m", "name": "Phoenix Muscle", "class": "medium", "price": 7900, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_ruiner", "name": "Ruiner", "class": "medium", "price": 7500, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_vigero", "name": "Vigero", "class": "medium", "price": 7700, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_baller", "name": "Baller", "class": "medium", "price": 9800, "emoji": "🚙", "type": "stolen_car"},
+    {"id": "theft_cavalcade", "name": "Cavalcade", "class": "medium", "price": 7200, "emoji": "🚙", "type": "stolen_car"},
+    {"id": "theft_fq2", "name": "FQ 2", "class": "medium", "price": 6900, "emoji": "🚙", "type": "stolen_car"},
+    {"id": "theft_granger", "name": "Granger", "class": "medium", "price": 8400, "emoji": "🚙", "type": "stolen_car"},
+    {"id": "theft_landstalker", "name": "Landstalker", "class": "medium", "price": 7100, "emoji": "🚙", "type": "stolen_car"},
+    {"id": "theft_mesa", "name": "Mesa", "class": "medium", "price": 6500, "emoji": "🚙", "type": "stolen_car"},
+    {"id": "theft_patriot_m", "name": "Patriot", "class": "medium", "price": 9200, "emoji": "🚙", "type": "stolen_car"},
+    {"id": "theft_radius", "name": "Radius", "class": "medium", "price": 6800, "emoji": "🚙", "type": "stolen_car"},
+    {"id": "theft_seminole", "name": "Seminole", "class": "medium", "price": 7000, "emoji": "🚙", "type": "stolen_car"},
+    {"id": "theft_serrano", "name": "Serrano", "class": "medium", "price": 7300, "emoji": "🚙", "type": "stolen_car"},
+    # ── HIGH CLASS (super / hyper / rare) — ~30 cars ──
+    {"id": "theft_adder", "name": "Adder", "class": "high", "price": 28500, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_entityxf", "name": "Entity XF", "class": "high", "price": 31200, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_zentorno", "name": "Zentorno", "class": "high", "price": 34800, "emoji": "🔥", "type": "stolen_car"},
+    {"id": "theft_t20", "name": "T20", "class": "high", "price": 36500, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_osiris", "name": "Osiris", "class": "high", "price": 33200, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_reaper", "name": "Reaper", "class": "high", "price": 29800, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_fmj", "name": "FMJ", "class": "high", "price": 35500, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_prototipo", "name": "X80 Proto", "class": "high", "price": 37800, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_tyrus", "name": "Tyrus", "class": "high", "price": 34100, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_italigtb", "name": "Itali GTB", "class": "high", "price": 32600, "emoji": "🏁", "type": "stolen_car"},
+    {"id": "theft_nero", "name": "Nero", "class": "high", "price": 35900, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_tempesta", "name": "Tempesta", "class": "high", "price": 33700, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_vacca", "name": "Vacca", "class": "high", "price": 27400, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_voltic", "name": "Voltic", "class": "high", "price": 26800, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_infernus", "name": "Infernus", "class": "high", "price": 29100, "emoji": "🔥", "type": "stolen_car"},
+    {"id": "theft_cheetah", "name": "Cheetah", "class": "high", "price": 28300, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_entity2", "name": "Entity XXR", "class": "high", "price": 38200, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_emerus", "name": "Emerus", "class": "high", "price": 39100, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_krieger", "name": "Krieger", "class": "high", "price": 40500, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_s80rr", "name": "S80RR", "class": "high", "price": 37200, "emoji": "🏁", "type": "stolen_car"},
+    {"id": "theft_thrax", "name": "Thrax", "class": "high", "price": 39800, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_zorrusso", "name": "Zorrusso", "class": "high", "price": 38600, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_furia", "name": "Furia", "class": "high", "price": 37900, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_italirsx", "name": "Itali RSX", "class": "high", "price": 41200, "emoji": "🏁", "type": "stolen_car"},
+    {"id": "theft_champion", "name": "Champion", "class": "high", "price": 36800, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_ignus", "name": "Ignus", "class": "high", "price": 42500, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_torero", "name": "Torero XO", "class": "high", "price": 40100, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_virtue", "name": "Virtue", "class": "high", "price": 35600, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_entity3", "name": "Entity MT", "class": "high", "price": 41800, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_turismo3", "name": "Turismo Omaggio", "class": "high", "price": 39500, "emoji": "🏁", "type": "stolen_car"},
+]
+
+CAR_THEFT_BY_CLASS = {
+    "low": [c for c in CAR_THEFT_VEHICLES if c["class"] == "low"],
+    "medium": [c for c in CAR_THEFT_VEHICLES if c["class"] == "medium"],
+    "high": [c for c in CAR_THEFT_VEHICLES if c["class"] == "high"],
+}
+
+CAR_THEFT_SUCCESS_CHANCE = {
+    "low": 0.75,
+    "medium": 0.50,
+    "high": 0.35,
+}
 
 
 # ── Cayo Perico Heist preparation items (buyable only inside Cayo panel) ──
@@ -377,6 +486,37 @@ KORTZ_QUIZ = [
 ]
 
 
+# ── Doomsday Heist ──
+DOOMSDAY_PREP_ITEMS: List[Dict[str, Any]] = [
+    {"id": "dd_keycards", "name": "🪪 Facility Keycards", "type": "doomsday_prep", "desc": "Cloned access cards for the underground facility.", "emoji": "🪪"},
+    {"id": "dd_hydra", "name": "✈️ Hydra Data", "type": "doomsday_prep", "desc": "Flight data and weapon codes for aerial approach.", "emoji": "✈️"},
+    {"id": "dd_avenger", "name": "🛩️ Avenger Plans", "type": "doomsday_prep", "desc": "Schematics for the mobile command center.", "emoji": "🛩️"},
+    {"id": "dd_thruster", "name": "🚀 Thruster Jets", "type": "doomsday_prep", "desc": "Personal flight systems for the finale.", "emoji": "🚀"},
+    {"id": "dd_khajali", "name": "🛡️ Khanjali Intel", "type": "doomsday_prep", "desc": "Tank deployment coordinates and weak points.", "emoji": "🛡️"},
+]
+
+DOOMSDAY_PREP_IDS = [it["id"] for it in DOOMSDAY_PREP_ITEMS]
+
+DOOMSDAY_TICKET = {
+    "id": "dd_ticket",
+    "name": "🎟️ Doomsday Heist Ticket",
+    "type": "consumable",
+    "desc": "One-time ticket to launch The Doomsday Heist. Requires a partner.",
+    "emoji": "🎟️",
+}
+
+DOOMSDAY_ACHIEVEMENT = {
+    "id": "ach_doomsday_heist",
+    "name": "🏆 Doomsday Heist Trophy",
+    "type": "achievement",
+    "desc": "Proof that you survived the three-act Doomsday scenario.",
+    "emoji": "🏆",
+}
+
+# Memory game symbols
+DOOMSDAY_MEMORY_SYMBOLS = ["🔴", "🔵", "🟢", "🟡", "🟣", "🟠", "⚪", "⬛"]
+
+
 # ── Casino Resort items ──
 CASINO_PENTHOUSE = {
     "id": "casino_penthouse",
@@ -462,6 +602,26 @@ DEFAULT_SETTINGS = {
     "slots_cooldown_window": 86400,  # 24 hours
     # Cayo Perico Launch Heist cooldown
     "cayo_heist_cooldown": 172800,   # 48 hours
+    # Car Theft Job
+    "car_theft_cooldown": 28800,     # 8 hours
+    "car_theft_cost": 1000,
+    "export_car_cooldown": 43200,    # 12 hours
+    "warehouse_max_vehicles": 30,
+    # FreakShop (Dax / Fooliganz)
+    "badonkadonk_cooldown": 43200,   # 12 hours
+    "badonkadonk_reward": 500,
+    "call_dax_cooldown": 28800,      # 8 hours
+    "call_dax_success_reward": 1000,
+    "call_dax_fail_penalty": 500,
+    "labrat_cooldown": 86400,        # 24 hours
+    "labrat_reduce_seconds": 18000,  # reduce Call Dax cooldown by 5 hours
+    # Doomsday Heist
+    "doomsday_prep_cooldown": 43200,   # 12 hours between prep claims
+    "doomsday_total_prize": 5000,
+    "doomsday_invite_timeout": 900,    # 15 minutes
+    # Casino Heist (future / admin adjustable)
+    "casino_heist_prize_min": 6000,
+    "casino_heist_prize_max": 12000,
 }
 
 # Street / location names used in MotoClub route choices
@@ -555,6 +715,12 @@ class EconomyData:
                 "slots_uses": 0,
                 "slots_window_start": 0,
                 "last_cayo_heist": 0,
+                "last_car_theft": 0,
+                "last_export_car": 0,
+                "last_badonkadonk": 0,
+                "last_call_dax": 0,
+                "last_labrat": 0,
+                "last_doomsday_prep": 0,
                 "created_at": _now_ts(),
             }
             changed = True
@@ -580,6 +746,12 @@ class EconomyData:
             "slots_uses": 0,
             "slots_window_start": 0,
             "last_cayo_heist": 0,
+            "last_car_theft": 0,
+            "last_export_car": 0,
+            "last_badonkadonk": 0,
+            "last_call_dax": 0,
+            "last_labrat": 0,
+            "last_doomsday_prep": 0,
         }
         for k, v in defaults.items():
             if k not in u:
@@ -679,6 +851,8 @@ class EconomyData:
             FORECLOSURES_ITEMS,
             CAYO_PREP_ITEMS,
             KORTZ_PREP_ITEMS,
+            CAR_THEFT_VEHICLES,
+            DOOMSDAY_PREP_ITEMS,
         ):
             for it in lst:
                 items[it["id"]] = it
@@ -686,6 +860,8 @@ class EconomyData:
         items[CAYO_ACHIEVEMENT["id"]] = CAYO_ACHIEVEMENT
         items[KORTZ_INVITE_ITEM["id"]] = KORTZ_INVITE_ITEM
         items[KORTZ_ACHIEVEMENT["id"]] = KORTZ_ACHIEVEMENT
+        items[DOOMSDAY_TICKET["id"]] = DOOMSDAY_TICKET
+        items[DOOMSDAY_ACHIEVEMENT["id"]] = DOOMSDAY_ACHIEVEMENT
         items[CASINO_PENTHOUSE["id"]] = CASINO_PENTHOUSE
         for it in CASINO_PODIUM:
             items[it["id"]] = it
@@ -856,7 +1032,7 @@ class ShopBuyView(discord.ui.View):
         inv = u.get("inventory", {})
 
         # Unique / permanent items (Mansion, Submarine, Penthouse, etc.)
-        if item.get("unique") or item_id in ("mil_submarine", "casino_penthouse", "prop_house_mansion"):
+        if item.get("unique") or item_id in ("mil_submarine", "casino_penthouse", "prop_house_mansion", "biz_warehouse", "biz_hangar", "biz_bunker"):
             if inv.get(item_id, 0) >= 1:
                 return await interaction.response.send_message(
                     f"You already own **{item.get('emoji', '')} {item['name']}**. It is permanent and unique.",
@@ -2601,6 +2777,1305 @@ class MazeBankTransferModal(discord.ui.Modal):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# CAR THEFT JOB
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _has_warehouse(u: Dict) -> bool:
+    inv = u.get("inventory", {})
+    return inv.get("biz_warehouse", 0) >= 1
+
+
+def _count_stolen_vehicles(u: Dict) -> int:
+    inv = u.get("inventory", {})
+    return sum(1 for iid in inv if iid.startswith("theft_"))
+
+
+def _get_stolen_vehicles(u: Dict) -> List[Dict[str, Any]]:
+    inv = u.get("inventory", {})
+    result = []
+    for car in CAR_THEFT_VEHICLES:
+        qty = inv.get(car["id"], 0)
+        if qty > 0:
+            for _ in range(qty):
+                result.append(car)
+    return result
+
+
+class CarTheftJobView(discord.ui.View):
+    """Main Car Theft Job panel — requires Warehouse."""
+
+    def __init__(self, cog: "Economy", user_id: int):
+        super().__init__(timeout=120)
+        self.cog = cog
+        self.user_id = user_id
+
+    def build_embed(self, u: Dict) -> discord.Embed:
+        settings = self.cog.data.get_settings()
+        stolen_count = _count_stolen_vehicles(u)
+        max_veh = settings.get("warehouse_max_vehicles", 30)
+        cost = settings.get("car_theft_cost", 1000)
+        embed = discord.Embed(
+            title="🚗 Car Theft Job",
+            description=(
+                "Steal high-value vehicles across Los Santos and store them in your Warehouse.\n"
+                "Export them later for a clean payout.\n\n"
+                f"**Warehouse storage:** {stolen_count}/{max_veh} vehicles\n"
+                f"**Car Theft fee:** {_fmt(cost)} {CURRENCY}\n"
+                f"**Car Theft cooldown:** 8 hours\n"
+                f"**Export cooldown:** 12 hours\n\n"
+                "• **Car Theft** — pay the fee, pick a class (Low / Medium / High), risk the steal\n"
+                "• **Export a Car** — sell one stored vehicle (100% success)\n"
+                "• **Warehouse** — view all stolen vehicles currently stored"
+            ),
+            color=COLOR_ORANGE,
+        )
+        embed.set_image(url=IMG["vehicle_exports"])
+        embed.set_footer(text="Car Theft Job · Requires Warehouse · Private")
+        return embed
+
+    @discord.ui.button(label="🚗 Car Theft", style=discord.ButtonStyle.danger, row=0)
+    async def car_theft(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your menu.", ephemeral=True)
+        settings = self.cog.data.get_settings()
+        u = self.cog.data.get_user(self.user_id)
+        now = _now_ts()
+        last = float(u.get("last_car_theft", 0))
+        cd = settings.get("car_theft_cooldown", 28800)
+        if now - last < cd:
+            rem = int(cd - (now - last))
+            embed = discord.Embed(
+                title="⏳ Car Theft Cooldown",
+                description=f"You can attempt another theft in **{_fmt_time(rem)}**.",
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        max_veh = settings.get("warehouse_max_vehicles", 30)
+        if _count_stolen_vehicles(u) >= max_veh:
+            embed = discord.Embed(
+                title="🏭 Warehouse Full",
+                description=f"Your Warehouse is full (**{max_veh}/{max_veh}**). Export some cars first.",
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        cost = settings.get("car_theft_cost", 1000)
+        if u["wallet"] < cost:
+            embed = discord.Embed(
+                title="💸 Insufficient Funds",
+                description=f"Car Theft costs **{_fmt(cost)}** {CURRENCY}. You have **{_fmt(u['wallet'])}**.",
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        # Confirmation view
+        view = CarTheftConfirmView(self.cog, self.user_id, cost)
+        embed = discord.Embed(
+            title="🚗 Confirm Car Theft",
+            description=(
+                f"You are about to pay **{_fmt(cost)}** {CURRENCY} to start a Car Theft run.\n\n"
+                "After confirming you will choose a vehicle class:\n"
+                "• **Low** — 75% success · lower payout\n"
+                "• **Medium** — 50% success · medium payout\n"
+                "• **High** — 35% success · high payout\n\n"
+                "Do you accept the fee and start?"
+            ),
+            color=COLOR_ORANGE,
+        )
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    @discord.ui.button(label="📦 Export a Car", style=discord.ButtonStyle.success, row=0)
+    async def export_car(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your menu.", ephemeral=True)
+        settings = self.cog.data.get_settings()
+        u = self.cog.data.get_user(self.user_id)
+        now = _now_ts()
+        last = float(u.get("last_export_car", 0))
+        cd = settings.get("export_car_cooldown", 43200)
+        if now - last < cd:
+            rem = int(cd - (now - last))
+            embed = discord.Embed(
+                title="⏳ Export Cooldown",
+                description=f"You can export another car in **{_fmt_time(rem)}**.",
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        stolen = _get_stolen_vehicles(u)
+        if not stolen:
+            embed = discord.Embed(
+                title="📦 Empty Warehouse",
+                description="You have no stolen vehicles to export. Go steal some first!",
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        # Build select options (unique by id, show qty)
+        inv = u.get("inventory", {})
+        seen = {}
+        options = []
+        for car in CAR_THEFT_VEHICLES:
+            qty = inv.get(car["id"], 0)
+            if qty > 0 and car["id"] not in seen:
+                seen[car["id"]] = True
+                options.append(discord.SelectOption(
+                    label=f"{car.get('emoji', '🚗')} {car['name']}"[:100],
+                    value=car["id"],
+                    description=f"Export for {_fmt(car['price'])} {CURRENCY} · ×{qty}"[:100],
+                ))
+        if not options:
+            return await interaction.response.send_message("No vehicles available.", ephemeral=True)
+
+        view = CarExportSelectView(self.cog, self.user_id, options[:25])
+        embed = discord.Embed(
+            title="📦 Export a Car",
+            description=(
+                "Select a vehicle from your Warehouse to export.\n"
+                "Success rate: **100%**. Payout is the estimated value of the car.\n"
+                "Cooldown: **12 hours** after export."
+            ),
+            color=COLOR_SUCCESS,
+        )
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    @discord.ui.button(label="🏭 Warehouse", style=discord.ButtonStyle.primary, row=0)
+    async def warehouse(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your menu.", ephemeral=True)
+        u = self.cog.data.get_user(self.user_id)
+        settings = self.cog.data.get_settings()
+        max_veh = settings.get("warehouse_max_vehicles", 30)
+        stolen = _get_stolen_vehicles(u)
+        if not stolen:
+            embed = discord.Embed(
+                title="🏭 Warehouse",
+                description=(
+                    f"**Storage:** 0/{max_veh} vehicles\n\n"
+                    "Your Warehouse is empty.\n"
+                    "Use **Car Theft** or claim a **Spawn Export Event** to fill it."
+                ),
+                color=COLOR_INFO,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        # Group by id
+        inv = u.get("inventory", {})
+        lines = []
+        total = 0
+        for car in CAR_THEFT_VEHICLES:
+            qty = inv.get(car["id"], 0)
+            if qty > 0:
+                lines.append(
+                    f"{car.get('emoji', '🚗')} **{car['name']}** ×{qty} "
+                    f"— {_fmt(car['price'])} {CURRENCY} each · class **{car['class'].upper()}**"
+                )
+                total += qty
+        embed = discord.Embed(
+            title="🏭 Warehouse — Stolen Vehicles",
+            description=(
+                f"**Storage:** {total}/{max_veh} vehicles\n\n"
+                + "\n".join(lines)
+            ),
+            color=COLOR_ORANGE,
+        )
+        embed.set_footer(text="Car Theft Job · Warehouse")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+class CarTheftConfirmView(discord.ui.View):
+    """Confirm fee payment then choose class."""
+
+    def __init__(self, cog: "Economy", user_id: int, cost: int):
+        super().__init__(timeout=60)
+        self.cog = cog
+        self.user_id = user_id
+        self.cost = cost
+
+    @discord.ui.button(label="✅ Accept & Start", style=discord.ButtonStyle.success, row=0)
+    async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your menu.", ephemeral=True)
+        u = self.cog.data.get_user(self.user_id)
+        if u["wallet"] < self.cost:
+            return await interaction.response.send_message(
+                f"Insufficient funds. Need **{_fmt(self.cost)}** {CURRENCY}.", ephemeral=True
+            )
+        # Charge fee now
+        self.cog.data.add_money(self.user_id, -self.cost, "car_theft_fee")
+        view = CarTheftClassView(self.cog, self.user_id)
+        embed = discord.Embed(
+            title="🚗 Choose Vehicle Class",
+            description=(
+                f"Fee of **{_fmt(self.cost)}** {CURRENCY} paid.\n\n"
+                "Select the class of vehicle you want to steal:\n\n"
+                "🟢 **Low** — 75% success chance · lower value cars\n"
+                "🟡 **Medium** — 50% success chance · sports / muscle\n"
+                "🔴 **High** — 35% success chance · super / hypercars"
+            ),
+            color=COLOR_ORANGE,
+        )
+        await interaction.response.edit_message(embed=embed, view=view)
+
+    @discord.ui.button(label="❌ Cancel", style=discord.ButtonStyle.secondary, row=0)
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your menu.", ephemeral=True)
+        embed = discord.Embed(
+            title="Cancelled",
+            description="Car Theft cancelled. No fee was charged.",
+            color=COLOR_INFO,
+        )
+        await interaction.response.edit_message(embed=embed, view=None)
+
+
+class CarTheftClassView(discord.ui.View):
+    """Pick Low / Medium / High class."""
+
+    def __init__(self, cog: "Economy", user_id: int):
+        super().__init__(timeout=60)
+        self.cog = cog
+        self.user_id = user_id
+
+    @discord.ui.button(label="🟢 Low Class", style=discord.ButtonStyle.success, row=0)
+    async def low(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._resolve(interaction, "low")
+
+    @discord.ui.button(label="🟡 Medium Class", style=discord.ButtonStyle.primary, row=0)
+    async def medium(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._resolve(interaction, "medium")
+
+    @discord.ui.button(label="🔴 High Class", style=discord.ButtonStyle.danger, row=0)
+    async def high(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._resolve(interaction, "high")
+
+    async def _resolve(self, interaction: discord.Interaction, car_class: str):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your menu.", ephemeral=True)
+
+        pool = CAR_THEFT_BY_CLASS.get(car_class, [])
+        if not pool:
+            return await interaction.response.send_message("No vehicles in this class.", ephemeral=True)
+
+        car = random.choice(pool)
+        chance = CAR_THEFT_SUCCESS_CHANCE.get(car_class, 0.5)
+        success = random.random() < chance
+
+        # Start cooldown
+        u = self.cog.data.get_user(self.user_id)
+        u["last_car_theft"] = _now_ts()
+        self.cog.data.save_user(self.user_id, u)
+
+        if success:
+            # Check capacity again (race safety)
+            settings = self.cog.data.get_settings()
+            max_veh = settings.get("warehouse_max_vehicles", 30)
+            if _count_stolen_vehicles(u) >= max_veh:
+                embed = discord.Embed(
+                    title="🏭 Warehouse Full",
+                    description="You stole the car but your Warehouse is full. The vehicle was lost.",
+                    color=COLOR_FAIL,
+                )
+                await interaction.response.edit_message(embed=embed, view=None)
+                return
+
+            inv = u.get("inventory", {})
+            inv[car["id"]] = inv.get(car["id"], 0) + 1
+            u["inventory"] = inv
+            self.cog.data.save_user(self.user_id, u)
+
+            embed = discord.Embed(
+                title="✅ Car Theft Successful!",
+                description=(
+                    f"You stole a **{car.get('emoji', '🚗')} {car['name']}** "
+                    f"(**{car_class.upper()}** class)!\n\n"
+                    f"Estimated export value: **{_fmt(car['price'])}** {CURRENCY}\n"
+                    f"The vehicle has been stored in your **Warehouse**."
+                ),
+                color=COLOR_SUCCESS,
+            )
+            embed.set_footer(text="Car Theft Job · Cooldown started (8h)")
+            await interaction.response.edit_message(embed=embed, view=None)
+
+            public = discord.Embed(
+                title="🚗 Car Theft Successful",
+                description=(
+                    f"{interaction.user.mention} stole a **{car.get('emoji', '🚗')} {car['name']}** "
+                    f"({car_class.upper()} class) and stored it in their Warehouse!"
+                ),
+                color=COLOR_SUCCESS,
+            )
+            await post_to_market(self.cog.bot, interaction.user, public, gif_key="mission_passed")
+        else:
+            embed = discord.Embed(
+                title="💥 Car Theft Failed",
+                description=(
+                    f"You tried to steal a **{car.get('emoji', '🚗')} {car['name']}** "
+                    f"({car_class.upper()} class) but got spotted / the alarm went off.\n\n"
+                    "No vehicle acquired. Fee already paid."
+                ),
+                color=COLOR_FAIL,
+            )
+            embed.set_footer(text="Car Theft Job · Cooldown started (8h)")
+            lose = _apply_gif_image(embed, "lose_game")
+            kwargs = {"embed": embed, "view": None}
+            if lose:
+                kwargs["attachments"] = [lose]
+            await interaction.response.edit_message(**kwargs)
+
+            public = discord.Embed(
+                title="💥 Car Theft Failed",
+                description=f"{interaction.user.mention} failed a **{car_class.upper()}** class Car Theft attempt.",
+                color=COLOR_FAIL,
+            )
+            await post_to_market(self.cog.bot, interaction.user, public, gif_key="lose_game")
+
+
+class CarExportSelectView(discord.ui.View):
+    """Select a stolen car to export (100% success)."""
+
+    def __init__(self, cog: "Economy", user_id: int, options: List[discord.SelectOption]):
+        super().__init__(timeout=90)
+        self.cog = cog
+        self.user_id = user_id
+        select = discord.ui.Select(placeholder="Choose a vehicle to export…", options=options)
+        select.callback = self._export
+        self.add_item(select)
+
+    async def _export(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your menu.", ephemeral=True)
+        car_id = interaction.data["values"][0]
+        car = next((c for c in CAR_THEFT_VEHICLES if c["id"] == car_id), None)
+        if not car:
+            return await interaction.response.send_message("Vehicle not found.", ephemeral=True)
+
+        u = self.cog.data.get_user(self.user_id)
+        inv = u.get("inventory", {})
+        if inv.get(car_id, 0) < 1:
+            return await interaction.response.send_message("You no longer own this vehicle.", ephemeral=True)
+
+        # Remove one
+        inv[car_id] = inv.get(car_id, 0) - 1
+        if inv[car_id] <= 0:
+            inv.pop(car_id, None)
+        u["inventory"] = inv
+        u["last_export_car"] = _now_ts()
+        self.cog.data.save_user(self.user_id, u)
+
+        reward = car["price"]
+        self.cog.data.add_money(self.user_id, reward, "car_export")
+
+        embed = discord.Embed(
+            title="✅ Export Successful!",
+            description=(
+                f"You exported **{car.get('emoji', '🚗')} {car['name']}**.\n\n"
+                f"Payout: **{_fmt(reward)}** {CURRENCY}\n"
+                f"The vehicle has been removed from your Warehouse."
+            ),
+            color=COLOR_SUCCESS,
+        )
+        embed.set_footer(text="Car Theft Job · Export cooldown started (12h)")
+        await interaction.response.edit_message(embed=embed, view=None)
+
+        public = discord.Embed(
+            title="📦 Vehicle Exported",
+            description=(
+                f"{interaction.user.mention} exported a **{car.get('emoji', '🚗')} {car['name']}** "
+                f"and received **{_fmt(reward)}** {CURRENCY}!"
+            ),
+            color=COLOR_SUCCESS,
+        )
+        await post_to_market(self.cog.bot, interaction.user, public, gif_key="mission_passed")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# FREAKSHOP — Dax & the Fooliganz
+# ═══════════════════════════════════════════════════════════════════════════
+
+DAX_BADONKADONK_LINES = [
+    (
+        "**BADONKADONK!**\n\n"
+        "Freshmeat… you just swallowed something Labrat mixed in the dark. "
+        "Colors are melting, the walls are breathing, and a UFO just parked on your roof. "
+        "Deep down, you've always been a Fooligan. Just like cousin Wade.\n\n"
+        "Know what a Fooligan is? Folks are gonna tell you it's all about a band, "
+        "or getting fucked up, or walking around with your junk out. "
+        "And yeah, that's a big part of it. But it's also about **not giving a fuck**.\n\n"
+        "Here's **{reward}** {currency}. Don't spend it all on more of the good stuff… or do. "
+        "We're here to stay, baby!"
+    ),
+    (
+        "**BADONKADONK!**\n\n"
+        "Yo Freshmeat! Labrat says that batch was *extra*. "
+        "You're currently communicating with three different versions of yourself "
+        "and one of them is a rabbit wearing sunglasses.\n\n"
+        "The Fooligan life ain't for everyone, but if you're into easy money and hard partying, "
+        "there's nothing better. Take this **{reward}** {currency} and go stare at a wall for a while. "
+        "It's a beautiful wall."
+    ),
+    (
+        "**BADONKADONK!**\n\n"
+        "Freshmeat… I can see the music. Can you see the music? "
+        "The bassline is shaped like a pyramid and it's telling me secrets about Mount Chiliad.\n\n"
+        "Deep down, you've always been a Fooligan. "
+        "Here's **{reward}** {currency} from the troupe. "
+        "Spend it wisely. Or don't. Wisdom is a construct of the squares."
+    ),
+    (
+        "**BADONKADONK!**\n\n"
+        "Freshmeat, you just opened a door in your mind that Labrat didn't know existed. "
+        "There's a little green man in there selling bootleg concert tickets.\n\n"
+        "We're here to stay, baby! Take **{reward}** {currency}. "
+        "The Fooliganz take care of their own… even the ones currently talking to furniture."
+    ),
+    (
+        "**BADONKADONK!**\n\n"
+        "Freshmeat! That hit harder than a Lost MC slamvan. "
+        "Your third eye is wide open and it's judging my outfit.\n\n"
+        "Deep down, you've always been a Fooligan. Just like cousin Wade. "
+        "Here's **{reward}** {currency}. Go buy something shiny. Or a bigger third eye."
+    ),
+    (
+        "**BADONKADONK!**\n\n"
+        "Yo Freshmeat… the walls just told me a joke and I can't stop laughing. "
+        "Labrat says that's normal. Labrat also says he's a professional.\n\n"
+        "The Fooligan life ain't for everyone… but you? You're one of us. "
+        "Pocket this **{reward}** {currency} and keep the vibes high."
+    ),
+    (
+        "**BADONKADONK!**\n\n"
+        "Freshmeat, you just became one with the universe for approximately forty-seven seconds. "
+        "The universe said hi and asked for a cigarette.\n\n"
+        "We're here to stay, baby! Take **{reward}** {currency} from Dax and the troupe. "
+        "Don't tell the squares what you saw."
+    ),
+    (
+        "**BADONKADONK!**\n\n"
+        "Freshmeat… I think I'm in your head. Wait, am I in your head? "
+        "This is deep water, my friend. Classic tunnel phase.\n\n"
+        "Deep down, you've always been a Fooligan. "
+        "Here's **{reward}** {currency}. Consider it initiation money. "
+        "Welcome to the clinical trial."
+    ),
+]
+
+FREAKSHOP_JOBS = [
+    {
+        "id": "crop_dustin",
+        "label": "🌿 Crop Dustin'",
+        "desc": "Sabotage a rival weed farm. Nuke their mild high.",
+        "success": (
+            "**Crop Dustin' — SUCCESS**\n\n"
+            "Freshmeat! You dusted that corporate weed farm like a true Fooligan. "
+            "Their 'mild high' is now a mild pile of ash.\n\n"
+            "Dax wired you **{reward}** {currency}. BADONKADONK!"
+        ),
+        "fail": (
+            "**Crop Dustin' — FAILED**\n\n"
+            "Freshmeat… the sprinklers got you before you got the crops. "
+            "Labrat is laughing. Dax is disappointed. Mostly laughing.\n\n"
+            "You lost **{penalty}** {currency}. Try not to inhale the failure next time."
+        ),
+    },
+    {
+        "id": "heavy_metal",
+        "label": "🔧 Heavy Metal",
+        "desc": "Recover a suspicious shipment before the wrong people do.",
+        "success": (
+            "**Heavy Metal — SUCCESS**\n\n"
+            "Freshmeat! You recovered the load. Heavy, metal, and extremely illegal. "
+            "Exactly how we like it.\n\n"
+            "Dax sent **{reward}** {currency} your way. The troupe is proud. Mostly high."
+        ),
+        "fail": (
+            "**Heavy Metal — FAILED**\n\n"
+            "Freshmeat… the shipment walked away. Or got walked away. "
+            "Either way, it's gone and so is some of your cash.\n\n"
+            "You lost **{penalty}** {currency}. Dax says dig deeper next time. Literally."
+        ),
+    },
+    {
+        "id": "bad_trip",
+        "label": "🌀 Bad Trip",
+        "desc": "Survive a fully unhinged psychedelic experience.",
+        "success": (
+            "**Bad Trip — SUCCESS**\n\n"
+            "Freshmeat! You rode the wave and came out the other side. "
+            "The rabbits were real. The Bigfoot was real. Your dignity is negotiable.\n\n"
+            "Dax hands you **{reward}** {currency}. You're officially harder than the trip."
+        ),
+        "fail": (
+            "**Bad Trip — FAILED**\n\n"
+            "Freshmeat… the trip ate you alive. Labrat found you talking to a traffic cone "
+            "about government eggs on Mount Chiliad.\n\n"
+            "You lost **{penalty}** {currency}. The cone kept the rest."
+        ),
+    },
+    {
+        "id": "delivery_gone_wrong",
+        "label": "🚚 Delivery Gone Wrong",
+        "desc": "Make a delivery for Dax. What could possibly go wrong?",
+        "success": (
+            "**Delivery Gone Wrong — SUCCESS**\n\n"
+            "Freshmeat! You delivered the package. Nobody died. "
+            "Well… nobody *important* died. That's a win in this business.\n\n"
+            "Dax drops **{reward}** {currency} on you. We're here to stay, baby!"
+        ),
+        "fail": (
+            "**Delivery Gone Wrong — FAILED**\n\n"
+            "Freshmeat… the delivery went exactly as the name suggested. "
+            "Wrong. Very wrong. Cops, rivals, and one very angry raccoon.\n\n"
+            "You lost **{penalty}** {currency}. Dax says next time bring snacks for the raccoon."
+        ),
+    },
+]
+
+
+class FreakShopView(discord.ui.View):
+    """The Freakshop — Dax, Labrat, and the Fooliganz. Fully anonymous / ephemeral."""
+
+    def __init__(self, cog: "Economy", user_id: int):
+        super().__init__(timeout=120)
+        self.cog = cog
+        self.user_id = user_id
+
+    def build_embed(self) -> discord.Embed:
+        embed = discord.Embed(
+            title="🌀 The Freakshop",
+            description=(
+                "**Los Santos Drug Wars · Fooliganz HQ**\n\n"
+                "Welcome to the Freakshop, Freshmeat.\n"
+                "Dax is in the back. Labrat is mixing something. "
+                "The walls might be breathing.\n\n"
+                "• **Badonkadonk** — take the dose, hear from Dax, get paid *(12h cooldown)*\n"
+                "• **Call Dax** — request Fooligan work *(8h cooldown)*\n"
+                "• **Labrat** — accelerate production, shave time off Call Dax *(24h cooldown)*\n\n"
+                "*Deep down, you've always been a Fooligan.*"
+            ),
+            color=COLOR_PURPLE,
+        )
+        gif = _gif_file("acid_lab")
+        if gif is not None:
+            embed.set_image(url=f"attachment://{gif.filename}")
+        else:
+            embed.set_image(url=IMG["acid_lab"])
+        embed.set_footer(text="Freakshop · Fooliganz · Anonymous · Dax is watching")
+        return embed
+
+    def build_files(self) -> List[discord.File]:
+        f = _gif_file("acid_lab")
+        return [f] if f else []
+
+    @discord.ui.button(label="💊 Badonkadonk", style=discord.ButtonStyle.danger, row=0)
+    async def badonkadonk(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your trip.", ephemeral=True)
+        settings = self.cog.data.get_settings()
+        u = self.cog.data.get_user(self.user_id)
+        now = _now_ts()
+        last = float(u.get("last_badonkadonk", 0))
+        cd = settings.get("badonkadonk_cooldown", 43200)
+        if now - last < cd:
+            rem = int(cd - (now - last))
+            embed = discord.Embed(
+                title="⏳ Still Tripping",
+                description=(
+                    f"Freshmeat, the last dose hasn't worn off yet.\n"
+                    f"Come back in **{_fmt_time(rem)}**.\n\n"
+                    "Labrat's orders."
+                ),
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        reward = settings.get("badonkadonk_reward", 500)
+        u["last_badonkadonk"] = now
+        self.cog.data.save_user(self.user_id, u)
+        self.cog.data.add_money(self.user_id, reward, "badonkadonk")
+
+        template = random.choice(DAX_BADONKADONK_LINES)
+        text = template.format(reward=_fmt(reward), currency=CURRENCY)
+        embed = discord.Embed(
+            title="💊 BADONKADONK!",
+            description=text,
+            color=COLOR_PURPLE,
+        )
+        embed.set_footer(text="Dax · The Freakshop · 12h cooldown")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="📞 Call Dax", style=discord.ButtonStyle.primary, row=0)
+    async def call_dax(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your call.", ephemeral=True)
+        settings = self.cog.data.get_settings()
+        u = self.cog.data.get_user(self.user_id)
+        now = _now_ts()
+        last = float(u.get("last_call_dax", 0))
+        cd = settings.get("call_dax_cooldown", 28800)
+        if now - last < cd:
+            rem = int(cd - (now - last))
+            embed = discord.Embed(
+                title="📞 Dax is Busy",
+                description=(
+                    f"Freshmeat, Dax isn't answering right now.\n"
+                    f"Try again in **{_fmt_time(rem)}**.\n\n"
+                    "He's probably mid-trip or arguing with Labrat."
+                ),
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        view = CallDaxJobView(self.cog, self.user_id)
+        embed = discord.Embed(
+            title="📞 Dax is calling...",
+            description=(
+                "**Incoming call from Dax**\n\n"
+                "\"Yo Freshmeat! I got work for you. "
+                "Could make you a lot of money… could go very wrong… "
+                "probably both. That's the Fooligan way.\"\n\n"
+                "Pick a job. 50/50 odds.\n"
+                f"• Success → **{_fmt(settings.get('call_dax_success_reward', 1000))}** {CURRENCY}\n"
+                f"• Failure → lose **{_fmt(settings.get('call_dax_fail_penalty', 500))}** {CURRENCY}"
+            ),
+            color=COLOR_PURPLE,
+        )
+        embed.set_footer(text="Fooligan Jobs · Call Dax · 8h cooldown after attempt")
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    @discord.ui.button(label="🐀 Labrat", style=discord.ButtonStyle.secondary, row=0)
+    async def labrat(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your lab.", ephemeral=True)
+        settings = self.cog.data.get_settings()
+        u = self.cog.data.get_user(self.user_id)
+        now = _now_ts()
+        last = float(u.get("last_labrat", 0))
+        cd = settings.get("labrat_cooldown", 86400)
+        if now - last < cd:
+            rem = int(cd - (now - last))
+            embed = discord.Embed(
+                title="🐀 Labrat is Busy",
+                description=(
+                    f"Labrat is still cooking the last batch.\n"
+                    f"Come back in **{_fmt_time(rem)}**.\n\n"
+                    "\"Science takes time, Freshmeat.\""
+                ),
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        reduce_sec = settings.get("labrat_reduce_seconds", 18000)  # 5 hours
+        last_dax = float(u.get("last_call_dax", 0))
+        if last_dax > 0:
+            # Pull Call Dax cooldown forward by 5 hours
+            u["last_call_dax"] = max(0.0, last_dax - reduce_sec)
+        u["last_labrat"] = now
+        self.cog.data.save_user(self.user_id, u)
+
+        embed = discord.Embed(
+            title="🐀 Labrat",
+            description=(
+                "You accelerated production, and the recharge time decreased.\n\n"
+                "**Try calling Dax again.**\n\n"
+                "Labrat nods from behind a cloud of purple smoke.\n"
+                "\"Five hours shaved off. Don't thank me — thank the formula.\""
+            ),
+            color=COLOR_SUCCESS,
+        )
+        embed.set_footer(text="Labrat · Production boost · 24h cooldown")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+class CallDaxJobView(discord.ui.View):
+    """Choose one of the four Fooligan-style jobs after calling Dax."""
+
+    def __init__(self, cog: "Economy", user_id: int):
+        super().__init__(timeout=90)
+        self.cog = cog
+        self.user_id = user_id
+        for job in FREAKSHOP_JOBS:
+            btn = discord.ui.Button(
+                label=job["label"],
+                style=discord.ButtonStyle.secondary,
+                custom_id=f"freak_job_{job['id']}",
+            )
+            btn.callback = self._make_callback(job)
+            self.add_item(btn)
+
+    def _make_callback(self, job: Dict):
+        async def _cb(interaction: discord.Interaction):
+            await self._resolve(interaction, job)
+        return _cb
+
+    async def _resolve(self, interaction: discord.Interaction, job: Dict):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your job.", ephemeral=True)
+
+        settings = self.cog.data.get_settings()
+        u = self.cog.data.get_user(self.user_id)
+        now = _now_ts()
+
+        # Apply Call Dax cooldown now
+        u["last_call_dax"] = now
+        self.cog.data.save_user(self.user_id, u)
+
+        success = random.random() < 0.50
+        if success:
+            reward = settings.get("call_dax_success_reward", 1000)
+            self.cog.data.add_money(self.user_id, reward, "call_dax")
+            text = job["success"].format(reward=_fmt(reward), currency=CURRENCY)
+            color = COLOR_SUCCESS
+            title = f"✅ {job['label']}"
+        else:
+            penalty = settings.get("call_dax_fail_penalty", 500)
+            # Only deduct if they have the money
+            wallet = int(u.get("wallet", 0))
+            actual = min(penalty, wallet)
+            if actual > 0:
+                self.cog.data.add_money(self.user_id, -actual, "call_dax_fail")
+            text = job["fail"].format(penalty=_fmt(actual), currency=CURRENCY)
+            color = COLOR_FAIL
+            title = f"💥 {job['label']}"
+
+        embed = discord.Embed(
+            title=title,
+            description=text,
+            color=color,
+        )
+        embed.set_footer(text="Fooligan Job · Call Dax · 8h cooldown started")
+        await interaction.response.edit_message(embed=embed, view=None)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# DOOMSDAY HEIST
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _doomsday_prep_progress(u: Dict) -> Tuple[int, List[str]]:
+    inv = u.get("inventory", {})
+    owned, missing = [], []
+    for it in DOOMSDAY_PREP_ITEMS:
+        if inv.get(it["id"], 0) >= 1:
+            owned.append(it["id"])
+        else:
+            missing.append(it["id"])
+    return len(owned), missing
+
+
+# Active invite / heist sessions: invite_id -> state dict
+_doomsday_sessions: Dict[str, Dict[str, Any]] = {}
+
+
+class DoomsdayMainView(discord.ui.View):
+    """Main Doomsday Heist panel (ephemeral). Free prep items, 1 every 12h."""
+
+    def __init__(self, cog: "Economy", user_id: int):
+        super().__init__(timeout=120)
+        self.cog = cog
+        self.user_id = user_id
+
+    def build_embed(self, u: Dict) -> discord.Embed:
+        inv = u.get("inventory", {})
+        lines = []
+        for it in DOOMSDAY_PREP_ITEMS:
+            qty = inv.get(it["id"], 0)
+            status = "✅" if qty >= 1 else "❌"
+            lines.append(f"{status} {it.get('emoji', '')} **{it['name']}**" + (f" (owned)" if qty else " — free claim"))
+        owned_count, _ = _doomsday_prep_progress(u)
+        ticket_qty = inv.get("dd_ticket", 0)
+        embed = discord.Embed(
+            title="☢️ The Doomsday Heist",
+            description=(
+                "Three acts. One facility. Global threat.\n"
+                "Claim free prep items (1 every **12 hours**), deliver the full set for a **Ticket**, "
+                "then invite a partner and launch.\n\n"
+                f"**Prep progress:** {owned_count}/5 items\n"
+                f"**Tickets owned:** {ticket_qty}\n\n"
+                + "\n".join(lines)
+                + "\n\n"
+                "**Launch requires a partner** (friend or employee Gustavo Mota).\n"
+                "Total prize pool: **5.000** Bovas coins (split 70% / 30%).\n"
+                "With Gustavo you receive **50%** of the pool."
+            ),
+            color=COLOR_FAIL,
+        )
+        embed.set_image(url=IMG["doomsday"])
+        embed.set_footer(text="Doomsday Heist · Free prep · Partner required · Private")
+        return embed
+
+    @discord.ui.button(label="📥 Claim Prep Item", style=discord.ButtonStyle.primary, row=0)
+    async def claim_prep(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your panel.", ephemeral=True)
+        settings = self.cog.data.get_settings()
+        u = self.cog.data.get_user(self.user_id)
+        now = _now_ts()
+        last = float(u.get("last_doomsday_prep", 0))
+        cd = settings.get("doomsday_prep_cooldown", 43200)
+        if now - last < cd:
+            rem = int(cd - (now - last))
+            embed = discord.Embed(
+                title="⏳ Prep Cooldown",
+                description=f"You can claim another prep item in **{_fmt_time(rem)}**.",
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        owned_count, missing = _doomsday_prep_progress(u)
+        if not missing:
+            embed = discord.Embed(
+                title="✅ All Prep Owned",
+                description="You already have all 5 prep items. Deliver the set for a Ticket.",
+                color=COLOR_INFO,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        # Claim the next missing item (in list order)
+        next_id = missing[0]
+        item = next(it for it in DOOMSDAY_PREP_ITEMS if it["id"] == next_id)
+        inv = u.get("inventory", {})
+        inv[next_id] = inv.get(next_id, 0) + 1
+        u["inventory"] = inv
+        u["last_doomsday_prep"] = now
+        self.cog.data.save_user(self.user_id, u)
+        owned_count, _ = _doomsday_prep_progress(u)
+
+        embed = discord.Embed(
+            title="📥 Prep Item Claimed",
+            description=(
+                f"You claimed **{item.get('emoji', '')} {item['name']}** (free).\n\n"
+                f"Prep progress: **{owned_count}/5**\n"
+                f"Next claim available in **12 hours**."
+            ),
+            color=COLOR_SUCCESS,
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="📦 Deliver Prep Set", style=discord.ButtonStyle.success, row=0)
+    async def deliver(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your panel.", ephemeral=True)
+        u = self.cog.data.get_user(self.user_id)
+        owned_count, missing = _doomsday_prep_progress(u)
+        if owned_count < 5:
+            names = [it["name"] for it in DOOMSDAY_PREP_ITEMS if it["id"] in missing]
+            embed = discord.Embed(
+                title="📦 Incomplete Set",
+                description="You still need:\n• " + "\n• ".join(names) + "\n\nClaim the missing items first.",
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        inv = u.get("inventory", {})
+        for iid in DOOMSDAY_PREP_IDS:
+            inv[iid] = max(0, inv.get(iid, 0) - 1)
+            if inv[iid] == 0:
+                inv.pop(iid, None)
+        inv["dd_ticket"] = inv.get("dd_ticket", 0) + 1
+        u["inventory"] = inv
+        self.cog.data.save_user(self.user_id, u)
+
+        embed = discord.Embed(
+            title="✅ Prep Set Delivered!",
+            description=(
+                "You handed over the full preparation kit.\n\n"
+                f"Received: **🎟️ Doomsday Heist Ticket** ×1\n"
+                f"Tickets now: **{inv['dd_ticket']}**\n\n"
+                "Use **Launch Heist** and invite a partner when ready."
+            ),
+            color=COLOR_SUCCESS,
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="🚀 Launch Heist", style=discord.ButtonStyle.danger, row=0)
+    async def launch(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your panel.", ephemeral=True)
+        u = self.cog.data.get_user(self.user_id)
+        inv = u.get("inventory", {})
+        if inv.get("dd_ticket", 0) < 1:
+            embed = discord.Embed(
+                title="🎟️ No Ticket",
+                description="You need a **Doomsday Heist Ticket**. Deliver a full prep set first.",
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        view = DoomsdayInviteChoiceView(self.cog, self.user_id)
+        embed = discord.Embed(
+            title="🚀 Launch Doomsday Heist",
+            description=(
+                "You cannot run this heist alone.\n\n"
+                "**Invite a friend** from the server — they get **30%**, you keep **70%** of the final payout.\n"
+                "**Or hire employee Gustavo Mota** — you receive only **50%** of the total prize pool "
+                "(no real partner share).\n\n"
+                f"Base prize pool: **{_fmt(self.cog.data.get_settings().get('doomsday_total_prize', 5000))}** {CURRENCY}\n"
+                "4 memory stages × 25% each. Fail a stage = lose that 25%."
+            ),
+            color=COLOR_FAIL,
+        )
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+
+class DoomsdayInviteChoiceView(discord.ui.View):
+    def __init__(self, cog: "Economy", user_id: int):
+        super().__init__(timeout=90)
+        self.cog = cog
+        self.user_id = user_id
+
+    @discord.ui.button(label="👥 Invite Friend", style=discord.ButtonStyle.primary, row=0)
+    async def invite_friend(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("Not your menu.", ephemeral=True)
+        await interaction.response.send_modal(DoomsdayInviteModal(self.cog, self.user_id))
+
+    @discord.ui.button(label="👷 Hire Gustavo Mota", style=discord.ButtonStyle.secondary, row=0)
+    async def hire_gustavo(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("Not your menu.", ephemeral=True)
+        # Consume ticket and start solo-with-NPC heist (50% pool)
+        u = self.cog.data.get_user(self.user_id)
+        inv = u.get("inventory", {})
+        if inv.get("dd_ticket", 0) < 1:
+            return await interaction.response.send_message("No ticket left.", ephemeral=True)
+        inv["dd_ticket"] -= 1
+        if inv["dd_ticket"] <= 0:
+            inv.pop("dd_ticket", None)
+        u["inventory"] = inv
+        self.cog.data.save_user(self.user_id, u)
+
+        session_id = f"dd_{self.user_id}_{int(_now_ts())}"
+        _doomsday_sessions[session_id] = {
+            "leader_id": self.user_id,
+            "partner_id": None,  # Gustavo
+            "is_npc": True,
+            "stages_done": 0,
+            "stages_ok": 0,
+            "current_player": "leader",  # leader does all 4 stages when NPC
+            "prize_pool": int(self.cog.data.get_settings().get("doomsday_total_prize", 5000) * 0.50),
+        }
+        view = DoomsdayMemoryView(self.cog, session_id, self.user_id)
+        embed = view.build_show_embed()
+        await interaction.response.edit_message(embed=embed, view=view)
+
+
+class DoomsdayInviteModal(discord.ui.Modal, title="Invite Partner to Doomsday Heist"):
+    def __init__(self, cog: "Economy", leader_id: int):
+        super().__init__()
+        self.cog = cog
+        self.leader_id = leader_id
+        self.target = discord.ui.TextInput(
+            label="User ID or @mention",
+            placeholder="123456789 or @username",
+            required=True,
+        )
+        self.add_item(self.target)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        raw = self.target.value.strip().replace("<@", "").replace("!", "").replace(">", "")
+        try:
+            partner_id = int(raw)
+        except ValueError:
+            return await interaction.response.send_message("Invalid user ID.", ephemeral=True)
+        if partner_id == self.leader_id:
+            return await interaction.response.send_message("You cannot invite yourself.", ephemeral=True)
+
+        # Consume ticket now
+        u = self.cog.data.get_user(self.leader_id)
+        inv = u.get("inventory", {})
+        if inv.get("dd_ticket", 0) < 1:
+            return await interaction.response.send_message("No ticket left.", ephemeral=True)
+        inv["dd_ticket"] -= 1
+        if inv["dd_ticket"] <= 0:
+            inv.pop("dd_ticket", None)
+        u["inventory"] = inv
+        self.cog.data.save_user(self.leader_id, u)
+
+        settings = self.cog.data.get_settings()
+        timeout = settings.get("doomsday_invite_timeout", 900)
+        session_id = f"dd_{self.leader_id}_{partner_id}_{int(_now_ts())}"
+        _doomsday_sessions[session_id] = {
+            "leader_id": self.leader_id,
+            "partner_id": partner_id,
+            "is_npc": False,
+            "stages_done": 0,
+            "stages_ok": 0,
+            "current_player": "leader",
+            "prize_pool": settings.get("doomsday_total_prize", 5000),
+            "accepted": False,
+            "expires": _now_ts() + timeout,
+        }
+
+        # Post invite to Market channel
+        partner = interaction.guild.get_member(partner_id) if interaction.guild else None
+        mention = partner.mention if partner else f"<@{partner_id}>"
+        leader = interaction.user
+
+        embed = discord.Embed(
+            title="☢️ Doomsday Heist Invitation",
+            description=(
+                f"{mention}, you have been invited by {leader.mention} to the **Doomsday Heist**!\n\n"
+                f"• Prize pool: **{_fmt(settings.get('doomsday_total_prize', 5000))}** {CURRENCY}\n"
+                f"• Your share on success: **30%**\n"
+                f"• 4 memory stages (you each complete 2)\n\n"
+                f"You have **15 minutes** to accept or decline."
+            ),
+            color=COLOR_FAIL,
+        )
+        view = DoomsdayInviteResponseView(self.cog, session_id)
+        await post_to_market(self.cog.bot, leader, embed, view=view, content=mention)
+        await interaction.response.send_message(
+            f"✅ Invitation sent to {mention} in <#{MARKET_CHANNEL_ID}>. Waiting up to 15 minutes…",
+            ephemeral=True,
+        )
+
+
+class DoomsdayInviteResponseView(discord.ui.View):
+    def __init__(self, cog: "Economy", session_id: str):
+        super().__init__(timeout=900)
+        self.cog = cog
+        self.session_id = session_id
+
+    @discord.ui.button(label="✅ Accept Heist", style=discord.ButtonStyle.success)
+    async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
+        session = _doomsday_sessions.get(self.session_id)
+        if not session:
+            return await interaction.response.send_message("This invitation has expired.", ephemeral=True)
+        if interaction.user.id != session["partner_id"]:
+            return await interaction.response.send_message("This invitation is not for you.", ephemeral=True)
+        if _now_ts() > session.get("expires", 0):
+            _doomsday_sessions.pop(self.session_id, None)
+            return await interaction.response.send_message("Invitation timed out (15 min).", ephemeral=True)
+        if session.get("accepted"):
+            return await interaction.response.send_message("Already accepted.", ephemeral=True)
+
+        session["accepted"] = True
+        # Notify both and start memory game for leader first
+        await interaction.response.edit_message(view=None)
+        public = discord.Embed(
+            title="☢️ Doomsday Heist — Partner Joined!",
+            description=(
+                f"<@{session['partner_id']}> accepted the invitation from <@{session['leader_id']}>!\n"
+                "The memory challenge begins. Leader plays first."
+            ),
+            color=COLOR_SUCCESS,
+        )
+        await post_to_market(self.cog.bot, interaction.user, public)
+
+        # Send ephemeral start to leader
+        leader = self.cog.bot.get_user(session["leader_id"])
+        if leader:
+            try:
+                view = DoomsdayMemoryView(self.cog, self.session_id, session["leader_id"])
+                embed = view.build_show_embed()
+                await leader.send(embed=embed, view=view)
+            except Exception:
+                logger.exception("Could not DM leader for Doomsday start")
+
+        await interaction.followup.send(
+            "You joined the Doomsday Heist! Wait for the leader to complete their stages, then it will be your turn.",
+            ephemeral=True,
+        )
+
+    @discord.ui.button(label="❌ Decline", style=discord.ButtonStyle.danger)
+    async def decline(self, interaction: discord.Interaction, button: discord.ui.Button):
+        session = _doomsday_sessions.get(self.session_id)
+        if not session:
+            return await interaction.response.send_message("Invitation expired.", ephemeral=True)
+        if interaction.user.id != session["partner_id"]:
+            return await interaction.response.send_message("This invitation is not for you.", ephemeral=True)
+        _doomsday_sessions.pop(self.session_id, None)
+        # Refund ticket to leader
+        u = self.cog.data.get_user(session["leader_id"])
+        inv = u.get("inventory", {})
+        inv["dd_ticket"] = inv.get("dd_ticket", 0) + 1
+        u["inventory"] = inv
+        self.cog.data.save_user(session["leader_id"], u)
+        await interaction.response.edit_message(view=None)
+        public = discord.Embed(
+            title="☢️ Doomsday Heist — Declined",
+            description=f"<@{session['partner_id']}> declined. Ticket refunded to <@{session['leader_id']}>.",
+            color=COLOR_FAIL,
+        )
+        await post_to_market(self.cog.bot, interaction.user, public)
+
+
+class DoomsdayMemoryView(discord.ui.View):
+    """
+    Memory sequence mini-game.
+    Shows a sequence of 4 symbols, then player must click them in order.
+    4 stages total. With friend: leader does stages 0,1 — partner does 2,3.
+    With Gustavo (NPC): leader does all 4.
+    """
+
+    def __init__(self, cog: "Economy", session_id: str, player_id: int):
+        super().__init__(timeout=120)
+        self.cog = cog
+        self.session_id = session_id
+        self.player_id = player_id
+        session = _doomsday_sessions.get(session_id, {})
+        self.sequence = random.sample(DOOMSDAY_MEMORY_SYMBOLS, 4)
+        self.clicked: List[str] = []
+        self.phase = "show"  # show -> input
+
+        # Input buttons (shuffled symbols including the sequence)
+        options = list(self.sequence)
+        extras = [s for s in DOOMSDAY_MEMORY_SYMBOLS if s not in options]
+        options += random.sample(extras, min(2, len(extras)))
+        random.shuffle(options)
+        for sym in options:
+            btn = discord.ui.Button(label=sym, style=discord.ButtonStyle.secondary)
+            btn.callback = self._make_click(sym)
+            self.add_item(btn)
+
+    def build_show_embed(self) -> discord.Embed:
+        session = _doomsday_sessions.get(self.session_id, {})
+        stage = session.get("stages_done", 0) + 1
+        seq_str = "  ".join(self.sequence)
+        embed = discord.Embed(
+            title=f"☢️ Doomsday — Memory Stage {stage}/4",
+            description=(
+                f"**Memorize this sequence:**\n\n"
+                f"# {seq_str}\n\n"
+                "Click the symbols **in the same order** below.\n"
+                "You have one attempt."
+            ),
+            color=COLOR_FAIL,
+        )
+        embed.set_footer(text="Doomsday Heist · Memory Challenge")
+        return embed
+
+    def _make_click(self, symbol: str):
+        async def _cb(interaction: discord.Interaction):
+            if interaction.user.id != self.player_id:
+                return await interaction.response.send_message("Not your turn.", ephemeral=True)
+            self.clicked.append(symbol)
+            needed = len(self.sequence)
+            if len(self.clicked) < needed:
+                await interaction.response.defer()
+                return
+
+            # Evaluate
+            session = _doomsday_sessions.get(self.session_id)
+            if not session:
+                return await interaction.response.edit_message(
+                    embed=discord.Embed(title="Session expired", color=COLOR_FAIL), view=None
+                )
+
+            correct = self.clicked == self.sequence
+            session["stages_done"] = session.get("stages_done", 0) + 1
+            if correct:
+                session["stages_ok"] = session.get("stages_ok", 0) + 1
+
+            stage_num = session["stages_done"]
+            result_txt = "✅ Correct!" if correct else f"❌ Wrong. Sequence was: {' '.join(self.sequence)}"
+            embed = discord.Embed(
+                title=f"Stage {stage_num}/4 — {result_txt}",
+                description=f"Stages cleared so far: **{session['stages_ok']}/4** (each = 25%)",
+                color=COLOR_SUCCESS if correct else COLOR_FAIL,
+            )
+
+            # Decide next
+            is_npc = session.get("is_npc", False)
+            if stage_num >= 4:
+                await self._finish_heist(interaction, session, embed)
+                return
+
+            if is_npc:
+                # Leader continues
+                next_view = DoomsdayMemoryView(self.cog, self.session_id, self.player_id)
+                embed.description += "\n\nNext stage loading…"
+                await interaction.response.edit_message(embed=embed, view=None)
+                await interaction.followup.send(embed=next_view.build_show_embed(), view=next_view, ephemeral=True)
+            else:
+                # Alternate: leader does 1-2, partner 3-4
+                if stage_num < 2:
+                    next_view = DoomsdayMemoryView(self.cog, self.session_id, session["leader_id"])
+                    embed.description += "\n\nNext stage for the **leader**…"
+                    await interaction.response.edit_message(embed=embed, view=None)
+                    try:
+                        leader = self.cog.bot.get_user(session["leader_id"])
+                        if leader:
+                            await leader.send(embed=next_view.build_show_embed(), view=next_view)
+                    except Exception:
+                        pass
+                    if interaction.user.id == session["leader_id"]:
+                        await interaction.followup.send("Stage recorded. Check DMs / next prompt.", ephemeral=True)
+                else:
+                    # Partner's turn (stages 3-4)
+                    next_view = DoomsdayMemoryView(self.cog, self.session_id, session["partner_id"])
+                    embed.description += "\n\nNext stage for the **partner**…"
+                    await interaction.response.edit_message(embed=embed, view=None)
+                    try:
+                        partner = self.cog.bot.get_user(session["partner_id"])
+                        if partner:
+                            await partner.send(embed=next_view.build_show_embed(), view=next_view)
+                    except Exception:
+                        pass
+                    await interaction.followup.send("Stage recorded. Partner's turn.", ephemeral=True)
+        return _cb
+
+    async def _finish_heist(self, interaction: discord.Interaction, session: Dict, last_embed: discord.Embed):
+        pool = int(session.get("prize_pool", 5000))
+        ok = int(session.get("stages_ok", 0))
+        earned_total = int(pool * (ok / 4.0))
+        is_npc = session.get("is_npc", False)
+        leader_id = session["leader_id"]
+        partner_id = session.get("partner_id")
+
+        if is_npc:
+            leader_share = earned_total
+            partner_share = 0
+        else:
+            leader_share = int(earned_total * 0.70)
+            partner_share = earned_total - leader_share
+
+        if leader_share > 0:
+            self.cog.data.add_money(leader_id, leader_share, "doomsday_heist")
+        if partner_share > 0 and partner_id:
+            self.cog.data.add_money(partner_id, partner_share, "doomsday_heist")
+
+        # Achievement for leader
+        u = self.cog.data.get_user(leader_id)
+        inv = u.get("inventory", {})
+        if inv.get("ach_doomsday_heist", 0) < 1:
+            inv["ach_doomsday_heist"] = 1
+            u["inventory"] = inv
+            self.cog.data.save_user(leader_id, u)
+
+        _doomsday_sessions.pop(self.session_id, None)
+
+        desc = (
+            f"**Stages cleared:** {ok}/4\n"
+            f"**Prize pool used:** {_fmt(pool)} {CURRENCY}\n"
+            f"**Total earned:** {_fmt(earned_total)} {CURRENCY}\n\n"
+            f"**Leader share (70%{' / 100% with Gustavo' if is_npc else ''}):** {_fmt(leader_share)} {CURRENCY}\n"
+        )
+        if not is_npc and partner_id:
+            desc += f"**Partner share (30%):** {_fmt(partner_share)} {CURRENCY}\n"
+        desc += f"\nAchievement: **{DOOMSDAY_ACHIEVEMENT['emoji']} {DOOMSDAY_ACHIEVEMENT['name']}**"
+
+        final = discord.Embed(
+            title="🏆 Doomsday Heist Complete!",
+            description=desc,
+            color=COLOR_SUCCESS if ok > 0 else COLOR_FAIL,
+        )
+        await interaction.response.edit_message(embed=final, view=None)
+
+        public = discord.Embed(
+            title="☢️ Doomsday Heist Successful" if ok > 0 else "☢️ Doomsday Heist Finished",
+            description=(
+                f"<@{leader_id}> completed the Doomsday Heist "
+                f"({ok}/4 stages) and earned **{_fmt(leader_share)}** {CURRENCY}!"
+                + (f"\nPartner <@{partner_id}> received **{_fmt(partner_share)}** {CURRENCY}." if partner_share else "")
+            ),
+            color=COLOR_SUCCESS if ok > 0 else COLOR_FAIL,
+        )
+        await post_to_market(self.cog.bot, interaction.user, public, gif_key="mission_passed" if ok > 0 else "lose_game")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 
 class MemberPanelView(discord.ui.View):
     def __init__(self, cog: "Economy"):
@@ -2725,6 +4200,71 @@ class MemberPanelView(discord.ui.View):
         embed = view.build_embed(self.cog.data.get_user(interaction.user.id))
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
+    @discord.ui.button(label="⏳ Cooldown List", style=discord.ButtonStyle.secondary, custom_id="eco_cooldown_list", row=0)
+    async def btn_cooldown_list(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        uid = interaction.user.id
+        u = self.cog.data.get_user(uid)
+        settings = self.cog.data.get_settings()
+        now = _now_ts()
+
+        def _status(last_key: str, cd_key: str, default_cd: int) -> str:
+            last = float(u.get(last_key, 0))
+            cd = int(settings.get(cd_key, default_cd))
+            if cd <= 0:
+                return "✅ Available"
+            remaining = int(cd - (now - last))
+            if remaining <= 0:
+                return "✅ Available"
+            return f"⏳ {_fmt_time(remaining)}"
+
+        lines = [
+            f"**📅 Daily** — {_status('last_daily', 'daily_cooldown', 64800)}",
+            f"**💼 Work** — {_status('last_work', 'work_cooldown', 21600)}",
+            f"**🏍️ MotoClub** — {_status('last_motoclub', 'motoclub_cooldown', 21600)}",
+            f"**💼 CEO SecuroServ** — {_status('last_ceo', 'ceo_cooldown', 21600)}",
+            f"**🎡 Lucky Wheel** — {_status('last_lucky_wheel', 'lucky_wheel_cooldown', 86400)}",
+            f"**🎵 Music Entry** — {_status('last_music_entry', 'music_entry_cooldown', 14400)}",
+            f"**🎧 Music Event** — {_status('last_music_event', 'music_event_cooldown', 36000)}",
+            f"**🎉 Penthouse Party** — {_status('last_penthouse_party', 'penthouse_party_cd', 86400)}",
+            f"**🏝️ Cayo Launch** — {_status('last_cayo_heist', 'cayo_heist_cooldown', 172800)}",
+            f"**🚗 Car Theft** — {_status('last_car_theft', 'car_theft_cooldown', 28800)}",
+            f"**📦 Export Car** — {_status('last_export_car', 'export_car_cooldown', 43200)}",
+            f"**💊 Badonkadonk** — {_status('last_badonkadonk', 'badonkadonk_cooldown', 43200)}",
+            f"**📞 Call Dax** — {_status('last_call_dax', 'call_dax_cooldown', 28800)}",
+            f"**🐀 Labrat** — {_status('last_labrat', 'labrat_cooldown', 86400)}",
+            f"**☢️ Doomsday Prep** — {_status('last_doomsday_prep', 'doomsday_prep_cooldown', 43200)}",
+        ]
+
+        # Slots
+        window = settings.get("slots_cooldown_window", 86400)
+        max_uses = settings.get("slots_max_uses", 3)
+        window_start = float(u.get("slots_window_start", 0))
+        uses = int(u.get("slots_uses", 0))
+        if now - window_start >= window:
+            uses = 0
+        if uses >= max_uses:
+            rem = int(window - (now - window_start))
+            lines.append(f"**🎰 Slots** — ⏳ {_fmt_time(rem)} ({uses}/{max_uses} used)")
+        else:
+            lines.append(f"**🎰 Slots** — ✅ Available ({uses}/{max_uses} used)")
+
+        available = [ln for ln in lines if "✅ Available" in ln]
+        on_cd = [ln for ln in lines if "⏳" in ln]
+
+        embed = discord.Embed(
+            title="⏳ Your Cooldown List",
+            description=(
+                f"**Available now ({len(available)}):**\n"
+                + ("\n".join(available) if available else "_None_")
+                + f"\n\n**On cooldown ({len(on_cd)}):**\n"
+                + ("\n".join(on_cd) if on_cd else "_None_")
+            ),
+            color=COLOR_INFO,
+        )
+        embed.set_footer(text="GTA Economy · Private · Cooldown List")
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
     # ── Row 1 — Blue shops ──
     @discord.ui.button(label="🏎️ Benny's Workshop", style=discord.ButtonStyle.primary, custom_id="eco_bennys", row=1)
     async def btn_bennys(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -2734,34 +4274,54 @@ class MemberPanelView(discord.ui.View):
     async def btn_elitas(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._send_ephemeral_result(interaction, "elitas")
 
-    @discord.ui.button(label="🚚 Vehicle Exports", style=discord.ButtonStyle.secondary, custom_id="eco_vehicle_exports", row=1)
-    async def btn_vehicle_exports(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._coming_soon(
-            interaction,
-            "🚚 Vehicle Exports",
-            IMG["vehicle_exports"],
-            "Source high-value vehicles across Los Santos and deliver them for a payout.",
-        )
+    @discord.ui.button(label="🚗 Car Theft Job", style=discord.ButtonStyle.secondary, custom_id="eco_car_theft_job", row=1)
+    async def btn_car_theft_job(self, interaction: discord.Interaction, button: discord.ui.Button):
+        u = self.cog.data.get_user(interaction.user.id)
+        if u.get("inventory", {}).get("biz_warehouse", 0) < 1:
+            embed = discord.Embed(
+                title="🏭 Warehouse Required",
+                description=(
+                    "You need a **Warehouse** to access the Car Theft Job.\n\n"
+                    "Buy it at **Dynasty8 Executive** (permanent & unique).\n"
+                    "It can store up to **30** stolen vehicles."
+                ),
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+        view = CarTheftJobView(self.cog, interaction.user.id)
+        embed = view.build_embed(u)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
-    @discord.ui.button(label="🧪 Acid Lab", style=discord.ButtonStyle.secondary, custom_id="eco_acid_lab", row=1)
-    async def btn_acid_lab(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._coming_soon(
-            interaction,
-            "🧪 Acid Lab",
-            IMG["acid_lab"],
-            "Produce and sell product from your mobile Acid Lab operation.",
-            gif_key="acid_lab",
-        )
+    @discord.ui.button(label="🌀 FreakShop", style=discord.ButtonStyle.secondary, custom_id="eco_freakshop", row=1)
+    async def btn_freakshop(self, interaction: discord.Interaction, button: discord.ui.Button):
+        view = FreakShopView(self.cog, interaction.user.id)
+        embed = view.build_embed()
+        files = view.build_files()
+        kwargs = {"embed": embed, "view": view, "ephemeral": True}
+        if files:
+            kwargs["file"] = files[0]
+        await interaction.response.send_message(**kwargs)
 
-    # Row 1 now has 5 buttons — Doomsday on row 2 with shops
-    @discord.ui.button(label="☢️ Doomsday", style=discord.ButtonStyle.secondary, custom_id="eco_doomsday", row=2)
+    @discord.ui.button(label="🦄 Vanilla Unicorn", style=discord.ButtonStyle.secondary, custom_id="eco_vanilla_unicorn", row=1)
+    async def btn_vanilla_unicorn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = discord.Embed(
+            title="🦄 Vanilla Unicorn",
+            description=(
+                "The most famous strip club in Los Santos.\n\n"
+                "**Coming soon.**\n"
+                "Private dances, VIP rooms and special services will open here later.\n"
+                "Stay tuned, Freshmeat."
+            ),
+            color=COLOR_CONSTRUCTION,
+        )
+        embed.set_footer(text="GTA Economy · Vanilla Unicorn · Coming Soon")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="☢️ Doomsday Heist", style=discord.ButtonStyle.secondary, custom_id="eco_doomsday", row=2)
     async def btn_doomsday(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._coming_soon(
-            interaction,
-            "☢️ Doomsday Heist",
-            IMG["doomsday"],
-            "Coordinate the three-act Doomsday scenario against global threats.",
-        )
+        view = DoomsdayMainView(self.cog, interaction.user.id)
+        embed = view.build_embed(self.cog.data.get_user(interaction.user.id))
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
     # ── Row 2 — Red shops ──
     @discord.ui.button(label="🪖 Warstock", style=discord.ButtonStyle.danger, custom_id="eco_warstock", row=2)
@@ -2912,8 +4472,10 @@ class MemberPanelView(discord.ui.View):
                 "**Shops:** Benny's · Elitas · Warstock · DockTease · Dynasty8 · Dynasty8 Executive\n\n"
                 "**Lifestyle:** Casino Resort (Slots: 3/24h) · Music Locker (Enter 4h · Event 10h · presence +300) · Master Penthouse\n\n"
                 "**Missions (6h):** CEO SecuroServ · MotoClub\n"
-                "**Coming soon:** Vehicle Exports · Acid Lab · Doomsday\n"
-                "**Heists:** Cayo Perico (Kosatka, Launch 48h, random quiz) · Kortz Center (The Mansion)\n\n"
+                "**Car Theft Job** (requires Warehouse): Car Theft 8h · Export 12h · max 30 vehicles\n"
+                "**FreakShop** (Dax): Badonkadonk 12h · Call Dax 8h · Labrat 24h\n"
+                "**Heists:** Cayo Perico · Kortz Center · Doomsday (free prep 12h, partner required, memory game)\n"
+                "**Utility:** Cooldown List · Inventory · Garage · Ranking · Vanilla Unicorn (soon)\n\n"
                 "**Utility:** Inventory · Garage (by class) · Ranking\n\n"
                 "Daily, Work, cooldowns and shops are always private (ephemeral)."
             ),
@@ -3096,32 +4658,6 @@ class AdminPanelView(discord.ui.View):
     async def remove_item(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(AdminRemoveItemModal(self.cog))
 
-    @discord.ui.button(label="📋 Backup Wallets", style=discord.ButtonStyle.primary, custom_id="adm_backup", row=3)
-    async def backup(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.defer(ephemeral=True)
-        users = self.cog.data.get_all_users()
-        lines = ["user_id,wallet,streak,total_earned"]
-        for uid, d in sorted(users.items(), key=lambda x: -x[1].get("wallet", 0)):
-            lines.append(f"{uid},{d.get('wallet',0)},{d.get('streak',0)},{d.get('total_earned',0)}")
-        content = "\n".join(lines)
-        file = discord.File(
-            fp=__import__("io").BytesIO(content.encode("utf-8")),
-            filename=f"wallets_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-        )
-        await interaction.followup.send("Wallet backup:", file=file, ephemeral=True)
-
-    # ── Row 4 — Ranking + cooldown reset ──
-    @discord.ui.button(label="🏆 Post Ranking", style=discord.ButtonStyle.primary, custom_id="adm_post_lb", row=4)
-    async def post_ranking(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """Admins can post ranking publicly."""
-        await interaction.response.defer(ephemeral=True)
-        embed, _ = await self.cog.handle_member_action(interaction, "leaderboard", force_private=False)
-        if embed:
-            await post_to_market(self.cog.bot, interaction.user, embed)
-            await interaction.followup.send(
-                f"✅ Ranking posted in <#{MARKET_CHANNEL_ID}>.", ephemeral=True
-            )
-
     @discord.ui.button(label="🔄 Reset All Cooldowns", style=discord.ButtonStyle.danger, custom_id="adm_reset_all_cd", row=4)
     async def reset_all_cooldowns(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Clear all cooldown timestamps for every member."""
@@ -3140,6 +4676,12 @@ class AdminPanelView(discord.ui.View):
             "slots_uses",
             "slots_window_start",
             "last_penthouse_party",
+            "last_car_theft",
+            "last_export_car",
+            "last_badonkadonk",
+            "last_call_dax",
+            "last_labrat",
+            "last_doomsday_prep",
         )
         count = 0
         for uid, data in users.items():
@@ -3154,7 +4696,8 @@ class AdminPanelView(discord.ui.View):
         await interaction.followup.send(
             f"✅ Cooldowns reset for **{count}** member(s).\n"
             "Daily · Work · Balance · MotoClub · CEO · Lucky Wheel · Music Entry/Event · "
-            "Cayo Heist · Slots · Penthouse Party are available again.",
+            "Cayo Heist · slots · Penthouse Party · Car Theft · Export Car · "
+            "Badonkadonk · Call Dax · Labrat are available again.",
             ephemeral=True,
         )
 
@@ -3273,6 +4816,61 @@ class AdminPanelView(discord.ui.View):
     async def export_reward(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(AdminExportRewardModal(self.cog))
 
+    @discord.ui.button(label="💰 Heist Prizes", style=discord.ButtonStyle.secondary, custom_id="adm_heist_prizes", row=1)
+    async def heist_prizes(self, interaction: discord.Interaction, button: discord.ui.Button):
+        view = AdminHeistPrizeSelectView(self.cog)
+        embed = discord.Embed(
+            title="💰 Adjust Heist Final Values",
+            description=(
+                "Select which heist prize to edit:\n\n"
+                "🏝️ **Cayo Perico** — min/max prize range\n"
+                "🖼️ **Kortz Center** — min/max prize range\n"
+                "☢️ **Doomsday** — total prize pool\n"
+                "🎰 **Casino Heist** — min/max prize range (reserved)"
+            ),
+            color=COLOR_ADMIN,
+        )
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    @discord.ui.button(label="📈 Stock Exchange", style=discord.ButtonStyle.primary, custom_id="adm_stock_exchange", row=3)
+    async def stock_exchange(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        s = self.cog.data.get_settings()
+
+        def mid(a, b):
+            return (int(a) + int(b)) // 2
+
+        lines = [
+            f"**📅 Daily** (base + streak): ~{_fmt(s.get('daily_amount', 300))} – {_fmt(s.get('daily_amount', 300) + s.get('max_streak_bonus', 600))}",
+            f"**💼 Work**: {_fmt(s.get('work_min', 80))} – {_fmt(s.get('work_max', 220))} (avg ~{_fmt(mid(s.get('work_min', 80), s.get('work_max', 220)))})",
+            f"**🏍️ MotoClub**: {_fmt(s.get('motoclub_reward_min', 320))} – {_fmt(s.get('motoclub_reward_max', 850))} (avg ~{_fmt(mid(s.get('motoclub_reward_min', 320), s.get('motoclub_reward_max', 850)))})",
+            f"**💼 CEO Fast**: {_fmt(s.get('ceo_fast_reward_min', 450))} – {_fmt(s.get('ceo_fast_reward_max', 1200))}",
+            f"**💼 CEO Safe**: {_fmt(s.get('ceo_safe_reward_min', 200))} – {_fmt(s.get('ceo_safe_reward_max', 480))}",
+            f"**💼 CEO Premium**: {_fmt(s.get('ceo_premium_reward_min', 800))} – {_fmt(s.get('ceo_premium_reward_max', 1800))} (cost {_fmt(s.get('ceo_premium_cost', 200))})",
+            f"**🏝️ Cayo Heist**: {_fmt(s.get('cayo_heist_prize_min', 8000))} – {_fmt(s.get('cayo_heist_prize_max', 15000))} (avg ~{_fmt(mid(s.get('cayo_heist_prize_min', 8000), s.get('cayo_heist_prize_max', 15000)))})",
+            f"**🖼️ Kortz Heist**: {_fmt(s.get('kortz_heist_prize_min', 10000))} – {_fmt(s.get('kortz_heist_prize_max', 18000))} (avg ~{_fmt(mid(s.get('kortz_heist_prize_min', 10000), s.get('kortz_heist_prize_max', 18000)))})",
+            f"**☢️ Doomsday Heist**: {_fmt(s.get('doomsday_total_prize', 5000))} total pool (70/30 split)",
+            f"**🎰 Casino Heist** (setting): {_fmt(s.get('casino_heist_prize_min', 6000))} – {_fmt(s.get('casino_heist_prize_max', 12000))}",
+            f"**💊 Badonkadonk**: {_fmt(s.get('badonkadonk_reward', 500))}",
+            f"**📞 Call Dax** (success): {_fmt(s.get('call_dax_success_reward', 1000))} · fail −{_fmt(s.get('call_dax_fail_penalty', 500))}",
+            f"**🚗 Car Theft fee**: {_fmt(s.get('car_theft_cost', 1000))} · Export = car value",
+            f"**🚚 Export Event**: {_fmt(s.get('export_reward_min', 400))} – {_fmt(s.get('export_reward_max', 900))}",
+            f"**🎵 Music Entry**: +{_fmt(s.get('music_entry_reward', 300))} (fee {_fmt(s.get('music_entry_fee', 50))})",
+            f"**🎧 Music Event**: {_fmt(s.get('music_event_reward_min', 120))} – {_fmt(s.get('music_event_reward_max', 280))}",
+            f"**🎉 Penthouse Party**: ~{_fmt(s.get('penthouse_party_reward', 450))}",
+            f"**📈 Service Bonus** (extra on services): {_fmt(s.get('service_bonus', 0))}",
+        ]
+        embed = discord.Embed(
+            title="📈 Stock Exchange — Economy Payout Rates",
+            description=(
+                "Average / base values currently paid by each system function.\n\n"
+                + "\n".join(lines)
+            ),
+            color=COLOR_ADMIN,
+        )
+        embed.set_footer(text="Bank Admin · Stock Exchange · Live settings")
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
 
 class ExportClaimView(discord.ui.View):
     """Public one-shot claim for the admin-spawned vehicle export event."""
@@ -3298,20 +4896,48 @@ class ExportClaimView(discord.ui.View):
 
         settings = self.cog.data.get_settings()
         success = random.random() < 0.50
+        u = self.cog.data.get_user(interaction.user.id)
         if success:
-            rmin = settings.get("export_reward_min", 400)
-            rmax = settings.get("export_reward_max", 900)
-            reward = random.randint(rmin, rmax)
-            self.cog.data.add_money(interaction.user.id, reward, "vehicle_export")
-            result = discord.Embed(
-                title="✅ Export Delivered",
-                description=(
-                    f"{interaction.user.mention} claimed the vehicle.\n\n"
-                    f"**Congratulations, you successfully delivered with the vehicle.**\n"
-                    f"Reward: **{_fmt(reward)}** {CURRENCY}"
-                ),
-                color=COLOR_SUCCESS,
-            )
+            # Prefer storing a random stolen car in Warehouse if player owns one and has space
+            max_veh = settings.get("warehouse_max_vehicles", 30)
+            has_wh = _has_warehouse(u)
+            space = _count_stolen_vehicles(u) < max_veh
+            if has_wh and space and CAR_THEFT_VEHICLES:
+                car = random.choice(CAR_THEFT_VEHICLES)
+                inv = u.get("inventory", {})
+                inv[car["id"]] = inv.get(car["id"], 0) + 1
+                u["inventory"] = inv
+                self.cog.data.save_user(interaction.user.id, u)
+                result = discord.Embed(
+                    title="✅ Export Delivered — Vehicle Secured",
+                    description=(
+                        f"{interaction.user.mention} claimed the vehicle.\n\n"
+                        f"**Congratulations, you successfully secured a "
+                        f"{car.get('emoji', '🚗')} {car['name']}!**\n"
+                        f"It has been stored in your **Warehouse**.\n"
+                        f"Estimated value: **{_fmt(car['price'])}** {CURRENCY}"
+                    ),
+                    color=COLOR_SUCCESS,
+                )
+            else:
+                rmin = settings.get("export_reward_min", 400)
+                rmax = settings.get("export_reward_max", 900)
+                reward = random.randint(rmin, rmax)
+                self.cog.data.add_money(interaction.user.id, reward, "vehicle_export")
+                extra = ""
+                if not has_wh:
+                    extra = "\n*(No Warehouse owned — cash reward instead of vehicle storage.)*"
+                elif not space:
+                    extra = "\n*(Warehouse full — cash reward instead.)*"
+                result = discord.Embed(
+                    title="✅ Export Delivered",
+                    description=(
+                        f"{interaction.user.mention} claimed the vehicle.\n\n"
+                        f"**Congratulations, you successfully delivered the vehicle.**\n"
+                        f"Reward: **{_fmt(reward)}** {CURRENCY}{extra}"
+                    ),
+                    color=COLOR_SUCCESS,
+                )
             gif_key = "mission_passed"
         else:
             result = discord.Embed(
@@ -3323,7 +4949,7 @@ class ExportClaimView(discord.ui.View):
                 color=COLOR_FAIL,
             )
             gif_key = "lose_game"
-        result.set_footer(text="GTA Economy · Vehicle Export")
+        result.set_footer(text="GTA Economy · Car Theft Job / Export Event")
         await interaction.response.edit_message(view=None)
         await post_to_market(self.cog.bot, interaction.user, result, gif_key=gif_key)
 
@@ -3355,6 +4981,104 @@ class AdminExportRewardModal(discord.ui.Modal, title="Set Export Reward Range"):
         )
 
 
+class AdminHeistPrizeSelectView(discord.ui.View):
+    def __init__(self, cog: "Economy"):
+        super().__init__(timeout=60)
+        self.cog = cog
+        options = [
+            discord.SelectOption(label="🏝️ Cayo Perico", value="cayo", description="Min/max heist prize"),
+            discord.SelectOption(label="🖼️ Kortz Center", value="kortz", description="Min/max heist prize"),
+            discord.SelectOption(label="☢️ Doomsday", value="doomsday", description="Total prize pool"),
+            discord.SelectOption(label="🎰 Casino Heist", value="casino", description="Min/max prize (reserved)"),
+        ]
+        select = discord.ui.Select(placeholder="Choose heist…", options=options)
+        select.callback = self._pick
+        self.add_item(select)
+
+    async def _pick(self, interaction: discord.Interaction):
+        heist = interaction.data["values"][0]
+        await interaction.response.send_modal(AdminHeistPrizeModal(self.cog, heist))
+
+
+class AdminHeistPrizeModal(discord.ui.Modal):
+    """Set final prize values for Cayo / Kortz / Doomsday / Casino Heist."""
+
+    HEIST_CONFIG = {
+        "cayo": {
+            "title": "Set Cayo Perico Prize Range",
+            "min_key": "cayo_heist_prize_min",
+            "max_key": "cayo_heist_prize_max",
+            "single": False,
+        },
+        "kortz": {
+            "title": "Set Kortz Center Prize Range",
+            "min_key": "kortz_heist_prize_min",
+            "max_key": "kortz_heist_prize_max",
+            "single": False,
+        },
+        "doomsday": {
+            "title": "Set Doomsday Total Prize Pool",
+            "min_key": "doomsday_total_prize",
+            "max_key": None,
+            "single": True,
+        },
+        "casino": {
+            "title": "Set Casino Heist Prize Range",
+            "min_key": "casino_heist_prize_min",
+            "max_key": "casino_heist_prize_max",
+            "single": False,
+        },
+    }
+
+    def __init__(self, cog: "Economy", heist: str):
+        cfg = self.HEIST_CONFIG.get(heist, self.HEIST_CONFIG["cayo"])
+        super().__init__(title=cfg["title"][:45])
+        self.cog = cog
+        self.heist = heist
+        self.cfg = cfg
+        if cfg["single"]:
+            self.amount = discord.ui.TextInput(
+                label="Total prize pool",
+                required=True,
+                placeholder="5000",
+            )
+            self.add_item(self.amount)
+        else:
+            self.min_amt = discord.ui.TextInput(label="Min prize", required=True, placeholder="8000")
+            self.max_amt = discord.ui.TextInput(label="Max prize", required=True, placeholder="15000")
+            self.add_item(self.min_amt)
+            self.add_item(self.max_amt)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        s = self.cog.data.get_settings()
+        try:
+            if self.cfg["single"]:
+                val = int(self.amount.value.replace(".", "").replace(",", ""))
+                if val < 0:
+                    return await interaction.response.send_message("Value must be ≥ 0.", ephemeral=True)
+                s[self.cfg["min_key"]] = val
+                self.cog.data.save_settings(s)
+                await interaction.response.send_message(
+                    f"✅ Doomsday total prize pool set to **{_fmt(val)}** {CURRENCY}.",
+                    ephemeral=True,
+                )
+            else:
+                vmin = int(self.min_amt.value.replace(".", "").replace(",", ""))
+                vmax = int(self.max_amt.value.replace(".", "").replace(",", ""))
+                if vmin > vmax or vmin < 0:
+                    return await interaction.response.send_message("Min must be ≤ max and ≥ 0.", ephemeral=True)
+                s[self.cfg["min_key"]] = vmin
+                s[self.cfg["max_key"]] = vmax
+                self.cog.data.save_settings(s)
+                name = self.heist.title()
+                await interaction.response.send_message(
+                    f"✅ {name} prize range: **{_fmt(vmin)}** – **{_fmt(vmax)}** {CURRENCY}.",
+                    ephemeral=True,
+                )
+        except ValueError:
+            await interaction.response.send_message("Invalid number.", ephemeral=True)
+
+
 class AdminClearVehiclesModal(discord.ui.Modal, title="Clear All Vehicles"):
     def __init__(self, cog: "Economy"):
         super().__init__()
@@ -3364,7 +5088,7 @@ class AdminClearVehiclesModal(discord.ui.Modal, title="Clear All Vehicles"):
 
     async def on_submit(self, interaction: discord.Interaction):
         raw = self.uid.value.strip().upper()
-        vehicle_types = {"car", "motorcycle", "aircraft", "boat", "military"}
+        vehicle_types = {"car", "motorcycle", "aircraft", "boat", "military", "stolen_car"}
         vehicle_dealers = {"southern", "legendary", "lost_mc", "podium"}
         all_items = self.cog.data.get_all_items()
 
@@ -3399,6 +5123,7 @@ class AdminClearVehiclesModal(discord.ui.Modal, title="Clear All Vehicles"):
 class AdminClearPermanentsModal(discord.ui.Modal, title="Clear Permanent Items"):
     PERMANENT_IDS = (
         "casino_penthouse", "mil_submarine", "prop_house_mansion",
+        "biz_warehouse", "biz_hangar", "biz_bunker",
         "ach_cayo_heist", "ach_kortz_heist", "music_vip",
     )
 
@@ -4205,8 +5930,9 @@ class Economy(commands.Cog):
                 "• Shops: Benny's, Elitas, Warstock, DockTease, Dynasty8, Dynasty8 Executive\n"
                 "• Lifestyle: Casino Resort, Music Locker & Master Penthouse\n"
                 "• Missions: CEO SecuroServ & MotoClub\n"
-                "• Coming soon: Vehicle Exports · Acid Lab · Doomsday\n"
-                "• Heists: Cayo Perico (Kosatka) · Kortz Center (The Mansion)\n"
+                "• Car Theft Job (requires Warehouse from Dynasty8 Executive)\n"
+                "• FreakShop (Dax & the Fooliganz)\n"
+                "• Heists: Cayo Perico · Kortz Center · Doomsday Heist\n"
                 "• Inventory, Garage (by class), Ranking & Help\n\n"
                 "🔒 Daily, Work, cooldowns and shops are always private.\n"
                 "Inventory / Garage / Ranking: choose private or public view."
@@ -4242,6 +5968,8 @@ class Economy(commands.Cog):
                 "• Money: Add / Remove / Set / View User (full inventory + bank)\n"
                 "• Bulk: All + / All − / Reset User / Give Item\n"
                 "• Settings: Daily · Work · Cooldowns · Service Bonus · Export Reward\n"
+                "• **Heist prizes:** Cayo · Kortz · Doomsday · Casino Heist\n"
+                "• **Stock Exchange** — live average payouts of every system\n"
                 "• Items: Give / Remove · Clear Vehicles · Clear Permanents\n"
                 "• **All Balances** · **Richest Member** · **Bank Yield Deposit**\n"
                 "• **Spawn Export Event** (Market mini-game, first claim only)\n"
