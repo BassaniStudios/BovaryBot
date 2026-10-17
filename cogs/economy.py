@@ -1,5 +1,5 @@
 """
-GTA Economy — complete economy system for Bova's Bot.
+GTA Roleplay — complete economy system for Bova's Bot.
 Currency: Bovas coins
 Main panel (members): Maze Bank channel (panel)
 Member responses: Bovary Market channel
@@ -9,6 +9,7 @@ Bank deposits handled by Maze Bank (wallet + bank balance)
 from __future__ import annotations
 
 import asyncio
+import threading
 import json
 import logging
 import random
@@ -25,8 +26,9 @@ from utils.helpers import make_embed
 
 logger = logging.getLogger("bovary_bot.economy")
 
-# Simple lock to reduce race conditions on JSON file I/O
-_economy_lock = asyncio.Lock()
+# Global lock for JSON file I/O (sync, held only across load-modify-save — never across await)
+_economy_io_lock = threading.RLock()
+_doomsday_sessions_lock = threading.RLock()
 
 # ── Channel IDs (hardcoded production + env override possible via config) ──
 BANK_CHANNEL_ID = 1559720971437350933       # Maze Bank — member panel
@@ -145,6 +147,21 @@ BENNYS_LOST_MC: List[Dict[str, Any]] = [
     {"id": "bike_hakuchou", "name": "🏍️ Hakuchou", "price": 12000, "type": "motorcycle", "desc": "High-speed sports bike.", "emoji": "🏍️", "dealer": "lost_mc"},
 ]
 
+# ── Benny's Original Motor Works (custom / lowriders) ──
+BENNYS_WORKSHOP: List[Dict[str, Any]] = [
+    {"id": "car_buccaneer_custom", "name": "🚗 Buccaneer Custom", "price": 7800, "type": "car", "desc": "Lowrider classic, Benny's style.", "emoji": "🚗", "dealer": "bennys"},
+    {"id": "car_chino_custom", "name": "🚘 Chino Custom", "price": 8200, "type": "car", "desc": "Custom lowrider coupe.", "emoji": "🚘", "dealer": "bennys"},
+    {"id": "car_faction_custom", "name": "🏎️ Faction Custom", "price": 9500, "type": "car", "desc": "Muscle with hydraulic flair.", "emoji": "🏎️", "dealer": "bennys"},
+    {"id": "car_moonbeam_custom", "name": "🚐 Moonbeam Custom", "price": 11000, "type": "car", "desc": "Party van, fully customized.", "emoji": "🚐", "dealer": "bennys"},
+    {"id": "car_primo_custom", "name": "🚗 Primo Custom", "price": 8800, "type": "car", "desc": "Elegant lowrider sedan.", "emoji": "🚗", "dealer": "bennys"},
+    {"id": "car_voodoo_custom", "name": "🔮 Voodoo Custom", "price": 9200, "type": "car", "desc": "Classic custom convertible.", "emoji": "🔮", "dealer": "bennys"},
+    {"id": "car_virgo_classic", "name": "🚙 Virgo Classic", "price": 7600, "type": "car", "desc": "Old-school lowrider.", "emoji": "🚙", "dealer": "bennys"},
+    {"id": "car_sabre_turbo_custom", "name": "🔥 Sabre Turbo Custom", "price": 12500, "type": "car", "desc": "Aggressive custom muscle.", "emoji": "🔥", "dealer": "bennys"},
+    {"id": "car_tornado_custom", "name": "🌪️ Tornado Custom", "price": 8900, "type": "car", "desc": "Vintage custom with style.", "emoji": "🌪️", "dealer": "bennys"},
+    {"id": "car_minivan_custom", "name": "🚐 Minivan Custom", "price": 10500, "type": "car", "desc": "Family van, Benny's edition.", "emoji": "🚐", "dealer": "bennys"},
+]
+
+
 # ── Warstock Cache & Carry (military) ──
 WARSTOCK_ITEMS: List[Dict[str, Any]] = [
     {"id": "mil_rhino", "name": "🛡️ Rhino Tank", "price": 185000, "type": "military", "desc": "Heavy armor tank.", "emoji": "🛡️"},
@@ -228,72 +245,72 @@ CAR_THEFT_VEHICLES: List[Dict[str, Any]] = [
     {"id": "theft_sabregt", "name": "Sabre Turbo", "class": "low", "price": 4100, "emoji": "🚗", "type": "stolen_car"},
     {"id": "theft_voodoo", "name": "Voodoo", "class": "low", "price": 3500, "emoji": "🚗", "type": "stolen_car"},
     # ── MEDIUM CLASS (sports / muscle / suv) — ~30 cars ──
-    {"id": "theft_sultan", "name": "Sultan", "class": "medium", "price": 8500, "emoji": "🏎️", "type": "stolen_car"},
-    {"id": "theft_elegy", "name": "Elegy RH8", "class": "medium", "price": 9200, "emoji": "🏎️", "type": "stolen_car"},
-    {"id": "theft_comet", "name": "Comet", "class": "medium", "price": 9800, "emoji": "🏎️", "type": "stolen_car"},
-    {"id": "theft_feltzer", "name": "Feltzer", "class": "medium", "price": 8900, "emoji": "🏎️", "type": "stolen_car"},
-    {"id": "theft_futo", "name": "Futo", "class": "medium", "price": 7200, "emoji": "🏎️", "type": "stolen_car"},
-    {"id": "theft_khamelion", "name": "Khamelion", "class": "medium", "price": 9500, "emoji": "🏎️", "type": "stolen_car"},
-    {"id": "theft_lynx", "name": "Lynx", "class": "medium", "price": 10500, "emoji": "🏎️", "type": "stolen_car"},
-    {"id": "theft_massacro", "name": "Massacro", "class": "medium", "price": 11200, "emoji": "🏎️", "type": "stolen_car"},
-    {"id": "theft_ninef", "name": "9F", "class": "medium", "price": 10800, "emoji": "🏎️", "type": "stolen_car"},
-    {"id": "theft_rapidgt", "name": "Rapid GT", "class": "medium", "price": 10200, "emoji": "🏎️", "type": "stolen_car"},
-    {"id": "theft_schafter", "name": "Schafter", "class": "medium", "price": 7800, "emoji": "🏎️", "type": "stolen_car"},
-    {"id": "theft_schwarzer", "name": "Schwarzer", "class": "medium", "price": 8200, "emoji": "🏎️", "type": "stolen_car"},
-    {"id": "theft_surano", "name": "Surano", "class": "medium", "price": 9900, "emoji": "🏎️", "type": "stolen_car"},
-    {"id": "theft_carbonizzare", "name": "Carbonizzare", "class": "medium", "price": 11500, "emoji": "🏎️", "type": "stolen_car"},
-    {"id": "theft_coquette", "name": "Coquette", "class": "medium", "price": 10100, "emoji": "🏎️", "type": "stolen_car"},
-    {"id": "theft_jester", "name": "Jester", "class": "medium", "price": 10900, "emoji": "🏎️", "type": "stolen_car"},
-    {"id": "theft_penumbra", "name": "Penumbra", "class": "medium", "price": 7600, "emoji": "🏎️", "type": "stolen_car"},
-    {"id": "theft_alpha", "name": "Alpha", "class": "medium", "price": 8700, "emoji": "🏎️", "type": "stolen_car"},
-    {"id": "theft_banshee", "name": "Banshee", "class": "medium", "price": 9400, "emoji": "🏎️", "type": "stolen_car"},
-    {"id": "theft_buffalo", "name": "Buffalo", "class": "medium", "price": 8100, "emoji": "🏎️", "type": "stolen_car"},
-    {"id": "theft_dominator", "name": "Dominator", "class": "medium", "price": 8800, "emoji": "🏎️", "type": "stolen_car"},
-    {"id": "theft_gauntlet", "name": "Gauntlet", "class": "medium", "price": 8600, "emoji": "🏎️", "type": "stolen_car"},
-    {"id": "theft_phoenix_m", "name": "Phoenix Muscle", "class": "medium", "price": 7900, "emoji": "🏎️", "type": "stolen_car"},
-    {"id": "theft_ruiner", "name": "Ruiner", "class": "medium", "price": 7500, "emoji": "🏎️", "type": "stolen_car"},
-    {"id": "theft_vigero", "name": "Vigero", "class": "medium", "price": 7700, "emoji": "🏎️", "type": "stolen_car"},
-    {"id": "theft_baller", "name": "Baller", "class": "medium", "price": 9800, "emoji": "🚙", "type": "stolen_car"},
-    {"id": "theft_cavalcade", "name": "Cavalcade", "class": "medium", "price": 7200, "emoji": "🚙", "type": "stolen_car"},
-    {"id": "theft_fq2", "name": "FQ 2", "class": "medium", "price": 6900, "emoji": "🚙", "type": "stolen_car"},
-    {"id": "theft_granger", "name": "Granger", "class": "medium", "price": 8400, "emoji": "🚙", "type": "stolen_car"},
-    {"id": "theft_landstalker", "name": "Landstalker", "class": "medium", "price": 7100, "emoji": "🚙", "type": "stolen_car"},
-    {"id": "theft_mesa", "name": "Mesa", "class": "medium", "price": 6500, "emoji": "🚙", "type": "stolen_car"},
-    {"id": "theft_patriot_m", "name": "Patriot", "class": "medium", "price": 9200, "emoji": "🚙", "type": "stolen_car"},
-    {"id": "theft_radius", "name": "Radius", "class": "medium", "price": 6800, "emoji": "🚙", "type": "stolen_car"},
-    {"id": "theft_seminole", "name": "Seminole", "class": "medium", "price": 7000, "emoji": "🚙", "type": "stolen_car"},
-    {"id": "theft_serrano", "name": "Serrano", "class": "medium", "price": 7300, "emoji": "🚙", "type": "stolen_car"},
+    {"id": "theft_sultan", "name": "Sultan", "class": "medium", "price": 6120, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_elegy", "name": "Elegy RH8", "class": "medium", "price": 6624, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_comet", "name": "Comet", "class": "medium", "price": 7056, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_feltzer", "name": "Feltzer", "class": "medium", "price": 6408, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_futo", "name": "Futo", "class": "medium", "price": 5184, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_khamelion", "name": "Khamelion", "class": "medium", "price": 6840, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_lynx", "name": "Lynx", "class": "medium", "price": 7560, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_massacro", "name": "Massacro", "class": "medium", "price": 8064, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_ninef", "name": "9F", "class": "medium", "price": 7776, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_rapidgt", "name": "Rapid GT", "class": "medium", "price": 7344, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_schafter", "name": "Schafter", "class": "medium", "price": 5616, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_schwarzer", "name": "Schwarzer", "class": "medium", "price": 5904, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_surano", "name": "Surano", "class": "medium", "price": 7128, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_carbonizzare", "name": "Carbonizzare", "class": "medium", "price": 8280, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_coquette", "name": "Coquette", "class": "medium", "price": 7272, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_jester", "name": "Jester", "class": "medium", "price": 7848, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_penumbra", "name": "Penumbra", "class": "medium", "price": 5472, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_alpha", "name": "Alpha", "class": "medium", "price": 6264, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_banshee", "name": "Banshee", "class": "medium", "price": 6768, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_buffalo", "name": "Buffalo", "class": "medium", "price": 5832, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_dominator", "name": "Dominator", "class": "medium", "price": 6336, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_gauntlet", "name": "Gauntlet", "class": "medium", "price": 6192, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_phoenix_m", "name": "Phoenix Muscle", "class": "medium", "price": 5688, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_ruiner", "name": "Ruiner", "class": "medium", "price": 5400, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_vigero", "name": "Vigero", "class": "medium", "price": 5544, "emoji": "🏎️", "type": "stolen_car"},
+    {"id": "theft_baller", "name": "Baller", "class": "medium", "price": 7056, "emoji": "🚙", "type": "stolen_car"},
+    {"id": "theft_cavalcade", "name": "Cavalcade", "class": "medium", "price": 5184, "emoji": "🚙", "type": "stolen_car"},
+    {"id": "theft_fq2", "name": "FQ 2", "class": "medium", "price": 4968, "emoji": "🚙", "type": "stolen_car"},
+    {"id": "theft_granger", "name": "Granger", "class": "medium", "price": 6048, "emoji": "🚙", "type": "stolen_car"},
+    {"id": "theft_landstalker", "name": "Landstalker", "class": "medium", "price": 5112, "emoji": "🚙", "type": "stolen_car"},
+    {"id": "theft_mesa", "name": "Mesa", "class": "medium", "price": 4680, "emoji": "🚙", "type": "stolen_car"},
+    {"id": "theft_patriot_m", "name": "Patriot", "class": "medium", "price": 6624, "emoji": "🚙", "type": "stolen_car"},
+    {"id": "theft_radius", "name": "Radius", "class": "medium", "price": 4896, "emoji": "🚙", "type": "stolen_car"},
+    {"id": "theft_seminole", "name": "Seminole", "class": "medium", "price": 5040, "emoji": "🚙", "type": "stolen_car"},
+    {"id": "theft_serrano", "name": "Serrano", "class": "medium", "price": 5256, "emoji": "🚙", "type": "stolen_car"},
     # ── HIGH CLASS (super / hyper / rare) — ~30 cars ──
-    {"id": "theft_adder", "name": "Adder", "class": "high", "price": 28500, "emoji": "⚡", "type": "stolen_car"},
-    {"id": "theft_entityxf", "name": "Entity XF", "class": "high", "price": 31200, "emoji": "⚡", "type": "stolen_car"},
-    {"id": "theft_zentorno", "name": "Zentorno", "class": "high", "price": 34800, "emoji": "🔥", "type": "stolen_car"},
-    {"id": "theft_t20", "name": "T20", "class": "high", "price": 36500, "emoji": "⚡", "type": "stolen_car"},
-    {"id": "theft_osiris", "name": "Osiris", "class": "high", "price": 33200, "emoji": "⚡", "type": "stolen_car"},
-    {"id": "theft_reaper", "name": "Reaper", "class": "high", "price": 29800, "emoji": "⚡", "type": "stolen_car"},
-    {"id": "theft_fmj", "name": "FMJ", "class": "high", "price": 35500, "emoji": "⚡", "type": "stolen_car"},
-    {"id": "theft_prototipo", "name": "X80 Proto", "class": "high", "price": 37800, "emoji": "⚡", "type": "stolen_car"},
-    {"id": "theft_tyrus", "name": "Tyrus", "class": "high", "price": 34100, "emoji": "⚡", "type": "stolen_car"},
-    {"id": "theft_italigtb", "name": "Itali GTB", "class": "high", "price": 32600, "emoji": "🏁", "type": "stolen_car"},
-    {"id": "theft_nero", "name": "Nero", "class": "high", "price": 35900, "emoji": "⚡", "type": "stolen_car"},
-    {"id": "theft_tempesta", "name": "Tempesta", "class": "high", "price": 33700, "emoji": "⚡", "type": "stolen_car"},
-    {"id": "theft_vacca", "name": "Vacca", "class": "high", "price": 27400, "emoji": "⚡", "type": "stolen_car"},
-    {"id": "theft_voltic", "name": "Voltic", "class": "high", "price": 26800, "emoji": "⚡", "type": "stolen_car"},
-    {"id": "theft_infernus", "name": "Infernus", "class": "high", "price": 29100, "emoji": "🔥", "type": "stolen_car"},
-    {"id": "theft_cheetah", "name": "Cheetah", "class": "high", "price": 28300, "emoji": "⚡", "type": "stolen_car"},
-    {"id": "theft_entity2", "name": "Entity XXR", "class": "high", "price": 38200, "emoji": "⚡", "type": "stolen_car"},
-    {"id": "theft_emerus", "name": "Emerus", "class": "high", "price": 39100, "emoji": "⚡", "type": "stolen_car"},
-    {"id": "theft_krieger", "name": "Krieger", "class": "high", "price": 40500, "emoji": "⚡", "type": "stolen_car"},
-    {"id": "theft_s80rr", "name": "S80RR", "class": "high", "price": 37200, "emoji": "🏁", "type": "stolen_car"},
-    {"id": "theft_thrax", "name": "Thrax", "class": "high", "price": 39800, "emoji": "⚡", "type": "stolen_car"},
-    {"id": "theft_zorrusso", "name": "Zorrusso", "class": "high", "price": 38600, "emoji": "⚡", "type": "stolen_car"},
-    {"id": "theft_furia", "name": "Furia", "class": "high", "price": 37900, "emoji": "⚡", "type": "stolen_car"},
-    {"id": "theft_italirsx", "name": "Itali RSX", "class": "high", "price": 41200, "emoji": "🏁", "type": "stolen_car"},
-    {"id": "theft_champion", "name": "Champion", "class": "high", "price": 36800, "emoji": "⚡", "type": "stolen_car"},
-    {"id": "theft_ignus", "name": "Ignus", "class": "high", "price": 42500, "emoji": "⚡", "type": "stolen_car"},
-    {"id": "theft_torero", "name": "Torero XO", "class": "high", "price": 40100, "emoji": "⚡", "type": "stolen_car"},
-    {"id": "theft_virtue", "name": "Virtue", "class": "high", "price": 35600, "emoji": "⚡", "type": "stolen_car"},
-    {"id": "theft_entity3", "name": "Entity MT", "class": "high", "price": 41800, "emoji": "⚡", "type": "stolen_car"},
-    {"id": "theft_turismo3", "name": "Turismo Omaggio", "class": "high", "price": 39500, "emoji": "🏁", "type": "stolen_car"},
+    {"id": "theft_adder", "name": "Adder", "class": "high", "price": 9649, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_entityxf", "name": "Entity XF", "class": "high", "price": 10681, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_zentorno", "name": "Zentorno", "class": "high", "price": 12057, "emoji": "🔥", "type": "stolen_car"},
+    {"id": "theft_t20", "name": "T20", "class": "high", "price": 12707, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_osiris", "name": "Osiris", "class": "high", "price": 11445, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_reaper", "name": "Reaper", "class": "high", "price": 10146, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_fmj", "name": "FMJ", "class": "high", "price": 12324, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_prototipo", "name": "X80 Proto", "class": "high", "price": 13203, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_tyrus", "name": "Tyrus", "class": "high", "price": 11789, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_italigtb", "name": "Itali GTB", "class": "high", "price": 11216, "emoji": "🏁", "type": "stolen_car"},
+    {"id": "theft_nero", "name": "Nero", "class": "high", "price": 12477, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_tempesta", "name": "Tempesta", "class": "high", "price": 11636, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_vacca", "name": "Vacca", "class": "high", "price": 9229, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_voltic", "name": "Voltic", "class": "high", "price": 9000, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_infernus", "name": "Infernus", "class": "high", "price": 9878, "emoji": "🔥", "type": "stolen_car"},
+    {"id": "theft_cheetah", "name": "Cheetah", "class": "high", "price": 9573, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_entity2", "name": "Entity XXR", "class": "high", "price": 13356, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_emerus", "name": "Emerus", "class": "high", "price": 13700, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_krieger", "name": "Krieger", "class": "high", "price": 14235, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_s80rr", "name": "S80RR", "class": "high", "price": 12974, "emoji": "🏁", "type": "stolen_car"},
+    {"id": "theft_thrax", "name": "Thrax", "class": "high", "price": 13968, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_zorrusso", "name": "Zorrusso", "class": "high", "price": 13509, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_furia", "name": "Furia", "class": "high", "price": 13242, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_italirsx", "name": "Itali RSX", "class": "high", "price": 14503, "emoji": "🏁", "type": "stolen_car"},
+    {"id": "theft_champion", "name": "Champion", "class": "high", "price": 12821, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_ignus", "name": "Ignus", "class": "high", "price": 15000, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_torero", "name": "Torero XO", "class": "high", "price": 14082, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_virtue", "name": "Virtue", "class": "high", "price": 12363, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_entity3", "name": "Entity MT", "class": "high", "price": 14732, "emoji": "⚡", "type": "stolen_car"},
+    {"id": "theft_turismo3", "name": "Turismo Omaggio", "class": "high", "price": 13853, "emoji": "🏁", "type": "stolen_car"},
 ]
 
 CAR_THEFT_BY_CLASS = {
@@ -303,9 +320,9 @@ CAR_THEFT_BY_CLASS = {
 }
 
 CAR_THEFT_SUCCESS_CHANCE = {
-    "low": 0.75,
-    "medium": 0.50,
-    "high": 0.35,
+    "low": 0.70,
+    "medium": 0.40,
+    "high": 0.18,
 }
 
 
@@ -517,6 +534,131 @@ DOOMSDAY_ACHIEVEMENT = {
 DOOMSDAY_MEMORY_SYMBOLS = ["🔴", "🔵", "🟢", "🟡", "🟣", "🟠", "⚪", "⬛"]
 
 
+
+# ── Rank / XP system (GTA Online style) ──
+# Cumulative XP required to REACH each level (level 1 = 0 XP)
+RANK_TABLE: List[Dict[str, Any]] = [
+    {"level": 1,  "xp": 0,      "name": "Rookie",              "emoji": "🌱"},
+    {"level": 2,  "xp": 150,    "name": "Street Runner",       "emoji": "👟"},
+    {"level": 3,  "xp": 400,    "name": "Corner Boy",          "emoji": "🧱"},
+    {"level": 4,  "xp": 800,    "name": "Hustler",             "emoji": "💼"},
+    {"level": 5,  "xp": 1400,   "name": "Made Associate",      "emoji": "🤝"},
+    {"level": 6,  "xp": 2200,   "name": "Wheelman",            "emoji": "🚗"},
+    {"level": 7,  "xp": 3200,   "name": "Enforcer",            "emoji": "🔫"},
+    {"level": 8,  "xp": 4500,   "name": "Shot Caller",         "emoji": "📞"},
+    {"level": 9,  "xp": 6000,   "name": "Crew Lieutenant",     "emoji": "⭐"},
+    {"level": 10, "xp": 8000,   "name": "Capo",                "emoji": "🦅"},
+    {"level": 12, "xp": 11000,  "name": "Underboss",           "emoji": "🖤"},
+    {"level": 14, "xp": 15000,  "name": "Crime Lord",          "emoji": "👑"},
+    {"level": 16, "xp": 20000,  "name": "Kingpin",             "emoji": "💎"},
+    {"level": 18, "xp": 26000,  "name": "Cartel Face",         "emoji": "🎭"},
+    {"level": 20, "xp": 34000,  "name": "Los Santos Legend",   "emoji": "🌟"},
+    {"level": 25, "xp": 48000,  "name": "CEO Material",        "emoji": "🏢"},
+    {"level": 30, "xp": 68000,  "name": "Heist Architect",     "emoji": "🏝️"},
+    {"level": 35, "xp": 95000,  "name": "Doomsday Operator",   "emoji": "☢️"},
+    {"level": 40, "xp": 130000, "name": "Empire Builder",      "emoji": "🏛️"},
+    {"level": 45, "xp": 175000, "name": "Shadow Broker",       "emoji": "🌑"},
+    {"level": 50, "xp": 230000, "name": "The One Percent",     "emoji": "💰"},
+    {"level": 60, "xp": 320000, "name": "OG Criminal",         "emoji": "🔥"},
+    {"level": 70, "xp": 430000, "name": "Mythic Outlaw",       "emoji": "⚡"},
+    {"level": 80, "xp": 560000, "name": "Living Legend",       "emoji": "🏆"},
+    {"level": 90, "xp": 720000, "name": "Untouchable",         "emoji": "🛡️"},
+    {"level": 100,"xp": 950000, "name": "GTA Online Elite",    "emoji": "👑"},
+]
+
+# XP granted per activity reason
+XP_REWARDS: Dict[str, int] = {
+    "daily": 55,
+    "work": 28,
+    "motoclub": 85,
+    "ceo_securo": 90,
+    "cayo_heist": 320,
+    "kortz_heist": 300,
+    "doomsday_heist": 280,
+    "music_event": 45,
+    "music_presence": 35,
+    "lucky_wheel": 40,
+    "badonkadonk": 50,
+    "call_dax": 70,
+    "car_theft_success": 65,
+    "export_car": 55,
+    "car_export": 55,
+    "vehicle_export": 40,
+    "export_event": 40,
+    "penthouse_party": 60,
+    "shop_buy": 5,
+}
+
+def _rank_for_xp(xp: int) -> Dict[str, Any]:
+    current = RANK_TABLE[0]
+    for row in RANK_TABLE:
+        if xp >= int(row["xp"]):
+            current = row
+        else:
+            break
+    return current
+
+def _next_rank(level: int) -> Optional[Dict[str, Any]]:
+    for row in RANK_TABLE:
+        if int(row["level"]) > level:
+            return row
+    return None
+
+def _xp_progress(xp: int) -> Tuple[Dict[str, Any], Optional[Dict[str, Any]], int, int, float]:
+    """Returns (current_rank, next_rank, xp_into_level, xp_needed, pct)."""
+    cur = _rank_for_xp(xp)
+    nxt = _next_rank(int(cur["level"]))
+    if not nxt:
+        return cur, None, 0, 0, 100.0
+    base = int(cur["xp"])
+    need = int(nxt["xp"]) - base
+    into = max(0, xp - base)
+    pct = min(100.0, (into / need) * 100 if need else 100.0)
+    return cur, nxt, into, need, pct
+
+
+# ── Achievements (brasões) ──
+ACHIEVEMENTS: List[Dict[str, Any]] = [
+    {"id": "ach_first_daily", "name": "First Clock-In", "emoji": "📅", "desc": "Claim Daily once.", "check": "first_daily"},
+    {"id": "ach_streak_7", "name": "Week Warrior", "emoji": "🔥", "desc": "Reach a 7-day daily streak.", "check": "streak_7"},
+    {"id": "ach_first_work", "name": "Honest Day", "emoji": "💼", "desc": "Complete Work once.", "check": "first_work"},
+    {"id": "ach_first_heist", "name": "First Score", "emoji": "🎯", "desc": "Complete any major heist.", "check": "first_heist"},
+    {"id": "ach_cayo", "name": "Cayo Specialist", "emoji": "🏝️", "desc": "Complete Cayo Perico Heist.", "check": "cayo"},
+    {"id": "ach_kortz", "name": "Art Thief", "emoji": "🖼️", "desc": "Complete Kortz Center Heist.", "check": "kortz"},
+    {"id": "ach_doomsday", "name": "World Saver", "emoji": "☢️", "desc": "Complete Doomsday Heist.", "check": "doomsday"},
+    {"id": "ach_warehouse", "name": "Logistics King", "emoji": "🏭", "desc": "Own a Warehouse.", "check": "warehouse"},
+    {"id": "ach_export_5", "name": "Chop Shop Pro", "emoji": "📦", "desc": "Successfully export 5 stolen vehicles.", "check": "export_5"},
+    {"id": "ach_music_vip", "name": "Club Royalty", "emoji": "🎵", "desc": "Unlock Music Locker VIP.", "check": "music_vip"},
+    {"id": "ach_casino_vip", "name": "High Roller", "emoji": "🎰", "desc": "Own VIP or Diamond Casino membership.", "check": "casino_vip"},
+    {"id": "ach_penthouse", "name": "Penthouse Owner", "emoji": "🏨", "desc": "Own the Master Penthouse.", "check": "penthouse"},
+    {"id": "ach_rank_10", "name": "Capo Status", "emoji": "🦅", "desc": "Reach Rank 10.", "check": "rank_10"},
+    {"id": "ach_rank_25", "name": "CEO Material", "emoji": "🏢", "desc": "Reach Rank 25.", "check": "rank_25"},
+    {"id": "ach_rank_50", "name": "One Percent", "emoji": "💰", "desc": "Reach Rank 50.", "check": "rank_50"},
+    {"id": "ach_million", "name": "Millionaire", "emoji": "💵", "desc": "Earn 1.000.000 total lifetime.", "check": "million"},
+    {"id": "ach_fooligan", "name": "Fooligan", "emoji": "💊", "desc": "Use Badonkadonk 5 times.", "check": "fooligan"},
+    {"id": "ach_dealer", "name": "Car Collector", "emoji": "🏎️", "desc": "Own 5 purchased vehicles.", "check": "dealer"},
+]
+
+# Crest tiers based on number of achievements unlocked
+CREST_TIERS: List[Dict[str, Any]] = [
+    {"min": 0,  "id": "crest_none", "name": "No Crest", "emoji": "⬜"},
+    {"min": 1,  "id": "crest_bronze", "name": "Bronze Crest", "emoji": "🥉"},
+    {"min": 5,  "id": "crest_silver", "name": "Silver Crest", "emoji": "🥈"},
+    {"min": 10, "id": "crest_gold", "name": "Gold Crest", "emoji": "🥇"},
+    {"min": 15, "id": "crest_platinum", "name": "Platinum Crest", "emoji": "💠"},
+    {"min": 18, "id": "crest_diamond", "name": "Diamond Crest", "emoji": "💎"},
+]
+
+def _crest_for_count(n: int) -> Dict[str, Any]:
+    cur = CREST_TIERS[0]
+    for t in CREST_TIERS:
+        if n >= int(t["min"]):
+            cur = t
+        else:
+            break
+    return cur
+
+
 # ── Casino Resort items ──
 CASINO_PENTHOUSE = {
     "id": "casino_penthouse",
@@ -565,13 +707,13 @@ DEFAULT_SETTINGS = {
     "ceo_cooldown": 21600,       # 6 hours
     "motoclub_reward_min": 320,
     "motoclub_reward_max": 850,
-    "ceo_fast_reward_min": 450,
-    "ceo_fast_reward_max": 1200,
-    "ceo_safe_reward_min": 200,
-    "ceo_safe_reward_max": 480,
-    "ceo_premium_reward_min": 800,
-    "ceo_premium_reward_max": 1800,
-    "ceo_premium_cost": 200,
+    "ceo_fast_reward_min": 350,
+    "ceo_fast_reward_max": 900,
+    "ceo_safe_reward_min": 150,
+    "ceo_safe_reward_max": 380,
+    "ceo_premium_reward_min": 550,
+    "ceo_premium_reward_max": 1100,
+    "ceo_premium_cost": 350,
     "cayo_heist_prize_min": 8000,
     "cayo_heist_prize_max": 15000,
     "kortz_heist_prize_min": 10000,
@@ -583,12 +725,12 @@ DEFAULT_SETTINGS = {
     "casino_membership_diamond": 40000,
     "casino_penthouse_price": 320000,
     # Music Locker
-    "music_entry_fee": 50,
-    "music_entry_reward": 300,
-    "music_event_reward_min": 120,
-    "music_event_reward_max": 280,
+    "music_entry_fee": 75,
+    "music_entry_reward": 550,
+    "music_event_reward_min": 280,
+    "music_event_reward_max": 520,
     "music_vip_price": 12000,
-    "music_vip_bonus_mult": 1.5,
+    "music_vip_bonus_mult": 1.75,
     "music_event_cooldown": 36000,   # 10 hours
     "music_entry_cooldown": 14400,   # 4 hours
     # Service bonus (admin adjustable)
@@ -604,7 +746,7 @@ DEFAULT_SETTINGS = {
     "cayo_heist_cooldown": 172800,   # 48 hours
     # Car Theft Job
     "car_theft_cooldown": 28800,     # 8 hours
-    "car_theft_cost": 1000,
+    "car_theft_cost": 2000,
     "export_car_cooldown": 43200,    # 12 hours
     "warehouse_max_vehicles": 30,
     # FreakShop (Dax / Fooliganz)
@@ -619,6 +761,7 @@ DEFAULT_SETTINGS = {
     "doomsday_prep_cooldown": 43200,   # 12 hours between prep claims
     "doomsday_total_prize": 5000,
     "doomsday_invite_timeout": 900,    # 15 minutes
+    "kortz_heist_cooldown": 172800,   # 48 hours
     # Casino Heist (future / admin adjustable)
     "casino_heist_prize_min": 6000,
     "casino_heist_prize_max": 12000,
@@ -671,60 +814,63 @@ class EconomyData:
     SETTINGS_KEY = "economy_settings"
     PANELS_KEY = "economy_panels"
 
+
     def __init__(self):
-        self._lock = asyncio.Lock()
+        self._io_lock = _economy_io_lock
         self._ensure()
 
     def _ensure(self):
-        users = load_json(self.USERS_KEY, {})
-        if not isinstance(users, dict):
-            users = {}
-            save_json(self.USERS_KEY, users)
-        shop = load_json(self.SHOP_KEY, None)
-        if not shop:
-            save_json(self.SHOP_KEY, DEFAULT_SHOP)
-        settings = load_json(self.SETTINGS_KEY, None)
-        if not settings:
-            save_json(self.SETTINGS_KEY, DEFAULT_SETTINGS.copy())
-        panels = load_json(self.PANELS_KEY, {})
-        if not isinstance(panels, dict):
-            save_json(self.PANELS_KEY, {})
+        with self._io_lock:
+            users = load_json(self.USERS_KEY, {})
+            if not isinstance(users, dict):
+                users = {}
+                save_json(self.USERS_KEY, users)
+            shop = load_json(self.SHOP_KEY, None)
+            if not shop:
+                save_json(self.SHOP_KEY, DEFAULT_SHOP)
+            settings = load_json(self.SETTINGS_KEY, None)
+            if not settings:
+                save_json(self.SETTINGS_KEY, DEFAULT_SETTINGS.copy())
+            panels = load_json(self.PANELS_KEY, {})
+            if not isinstance(panels, dict):
+                save_json(self.PANELS_KEY, {})
 
-    def get_user(self, user_id: int) -> Dict[str, Any]:
-        users = load_json(self.USERS_KEY, {})
-        uid = str(user_id)
-        changed = False
-        if uid not in users:
-            users[uid] = {
-                "wallet": 0,
-                "bank": 0,
-                "last_daily": 0,
-                "streak": 0,
-                "inventory": {},
-                "total_earned": 0,
-                "total_spent": 0,
-                "last_work": 0,
-                "last_balance": 0,
-                "last_motoclub": 0,
-                "last_ceo": 0,
-                "last_lucky_wheel": 0,
-                "last_music_event": 0,
-                "last_music_entry": 0,
-                "casino_membership": None,
-                "music_vip": False,
-                "slots_uses": 0,
-                "slots_window_start": 0,
-                "last_cayo_heist": 0,
-                "last_car_theft": 0,
-                "last_export_car": 0,
-                "last_badonkadonk": 0,
-                "last_call_dax": 0,
-                "last_labrat": 0,
-                "last_doomsday_prep": 0,
-                "created_at": _now_ts(),
-            }
-            changed = True
-        u = users[uid]
+    def _default_user(self) -> Dict[str, Any]:
+        return {
+            "wallet": 0,
+            "bank": 0,
+            "last_daily": 0,
+            "streak": 0,
+            "inventory": {},
+            "total_earned": 0,
+            "total_spent": 0,
+            "last_work": 0,
+            "last_balance": 0,
+            "last_motoclub": 0,
+            "last_ceo": 0,
+            "last_lucky_wheel": 0,
+            "last_music_event": 0,
+            "last_music_entry": 0,
+            "casino_membership": None,
+            "music_vip": False,
+            "slots_uses": 0,
+            "slots_window_start": 0,
+            "last_cayo_heist": 0,
+            "last_car_theft": 0,
+            "last_export_car": 0,
+            "last_badonkadonk": 0,
+            "last_call_dax": 0,
+            "last_labrat": 0,
+            "last_doomsday_prep": 0,
+            "last_kortz_heist": 0,
+            "xp": 0,
+            "achievements": [],
+            "stats": {},
+            "created_at": _now_ts(),
+        }
+
+    def _migrate_user(self, u: Dict[str, Any]) -> bool:
+        """Fill missing keys. Returns True if mutated."""
         defaults = {
             "last_motoclub": 0,
             "last_ceo": 0,
@@ -752,90 +898,250 @@ class EconomyData:
             "last_call_dax": 0,
             "last_labrat": 0,
             "last_doomsday_prep": 0,
+            "last_kortz_heist": 0,
+            "xp": 0,
+            "achievements": [],
+            "stats": {},
         }
+        changed = False
         for k, v in defaults.items():
             if k not in u:
                 u[k] = v
                 changed = True
+        return changed
+
+    def _get_user_unlocked(self, user_id: int) -> Dict[str, Any]:
+        users = load_json(self.USERS_KEY, {})
+        uid = str(user_id)
+        changed = False
+        if uid not in users:
+            users[uid] = self._default_user()
+            changed = True
+        u = users[uid]
+        if self._migrate_user(u):
+            changed = True
         if changed:
             users[uid] = u
             save_json(self.USERS_KEY, users)
         return u
 
-    def save_user(self, user_id: int, data: Dict[str, Any]):
+    def _save_user_unlocked(self, user_id: int, data: Dict[str, Any]) -> None:
         users = load_json(self.USERS_KEY, {})
         users[str(user_id)] = data
         save_json(self.USERS_KEY, users)
 
+    def get_user(self, user_id: int) -> Dict[str, Any]:
+        with self._io_lock:
+            # Return a shallow copy so accidental external mutation is less risky;
+            # callers that mutate must save_user / update_user.
+            u = self._get_user_unlocked(user_id)
+            return dict(u)
+
+    def save_user(self, user_id: int, data: Dict[str, Any]) -> None:
+        with self._io_lock:
+            self._save_user_unlocked(user_id, data)
+
+    def update_user(self, user_id: int, mutator) -> Dict[str, Any]:
+        """Atomic read-modify-write for a single user. mutator(u) mutates in place."""
+        with self._io_lock:
+            u = self._get_user_unlocked(user_id)
+            mutator(u)
+            self._save_user_unlocked(user_id, u)
+            return dict(u)
+
     def add_money(self, user_id: int, amount: int, reason: str = "") -> int:
-        u = self.get_user(user_id)
-        # Apply service bonus on positive earnings from services
-        if amount > 0 and reason in ("daily", "work", "motoclub", "ceo_securo", "cayo_heist", "kortz_heist", "music_event", "music_presence", "lucky_wheel"):
-            settings = self.get_settings()
-            bonus = int(settings.get("service_bonus", 0))
-            if bonus > 0:
-                amount += bonus
-        u["wallet"] = max(0, int(u.get("wallet", 0)) + amount)
-        if amount > 0:
-            u["total_earned"] = int(u.get("total_earned", 0)) + amount
-        else:
-            u["total_spent"] = int(u.get("total_spent", 0)) + abs(amount)
-        self.save_user(user_id, u)
-        return u["wallet"]
+        with self._io_lock:
+            u = self._get_user_unlocked(user_id)
+            u["wallet"] = int(u.get("wallet", 0)) + int(amount)
+            if amount > 0:
+                u["total_earned"] = int(u.get("total_earned", 0)) + amount
+                xp_gain = int(XP_REWARDS.get(reason, 0))
+                if xp_gain > 0:
+                    self._grant_xp(u, xp_gain, reason)
+                self._bump_stat(u, reason)
+                self._check_achievements(user_id, u)
+            elif amount < 0:
+                u["total_spent"] = int(u.get("total_spent", 0)) + abs(amount)
+            self._save_user_unlocked(user_id, u)
+            return int(u["wallet"])
+
+    def _grant_xp(self, u: Dict[str, Any], amount: int, reason: str = "") -> Optional[Dict[str, Any]]:
+        old_xp = int(u.get("xp", 0))
+        old_rank = _rank_for_xp(old_xp)
+        new_xp = old_xp + max(0, int(amount))
+        u["xp"] = new_xp
+        new_rank = _rank_for_xp(new_xp)
+        if int(new_rank["level"]) > int(old_rank["level"]):
+            return {"old": old_rank, "new": new_rank, "xp": new_xp}
+        return None
+
+    def add_xp(self, user_id: int, amount: int, reason: str = "") -> Optional[Dict[str, Any]]:
+        with self._io_lock:
+            u = self._get_user_unlocked(user_id)
+            info = self._grant_xp(u, amount, reason)
+            self._bump_stat(u, reason)
+            self._check_achievements(user_id, u)
+            self._save_user_unlocked(user_id, u)
+            return info
+
+    def _bump_stat(self, u: Dict[str, Any], key: str) -> None:
+        stats = u.get("stats") or {}
+        if not isinstance(stats, dict):
+            stats = {}
+        stats[key] = int(stats.get(key, 0)) + 1
+        u["stats"] = stats
+
+    def _check_achievements(self, user_id: int, u: Dict[str, Any]) -> List[str]:
+        unlocked = list(u.get("achievements") or [])
+        newly = []
+        inv = u.get("inventory") or {}
+        stats = u.get("stats") or {}
+        xp = int(u.get("xp", 0))
+        rank = _rank_for_xp(xp)
+        streak = int(u.get("streak", 0))
+        membership = u.get("casino_membership")
+
+        def has(aid: str) -> bool:
+            return aid in unlocked
+
+        checks = {
+            "first_daily": int(stats.get("daily", 0)) >= 1,
+            "streak_7": streak >= 7,
+            "first_work": int(stats.get("work", 0)) >= 1,
+            "first_heist": (
+                int(stats.get("cayo_heist", 0))
+                + int(stats.get("kortz_heist", 0))
+                + int(stats.get("doomsday_heist", 0))
+            ) >= 1,
+            "cayo": int(stats.get("cayo_heist", 0)) >= 1 or inv.get("ach_cayo_heist", 0) >= 1,
+            "kortz": int(stats.get("kortz_heist", 0)) >= 1 or inv.get("ach_kortz_heist", 0) >= 1,
+            "doomsday": int(stats.get("doomsday_heist", 0)) >= 1 or inv.get("ach_doomsday_heist", 0) >= 1,
+            "warehouse": inv.get("biz_warehouse", 0) >= 1,
+            "export_5": int(stats.get("export_car", 0)) + int(stats.get("export_event", 0)) >= 5,
+            "music_vip": bool(u.get("music_vip")),
+            "casino_vip": membership in ("vip", "diamond"),
+            "penthouse": inv.get("casino_penthouse", 0) >= 1,
+            "rank_10": int(rank["level"]) >= 10,
+            "rank_25": int(rank["level"]) >= 25,
+            "rank_50": int(rank["level"]) >= 50,
+            "million": int(u.get("total_earned", 0)) >= 1_000_000,
+            "fooligan": int(stats.get("badonkadonk", 0)) >= 5,
+            "dealer": sum(
+                1 for iid, q in inv.items()
+                if q and not str(iid).startswith("theft_")
+                and (self.get_all_items().get(iid, {}).get("type") in ("car", "motorcycle", "aircraft", "boat"))
+            ) >= 5,
+        }
+        for ach in ACHIEVEMENTS:
+            aid = ach["id"]
+            if has(aid):
+                continue
+            key = ach.get("check")
+            if key and checks.get(key):
+                unlocked.append(aid)
+                newly.append(aid)
+                inv[aid] = inv.get(aid, 0) + 1
+        u["achievements"] = unlocked
+        u["inventory"] = inv
+        crest = _crest_for_count(len(unlocked))
+        if crest["id"] != "crest_none":
+            for t in CREST_TIERS:
+                if t["id"] != "crest_none" and t["id"] in inv and t["id"] != crest["id"]:
+                    inv.pop(t["id"], None)
+            inv[crest["id"]] = 1
+            u["inventory"] = inv
+        return newly
 
     def set_money(self, user_id: int, amount: int) -> int:
-        u = self.get_user(user_id)
-        u["wallet"] = max(0, int(amount))
-        self.save_user(user_id, u)
-        return u["wallet"]
+        with self._io_lock:
+            u = self._get_user_unlocked(user_id)
+            u["wallet"] = max(0, int(amount))
+            self._save_user_unlocked(user_id, u)
+            return u["wallet"]
 
     def get_bank(self, user_id: int) -> int:
-        u = self.get_user(user_id)
-        return int(u.get("bank", 0))
+        with self._io_lock:
+            u = self._get_user_unlocked(user_id)
+            return int(u.get("bank", 0))
 
     def set_bank(self, user_id: int, amount: int) -> int:
-        u = self.get_user(user_id)
-        u["bank"] = max(0, int(amount))
-        self.save_user(user_id, u)
-        return u["bank"]
+        with self._io_lock:
+            u = self._get_user_unlocked(user_id)
+            u["bank"] = max(0, int(amount))
+            self._save_user_unlocked(user_id, u)
+            return u["bank"]
 
     def add_bank(self, user_id: int, amount: int) -> int:
-        u = self.get_user(user_id)
-        u["bank"] = max(0, int(u.get("bank", 0)) + amount)
-        self.save_user(user_id, u)
-        return u["bank"]
+        with self._io_lock:
+            u = self._get_user_unlocked(user_id)
+            u["bank"] = max(0, int(u.get("bank", 0)) + amount)
+            self._save_user_unlocked(user_id, u)
+            return u["bank"]
 
     def get_settings(self) -> Dict[str, Any]:
-        s = load_json(self.SETTINGS_KEY, DEFAULT_SETTINGS.copy())
-        for k, v in DEFAULT_SETTINGS.items():
-            s.setdefault(k, v)
-        return s
+        with self._io_lock:
+            s = load_json(self.SETTINGS_KEY, DEFAULT_SETTINGS.copy())
+            for k, v in DEFAULT_SETTINGS.items():
+                s.setdefault(k, v)
+            return dict(s)
 
     def save_settings(self, data: Dict[str, Any]):
-        save_json(self.SETTINGS_KEY, data)
+        with self._io_lock:
+            save_json(self.SETTINGS_KEY, data)
 
     def get_shop(self) -> List[Dict[str, Any]]:
-        return load_json(self.SHOP_KEY, DEFAULT_SHOP.copy())
+        with self._io_lock:
+            return load_json(self.SHOP_KEY, DEFAULT_SHOP.copy())
 
     def save_shop(self, shop: List[Dict[str, Any]]):
-        save_json(self.SHOP_KEY, shop)
+        with self._io_lock:
+            save_json(self.SHOP_KEY, shop)
 
     def get_all_users(self) -> Dict[str, Dict]:
-        return load_json(self.USERS_KEY, {})
+        with self._io_lock:
+            return load_json(self.USERS_KEY, {})
 
     def reset_user(self, user_id: int):
-        users = load_json(self.USERS_KEY, {})
-        users.pop(str(user_id), None)
-        save_json(self.USERS_KEY, users)
+        with self._io_lock:
+            users = load_json(self.USERS_KEY, {})
+            users.pop(str(user_id), None)
+            save_json(self.USERS_KEY, users)
 
     def reset_all(self):
-        save_json(self.USERS_KEY, {})
+        with self._io_lock:
+            save_json(self.USERS_KEY, {})
 
     def get_panels(self) -> Dict:
-        return load_json(self.PANELS_KEY, {})
+        with self._io_lock:
+            return load_json(self.PANELS_KEY, {})
 
     def save_panels(self, data: Dict):
-        save_json(self.PANELS_KEY, data)
+        with self._io_lock:
+            save_json(self.PANELS_KEY, data)
+
+    def try_claim_export(self) -> bool:
+        """Atomically claim the admin export event. Returns True if this caller won."""
+        with self._io_lock:
+            panels = load_json(self.PANELS_KEY, {})
+            if panels.get("export_claimed"):
+                return False
+            panels["export_claimed"] = True
+            save_json(self.PANELS_KEY, panels)
+            return True
+
+    def apply_all_users(self, mutator) -> int:
+        """Atomically mutate every user. mutator(uid, u) -> None. Returns count."""
+        with self._io_lock:
+            users = load_json(self.USERS_KEY, {})
+            count = 0
+            for uid, u in users.items():
+                if not isinstance(u, dict):
+                    continue
+                mutator(uid, u)
+                count += 1
+            save_json(self.USERS_KEY, users)
+            return count
+
 
     def get_all_items(self) -> Dict[str, Dict]:
         """Combine all shop catalogs for inventory lookup."""
@@ -844,6 +1150,7 @@ class EconomyData:
             BENNYS_SOUTHERN,
             BENNYS_LEGENDARY,
             BENNYS_LOST_MC,
+            BENNYS_WORKSHOP,
             WARSTOCK_ITEMS,
             ELITAS_ITEMS,
             DOCKTEASE_ITEMS,
@@ -862,6 +1169,25 @@ class EconomyData:
         items[KORTZ_ACHIEVEMENT["id"]] = KORTZ_ACHIEVEMENT
         items[DOOMSDAY_TICKET["id"]] = DOOMSDAY_TICKET
         items[DOOMSDAY_ACHIEVEMENT["id"]] = DOOMSDAY_ACHIEVEMENT
+        for ach in ACHIEVEMENTS:
+            items[ach["id"]] = {
+                "id": ach["id"],
+                "name": ach["name"],
+                "emoji": ach["emoji"],
+                "type": "achievement",
+                "desc": ach["desc"],
+            }
+        for crest in CREST_TIERS:
+            if crest["id"] == "crest_none":
+                continue
+            items[crest["id"]] = {
+                "id": crest["id"],
+                "name": crest["name"],
+                "emoji": crest["emoji"],
+                "type": "crest",
+                "desc": "Achievement crest tier.",
+            }
+
         items[CASINO_PENTHOUSE["id"]] = CASINO_PENTHOUSE
         for it in CASINO_PODIUM:
             items[it["id"]] = it
@@ -1068,7 +1394,7 @@ class ShopBuyView(discord.ui.View):
             ),
             color=COLOR_SUCCESS,
         )
-        public.set_footer(text=f"GTA Economy · {self.shop_name}")
+        public.set_footer(text=f"GTA Roleplay · {self.shop_name}")
         await post_to_market(self.cog.bot, interaction.user, public)
 
 
@@ -1076,6 +1402,49 @@ class ShopBuyView(discord.ui.View):
 # ═══════════════════════════════════════════════════════════════════════════
 # MOTOCLUB MISSION VIEWS
 # ═══════════════════════════════════════════════════════════════════════════
+
+
+class CarDealershipHubView(discord.ui.View):
+    """Choose a dealership, then open that shop catalog."""
+
+    def __init__(self, cog: "Economy", user_id: int):
+        super().__init__(timeout=120)
+        self.cog = cog
+        self.user_id = user_id
+
+    async def _open_shop(self, interaction: discord.Interaction, items, title: str, color):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your menu.", ephemeral=True)
+        lines = [
+            f"{it.get('emoji', '🚗')} **{it['name']}** — {_fmt(it['price'])} {CURRENCY}"
+            for it in items
+        ]
+        embed = discord.Embed(
+            title=title,
+            description="Select a vehicle below to purchase.\n\n" + "\n".join(lines),
+            color=color,
+        )
+        embed.set_image(url=IMG["bennys"])
+        embed.set_footer(text=f"{title} · Private")
+        view = ShopBuyView(self.cog, self.user_id, items, title)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    @discord.ui.button(label="🏁 Southern SA Super Autos", style=discord.ButtonStyle.primary, row=0)
+    async def southern(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._open_shop(interaction, BENNYS_SOUTHERN, "🏁 Southern San Andreas Super Autos", COLOR_MAIN)
+
+    @discord.ui.button(label="🏆 Legendary Motorsport", style=discord.ButtonStyle.primary, row=0)
+    async def legendary(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._open_shop(interaction, BENNYS_LEGENDARY, "🏆 Legendary Motorsport", COLOR_MAIN)
+
+    @discord.ui.button(label="☠️ Lost MC Shop", style=discord.ButtonStyle.danger, row=1)
+    async def lost_mc(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._open_shop(interaction, BENNYS_LOST_MC, "☠️ Lost MC Shop", COLOR_FAIL)
+
+    @discord.ui.button(label="🔧 Benny's Workshop", style=discord.ButtonStyle.success, row=1)
+    async def bennys_ws(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._open_shop(interaction, BENNYS_WORKSHOP, "🔧 Benny's Original Motor Works", COLOR_SUCCESS)
+
 
 class MotoClubStartView(discord.ui.View):
     """Ephemeral menu to start a MotoClub product delivery."""
@@ -1799,6 +2168,19 @@ class KortzMainView(discord.ui.View):
         if interaction.user.id != self.user_id:
             return await interaction.response.send_message("This is not your panel.", ephemeral=True)
         u = self.cog.data.get_user(self.user_id)
+        settings = self.cog.data.get_settings()
+        now = _now_ts()
+        last = float(u.get("last_kortz_heist", 0))
+        cd = settings.get("kortz_heist_cooldown", 172800)
+        if now - last < cd:
+            rem = int(cd - (now - last))
+            embed = discord.Embed(
+                title="⏳ Kortz Center on Cooldown",
+                description=f"Security is still on high alert. Launch again in **{_fmt_time(rem)}**.",
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
         inv = u.get("inventory", {})
         if inv.get("kortz_invite", 0) < 1:
             embed = discord.Embed(
@@ -1812,6 +2194,7 @@ class KortzMainView(discord.ui.View):
         if inv["kortz_invite"] <= 0:
             inv.pop("kortz_invite", None)
         u["inventory"] = inv
+        u["last_kortz_heist"] = now
         self.cog.data.save_user(self.user_id, u)
 
         view = KortzQuizView(self.cog, self.user_id, stage=0)
@@ -1977,7 +2360,7 @@ class KortzRewardButton(discord.ui.Button):
             description=f"{interaction.user.mention} completed The Kortz Center Heist and earned **{_fmt(reward)}** {CURRENCY}!",
             color=COLOR_ORANGE,
         )
-        await post_to_market(self.cog.bot, interaction.user, public)
+        await post_to_market(self.cog.bot, interaction.user, public, gif_key="mission_passed")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -2509,9 +2892,9 @@ class MusicLockerView(discord.ui.View):
                 "**Los Santos · Underground Nightlife**\n\n"
                 f"Tonight's event: **{event_name}**\n"
                 f"VIP Access: {'✅ Unlocked (free entry + bonus rewards)' if is_vip else '❌ Not unlocked'}\n\n"
-                f"• **Enter Club** — pay {_fmt(settings.get('music_entry_fee', 50))} "
-                f"(free for VIP) · small presence bonus · **4h cooldown**\n"
-                f"• **Join Event** — event reward · **10h cooldown**\n"
+                f"• **Enter Club** — pay {_fmt(settings.get('music_entry_fee', 75))} "
+                f"(free for VIP) · presence bonus ~{_fmt(settings.get('music_entry_reward', 550))} · **4h cooldown**\n"
+                f"• **Join Event** — higher event rewards · **10h cooldown**\n"
                 f"• **Unlock VIP** — permanent VIP for {_fmt(settings.get('music_vip_price', 12000))} {CURRENCY}"
             ),
             color=COLOR_PURPLE,
@@ -2636,27 +3019,75 @@ class MusicLockerView(discord.ui.View):
                 "You already have permanent **VIP Access**.", ephemeral=True
             )
         price = settings.get("music_vip_price", 12000)
-        if u["wallet"] < price:
-            return await interaction.response.send_message(
-                f"VIP costs **{_fmt(price)}** {CURRENCY}. You have **{_fmt(u['wallet'])}**.",
-                ephemeral=True,
+        view = MusicVipConfirmView(self.cog, self.user_id, price)
+        embed = discord.Embed(
+            title="⭐ Confirm VIP Purchase",
+            description=(
+                f"Unlock permanent **Music Locker VIP** for **{_fmt(price)}** {CURRENCY}?\n\n"
+                "Benefits:\n"
+                "• Free club entry forever\n"
+                "• **+75%** event rewards\n"
+                "• Prestige status at The Music Locker\n\n"
+                f"Your wallet: **{_fmt(u['wallet'])}** {CURRENCY}"
+            ),
+            color=COLOR_PURPLE,
+        )
+        embed.set_footer(text="This purchase is permanent and cannot be refunded.")
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+
+class MusicVipConfirmView(discord.ui.View):
+    def __init__(self, cog: "Economy", user_id: int, price: int):
+        super().__init__(timeout=60)
+        self.cog = cog
+        self.user_id = user_id
+        self.price = price
+
+    @discord.ui.button(label="✅ Confirm Purchase", style=discord.ButtonStyle.success)
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("Not your menu.", ephemeral=True)
+        u = self.cog.data.get_user(self.user_id)
+        if u.get("music_vip"):
+            return await interaction.response.edit_message(
+                embed=discord.Embed(title="Already VIP", description="You already have VIP.", color=COLOR_INFO),
+                view=None,
             )
-        self.cog.data.add_money(self.user_id, -price, "music_vip")
+        if u["wallet"] < self.price:
+            return await interaction.response.edit_message(
+                embed=discord.Embed(
+                    title="Insufficient Funds",
+                    description=f"Need **{_fmt(self.price)}**. You have **{_fmt(u['wallet'])}**.",
+                    color=COLOR_FAIL,
+                ),
+                view=None,
+            )
+        self.cog.data.add_money(self.user_id, -self.price, "music_vip")
         u = self.cog.data.get_user(self.user_id)
         u["music_vip"] = True
         self.cog.data.save_user(self.user_id, u)
         embed = discord.Embed(
             title="⭐ VIP Access Unlocked",
             description=(
-                f"Permanent VIP for **{_fmt(price)}** {CURRENCY}.\n"
+                f"Permanent VIP for **{_fmt(self.price)}** {CURRENCY}.\n"
                 "• Free club entry\n"
-                "• +50% event rewards\n"
+                "• +75% event rewards\n"
                 "• Prestige status at The Music Locker"
             ),
             color=COLOR_SUCCESS,
         )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.edit_message(embed=embed, view=None)
 
+    @discord.ui.button(label="❌ Cancel", style=discord.ButtonStyle.secondary)
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("Not your menu.", ephemeral=True)
+        embed = discord.Embed(
+            title="Cancelled",
+            description="VIP purchase cancelled. No coins were charged.",
+            color=COLOR_INFO,
+        )
+        await interaction.response.edit_message(embed=embed, view=None)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -3066,6 +3497,8 @@ class CarTheftClassView(discord.ui.View):
         u = self.cog.data.get_user(self.user_id)
         u["last_car_theft"] = _now_ts()
         self.cog.data.save_user(self.user_id, u)
+        if success:
+            self.cog.data.add_xp(self.user_id, XP_REWARDS.get("car_theft_success", 65), "car_theft_success")
 
         if success:
             # Check capacity again (race safety)
@@ -3567,6 +4000,32 @@ def _doomsday_prep_progress(u: Dict) -> Tuple[int, List[str]]:
 _doomsday_sessions: Dict[str, Dict[str, Any]] = {}
 
 
+def _dd_set(session_id: str, data: Dict[str, Any]) -> None:
+    with _doomsday_sessions_lock:
+        _doomsday_sessions[session_id] = data
+
+
+def _dd_get(session_id: str) -> Optional[Dict[str, Any]]:
+    with _doomsday_sessions_lock:
+        s = _doomsday_sessions.get(session_id)
+        return dict(s) if s else None
+
+
+def _dd_update(session_id: str, mutator) -> Optional[Dict[str, Any]]:
+    with _doomsday_sessions_lock:
+        s = _doomsday_sessions.get(session_id)
+        if not s:
+            return None
+        mutator(s)
+        return dict(s)
+
+
+def _dd_pop(session_id: str) -> Optional[Dict[str, Any]]:
+    with _doomsday_sessions_lock:
+        return _doomsday_sessions.pop(session_id, None)
+
+
+
 class DoomsdayMainView(discord.ui.View):
     """Main Doomsday Heist panel (ephemeral). Free prep items, 1 every 12h."""
 
@@ -3746,7 +4205,7 @@ class DoomsdayInviteChoiceView(discord.ui.View):
         self.cog.data.save_user(self.user_id, u)
 
         session_id = f"dd_{self.user_id}_{int(_now_ts())}"
-        _doomsday_sessions[session_id] = {
+        _dd_set(session_id, {
             "leader_id": self.user_id,
             "partner_id": None,  # Gustavo
             "is_npc": True,
@@ -3754,7 +4213,7 @@ class DoomsdayInviteChoiceView(discord.ui.View):
             "stages_ok": 0,
             "current_player": "leader",  # leader does all 4 stages when NPC
             "prize_pool": int(self.cog.data.get_settings().get("doomsday_total_prize", 5000) * 0.50),
-        }
+        })
         view = DoomsdayMemoryView(self.cog, session_id, self.user_id)
         embed = view.build_show_embed()
         await interaction.response.edit_message(embed=embed, view=view)
@@ -3795,7 +4254,7 @@ class DoomsdayInviteModal(discord.ui.Modal, title="Invite Partner to Doomsday He
         settings = self.cog.data.get_settings()
         timeout = settings.get("doomsday_invite_timeout", 900)
         session_id = f"dd_{self.leader_id}_{partner_id}_{int(_now_ts())}"
-        _doomsday_sessions[session_id] = {
+        _dd_set(session_id, {
             "leader_id": self.leader_id,
             "partner_id": partner_id,
             "is_npc": False,
@@ -3805,7 +4264,7 @@ class DoomsdayInviteModal(discord.ui.Modal, title="Invite Partner to Doomsday He
             "prize_pool": settings.get("doomsday_total_prize", 5000),
             "accepted": False,
             "expires": _now_ts() + timeout,
-        }
+        })
 
         # Post invite to Market channel
         partner = interaction.guild.get_member(partner_id) if interaction.guild else None
@@ -3839,18 +4298,20 @@ class DoomsdayInviteResponseView(discord.ui.View):
 
     @discord.ui.button(label="✅ Accept Heist", style=discord.ButtonStyle.success)
     async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
-        session = _doomsday_sessions.get(self.session_id)
+        session = _dd_get(self.session_id)
         if not session:
             return await interaction.response.send_message("This invitation has expired.", ephemeral=True)
         if interaction.user.id != session["partner_id"]:
             return await interaction.response.send_message("This invitation is not for you.", ephemeral=True)
         if _now_ts() > session.get("expires", 0):
-            _doomsday_sessions.pop(self.session_id, None)
+            _dd_pop(self.session_id)
             return await interaction.response.send_message("Invitation timed out (15 min).", ephemeral=True)
         if session.get("accepted"):
             return await interaction.response.send_message("Already accepted.", ephemeral=True)
 
-        session["accepted"] = True
+        def _mark(s):
+            s["accepted"] = True
+        session = _dd_update(self.session_id, _mark) or session
         # Notify both and start memory game for leader first
         await interaction.response.edit_message(view=None)
         public = discord.Embed(
@@ -3880,12 +4341,12 @@ class DoomsdayInviteResponseView(discord.ui.View):
 
     @discord.ui.button(label="❌ Decline", style=discord.ButtonStyle.danger)
     async def decline(self, interaction: discord.Interaction, button: discord.ui.Button):
-        session = _doomsday_sessions.get(self.session_id)
+        session = _dd_get(self.session_id)
         if not session:
             return await interaction.response.send_message("Invitation expired.", ephemeral=True)
         if interaction.user.id != session["partner_id"]:
             return await interaction.response.send_message("This invitation is not for you.", ephemeral=True)
-        _doomsday_sessions.pop(self.session_id, None)
+        _dd_pop(self.session_id)
         # Refund ticket to leader
         u = self.cog.data.get_user(session["leader_id"])
         inv = u.get("inventory", {})
@@ -3914,7 +4375,7 @@ class DoomsdayMemoryView(discord.ui.View):
         self.cog = cog
         self.session_id = session_id
         self.player_id = player_id
-        session = _doomsday_sessions.get(session_id, {})
+        session = _dd_get(session_id) or {}
         self.sequence = random.sample(DOOMSDAY_MEMORY_SYMBOLS, 4)
         self.clicked: List[str] = []
         self.phase = "show"  # show -> input
@@ -3930,7 +4391,7 @@ class DoomsdayMemoryView(discord.ui.View):
             self.add_item(btn)
 
     def build_show_embed(self) -> discord.Embed:
-        session = _doomsday_sessions.get(self.session_id, {})
+        session = _dd_get(self.session_id) or {}
         stage = session.get("stages_done", 0) + 1
         seq_str = "  ".join(self.sequence)
         embed = discord.Embed(
@@ -3957,17 +4418,20 @@ class DoomsdayMemoryView(discord.ui.View):
                 return
 
             # Evaluate
-            session = _doomsday_sessions.get(self.session_id)
+            session = _dd_get(self.session_id)
             if not session:
                 return await interaction.response.edit_message(
                     embed=discord.Embed(title="Session expired", color=COLOR_FAIL), view=None
                 )
 
             correct = self.clicked == self.sequence
-            session["stages_done"] = session.get("stages_done", 0) + 1
-            if correct:
-                session["stages_ok"] = session.get("stages_ok", 0) + 1
 
+            def _stage(s, ok=correct):
+                s["stages_done"] = s.get("stages_done", 0) + 1
+                if ok:
+                    s["stages_ok"] = s.get("stages_ok", 0) + 1
+
+            session = _dd_update(self.session_id, _stage) or session
             stage_num = session["stages_done"]
             result_txt = "✅ Correct!" if correct else f"❌ Wrong. Sequence was: {' '.join(self.sequence)}"
             embed = discord.Embed(
@@ -4044,7 +4508,7 @@ class DoomsdayMemoryView(discord.ui.View):
             u["inventory"] = inv
             self.cog.data.save_user(leader_id, u)
 
-        _doomsday_sessions.pop(self.session_id, None)
+        _dd_pop(self.session_id)
 
         desc = (
             f"**Stages cleared:** {ok}/4\n"
@@ -4114,7 +4578,7 @@ class MemberPanelView(discord.ui.View):
             ),
             color=COLOR_CONSTRUCTION,
         )
-        embed.set_footer(text=f"GTA Economy · {title} · Coming Soon")
+        embed.set_footer(text=f"GTA Roleplay · {title} · Coming Soon")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     async def _coming_soon(
@@ -4137,7 +4601,7 @@ class MemberPanelView(discord.ui.View):
         gif = _apply_gif_image(embed, gif_key) if gif_key else None
         if gif is None:
             embed.set_image(url=image_url)
-        embed.set_footer(text=f"GTA Economy · {title} · Coming Soon")
+        embed.set_footer(text=f"GTA Roleplay · {title} · Coming Soon")
         kwargs = {"embed": embed, "ephemeral": True}
         if gif is not None:
             kwargs["file"] = gif
@@ -4262,11 +4726,11 @@ class MemberPanelView(discord.ui.View):
             ),
             color=COLOR_INFO,
         )
-        embed.set_footer(text="GTA Economy · Private · Cooldown List")
+        embed.set_footer(text="GTA Roleplay · Private · Cooldown List")
         await interaction.followup.send(embed=embed, ephemeral=True)
 
     # ── Row 1 — Blue shops ──
-    @discord.ui.button(label="🏎️ Benny's Workshop", style=discord.ButtonStyle.primary, custom_id="eco_bennys", row=1)
+    @discord.ui.button(label="🏎️ Car Dealerships", style=discord.ButtonStyle.primary, custom_id="eco_bennys", row=1)
     async def btn_bennys(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._send_ephemeral_result(interaction, "bennys")
 
@@ -4314,7 +4778,7 @@ class MemberPanelView(discord.ui.View):
             ),
             color=COLOR_CONSTRUCTION,
         )
-        embed.set_footer(text="GTA Economy · Vanilla Unicorn · Coming Soon")
+        embed.set_footer(text="GTA Roleplay · Vanilla Unicorn · Coming Soon")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @discord.ui.button(label="☢️ Doomsday Heist", style=discord.ButtonStyle.secondary, custom_id="eco_doomsday", row=2)
@@ -4465,11 +4929,11 @@ class MemberPanelView(discord.ui.View):
     @discord.ui.button(label="❓ Help", style=discord.ButtonStyle.secondary, custom_id="eco_help", row=4)
     async def btn_help(self, interaction: discord.Interaction, button: discord.ui.Button):
         embed = discord.Embed(
-            title="❓ GTA Economy — Help",
+            title="❓ GTA Roleplay — Help",
             description=(
                 f"**Currency:** {CURRENCY_EMOJI} {CURRENCY}\n\n"
                 "**Core (green):** Daily (18h, private) · Work (6h, private) · Pay · Maze Bank\n\n"
-                "**Shops:** Benny's · Elitas · Warstock · DockTease · Dynasty8 · Dynasty8 Executive\n\n"
+                "**Shops:** Car Dealerships · Elitas · Warstock · DockTease · Dynasty8 · Dynasty8 Executive\n\n"
                 "**Lifestyle:** Casino Resort (Slots: 3/24h) · Music Locker (Enter 4h · Event 10h · presence +300) · Master Penthouse\n\n"
                 "**Missions (6h):** CEO SecuroServ · MotoClub\n"
                 "**Car Theft Job** (requires Warehouse): Car Theft 8h · Export 12h · max 30 vehicles\n"
@@ -4481,7 +4945,7 @@ class MemberPanelView(discord.ui.View):
             ),
             color=COLOR_INFO,
         )
-        embed.set_footer(text="GTA Economy")
+        embed.set_footer(text="GTA Roleplay")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @discord.ui.button(label="🎒 Inventory", style=discord.ButtonStyle.secondary, custom_id="eco_inv", row=4)
@@ -4569,7 +5033,7 @@ class PayModal(discord.ui.Modal, title="💸 Pay Member"):
             description=f"{interaction.user.mention} sent **{_fmt(amount)}** {CURRENCY} to **{name}**.",
             color=COLOR_SUCCESS,
         )
-        embed.set_footer(text="GTA Economy")
+        embed.set_footer(text="GTA Roleplay")
         await post_to_market(self.cog.bot, interaction.user, embed)
         await interaction.followup.send(
             f"✅ Sent {_fmt(amount)} to {name}. See it in <#{MARKET_CHANNEL_ID}>",
@@ -4682,6 +5146,7 @@ class AdminPanelView(discord.ui.View):
             "last_call_dax",
             "last_labrat",
             "last_doomsday_prep",
+            "last_kortz_heist",
         )
         count = 0
         for uid, data in users.items():
@@ -4801,7 +5266,7 @@ class AdminPanelView(discord.ui.View):
             color=COLOR_ORANGE,
         )
         embed.set_image(url=IMG["vehicle_exports"])
-        embed.set_footer(text="GTA Economy · Vehicle Export · First claim only")
+        embed.set_footer(text="GTA Roleplay · Vehicle Export · First claim only")
         view = ExportClaimView(self.cog)
         ch = self.cog.bot.get_channel(MARKET_CHANNEL_ID)
         if ch is None:
@@ -4885,14 +5350,11 @@ class ExportClaimView(discord.ui.View):
         custom_id="eco_export_claim",
     )
     async def claim(self, interaction: discord.Interaction, button: discord.ui.Button):
-        panels = self.cog.data.get_panels()
-        if panels.get("export_claimed"):
+        if not self.cog.data.try_claim_export():
             return await interaction.response.send_message(
                 "This export was already claimed by another agent.",
                 ephemeral=True,
             )
-        panels["export_claimed"] = True
-        self.cog.data.save_panels(panels)
 
         settings = self.cog.data.get_settings()
         success = random.random() < 0.50
@@ -4949,7 +5411,7 @@ class ExportClaimView(discord.ui.View):
                 color=COLOR_FAIL,
             )
             gif_key = "lose_game"
-        result.set_footer(text="GTA Economy · Car Theft Job / Export Event")
+        result.set_footer(text="GTA Roleplay · Car Theft Job / Export Event")
         await interaction.response.edit_message(view=None)
         await post_to_market(self.cog.bot, interaction.user, result, gif_key=gif_key)
 
@@ -5564,7 +6026,7 @@ class AdminRemoveItemModal(discord.ui.Modal, title="Remove Item"):
 
 
 class Economy(commands.Cog):
-    """GTA Economy system."""
+    """GTA Roleplay economy system."""
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -5574,7 +6036,7 @@ class Economy(commands.Cog):
         self.bot.add_view(ExportClaimView(self))
 
     async def cog_load(self):
-        logger.info("GTA Economy loaded")
+        logger.info("GTA Roleplay economy loaded")
 
     # ── Member action handlers ─────────────────────────────────────────────
 
@@ -5598,7 +6060,7 @@ class Economy(commands.Cog):
             embed.add_field(name="Total Earned", value=_fmt(u.get("total_earned", 0)), inline=True)
             embed.add_field(name="Total Spent", value=_fmt(u.get("total_spent", 0)), inline=True)
             embed.set_image(url=interaction.user.display_avatar.url)
-            embed.set_footer(text="GTA Economy")
+            embed.set_footer(text="GTA Roleplay")
             return embed, None
 
         if action == "maze_statement":
@@ -5652,7 +6114,7 @@ class Economy(commands.Cog):
                 ),
                 color=COLOR_SUCCESS,
             )
-            embed.set_footer(text="GTA Economy")
+            embed.set_footer(text="GTA Roleplay")
             return embed, None
 
         if action == "work":
@@ -5689,41 +6151,20 @@ class Economy(commands.Cog):
 
         if action == "bennys":
             embed = discord.Embed(
-                title="🏎️ Benny's Original Motor Workshop",
-                description="Premium vehicles and motorcycles from Los Santos dealers.",
+                title="🏎️ Car Dealerships",
+                description=(
+                    "Welcome to the Los Santos vehicle market.\n\n"
+                    "Choose a dealership below to browse their catalog:\n\n"
+                    "🏁 **Southern San Andreas Super Autos** — affordable daily drivers\n"
+                    "🏆 **Legendary Motorsport** — sports & supercars\n"
+                    "☠️ **Lost MC Shop** — motorcycles\n"
+                    "🔧 **Benny's Original Motor Works** — custom lowriders & classics"
+                ),
                 color=COLOR_MAIN,
             )
-            southern_lines = [
-                f"{it.get('emoji','🚗')} **{it['name']}** — {_fmt(it['price'])} {CURRENCY}"
-                for it in BENNYS_SOUTHERN
-            ]
-            embed.add_field(
-                name="🏁 Southern San Andreas Super Autos",
-                value="\n".join(southern_lines) or "—",
-                inline=False,
-            )
-            legendary_lines = [
-                f"{it.get('emoji','🚗')} **{it['name']}** — {_fmt(it['price'])} {CURRENCY}"
-                for it in BENNYS_LEGENDARY
-            ]
-            embed.add_field(
-                name="🏆 Legendary Motorsport",
-                value="\n".join(legendary_lines) or "—",
-                inline=False,
-            )
-            lost_lines = [
-                f"{it.get('emoji','🏍️')} **{it['name']}** — {_fmt(it['price'])} {CURRENCY}"
-                for it in BENNYS_LOST_MC
-            ]
-            embed.add_field(
-                name="☠️ Lost MC Shop",
-                value="\n".join(lost_lines) or "—",
-                inline=False,
-            )
             embed.set_image(url=IMG["bennys"])
-            embed.set_footer(text="Select below to purchase · Private view only")
-            all_cars = BENNYS_SOUTHERN + BENNYS_LEGENDARY + BENNYS_LOST_MC
-            view = ShopBuyView(self, uid, all_cars, "Benny's")
+            embed.set_footer(text="Car Dealerships · Select a shop · Private")
+            view = CarDealershipHubView(self, uid)
             return embed, view
 
         if action == "warstock":
@@ -5865,30 +6306,127 @@ class Economy(commands.Cog):
                         inline=False,
                     )
             embed.set_image(url=IMG["garage"])
-            embed.set_footer(text="GTA Economy · Personal Garage")
+            embed.set_footer(text="GTA Roleplay · Personal Garage")
             return embed, None
 
         if action == "inventory":
             inv = u.get("inventory", {})
-            if not inv:
-                embed = discord.Embed(
-                    title="🎒 Empty Inventory",
-                    description="Buy items from the shops!",
-                    color=COLOR_INFO,
-                )
-                return embed, None
             all_items = self.data.get_all_items()
-            lines = []
+            wallet = int(u.get("wallet", 0))
+            bank = int(u.get("bank", 0))
+            xp = int(u.get("xp", 0))
+            cur, nxt, into, need, pct = _xp_progress(xp)
+            unlocked = list(u.get("achievements") or [])
+            crest = _crest_for_count(len(unlocked))
+            stats = u.get("stats") or {}
+            membership = u.get("casino_membership")
+            mem_txt = "None"
+            if membership and membership in CASINO_MEMBERSHIP_TIERS:
+                t = CASINO_MEMBERSHIP_TIERS[membership]
+                mem_txt = f"{t['emoji']} {t['name']}"
+            music_vip = "✅ VIP" if u.get("music_vip") else "❌ No"
+            stolen = sum(1 for iid in inv if str(iid).startswith("theft_"))
+            bar_len = 12
+            filled = int(round((pct / 100) * bar_len)) if nxt else bar_len
+            bar = "█" * filled + "░" * (bar_len - filled)
+            if nxt:
+                rank_line = (
+                    f"{cur['emoji']} **Rank {cur['level']} — {cur['name']}**\n"
+                    f"`{bar}` {pct:.0f}%\n"
+                    f"XP **{_fmt(xp)}** · Next Rank {nxt['level']} ({nxt['name']}) in **{_fmt(need - into)}** XP"
+                )
+            else:
+                rank_line = (
+                    f"{cur['emoji']} **Rank {cur['level']} — {cur['name']}** (MAX)\n"
+                    f"XP **{_fmt(xp)}**"
+                )
+            profile = (
+                f"**{interaction.user.display_name}**\n\n"
+                f"{rank_line}\n\n"
+                f"{crest['emoji']} **Crest:** {crest['name']} ({len(unlocked)}/{len(ACHIEVEMENTS)} achievements)\n\n"
+                f"**Wallet:** {_fmt(wallet)} {CURRENCY}\n"
+                f"**Bank:** {_fmt(bank)} {CURRENCY}\n"
+                f"**Net Worth:** {_fmt(wallet + bank)} {CURRENCY}\n"
+                f"**Daily Streak:** {u.get('streak', 0)}\n"
+                f"**Lifetime Earned:** {_fmt(u.get('total_earned', 0))}\n"
+                f"**Lifetime Spent:** {_fmt(u.get('total_spent', 0))}"
+            )
+            embed = discord.Embed(
+                title=f"🪪 Personal File — {interaction.user.display_name}",
+                description=profile,
+                color=COLOR_INFO,
+            )
+            # Status / lifestyle
+            status_bits = [
+                f"**Casino:** {mem_txt}",
+                f"**Music Locker:** {music_vip}",
+                f"**Warehouse:** {'✅' if inv.get('biz_warehouse') else '❌'} ({stolen} stolen cars)",
+                f"**Kosatka:** {'✅' if inv.get('mil_submarine') else '❌'}",
+                f"**Mansion:** {'✅' if inv.get('prop_house_mansion') else '❌'}",
+                f"**Penthouse:** {'✅' if inv.get('casino_penthouse') else '❌'}",
+                f"**Hangar:** {'✅' if inv.get('biz_hangar') else '❌'}",
+                f"**Bunker:** {'✅' if inv.get('biz_bunker') else '❌'}",
+            ]
+            embed.add_field(name="📋 Lifestyle & Properties", value="\n".join(status_bits), inline=False)
+            # Achievements list
+            ach_lines = []
+            for ach in ACHIEVEMENTS:
+                done = ach["id"] in unlocked
+                mark = "✅" if done else "⬜"
+                ach_lines.append(f"{mark} {ach['emoji']} **{ach['name']}** — {ach['desc']}")
+            # Discord field limit 1024
+            chunk = "\n".join(ach_lines)
+            if len(chunk) > 1020:
+                chunk = "\n".join(ach_lines[:12]) + "\n…"
+            embed.add_field(
+                name=f"🏅 Achievements ({len(unlocked)}/{len(ACHIEVEMENTS)}) · {crest['emoji']} {crest['name']}",
+                value=chunk or "_None yet_",
+                inline=False,
+            )
+            # Activity stats
+            stat_order = [
+                ("daily", "Daily"), ("work", "Work"), ("motoclub", "MotoClub"), ("ceo_securo", "CEO"),
+                ("cayo_heist", "Cayo"), ("kortz_heist", "Kortz"), ("doomsday_heist", "Doomsday"),
+                ("car_theft_success", "Car Theft"), ("car_export", "Exports"),
+                ("badonkadonk", "Badonkadonk"), ("music_event", "Music Events"), ("lucky_wheel", "Lucky Wheel"),
+            ]
+            stat_lines = [f"**{label}:** {int(stats.get(key, 0))}" for key, label in stat_order if int(stats.get(key, 0)) > 0]
+            embed.add_field(
+                name="📊 Activity Stats",
+                value="\n".join(stat_lines) if stat_lines else "_No activity recorded yet_",
+                inline=False,
+            )
+            # Categorized items
+            cats = {
+                "🚗 Vehicles": [],
+                "🏠 Properties & Business": [],
+                "🧰 Heist Prep & Keys": [],
+                "🎁 Other Items": [],
+            }
+            skip_ids = set(a["id"] for a in ACHIEVEMENTS) | set(t["id"] for t in CREST_TIERS)
             for iid, qty in inv.items():
+                if iid in skip_ids:
+                    continue
                 item = all_items.get(iid, {})
                 name = item.get("name", iid)
                 emoji = item.get("emoji", "🎁")
-                lines.append(f"{emoji} **{name}** ×{qty}")
-            embed = discord.Embed(
-                title="🎒 Your Inventory",
-                description="\n".join(lines),
-                color=COLOR_INFO,
-            )
+                itype = item.get("type", "")
+                line = f"{emoji} **{name}** ×{qty}"
+                if itype in ("car", "motorcycle", "aircraft", "boat", "military", "stolen_car") or item.get("dealer"):
+                    cats["🚗 Vehicles"].append(line)
+                elif itype in ("property", "business") or str(iid).startswith(("biz_", "prop_")):
+                    cats["🏠 Properties & Business"].append(line)
+                elif "prep" in str(itype) or str(iid).startswith(("cayo_", "kortz_", "dd_")) or "invite" in str(iid) or "ticket" in str(iid):
+                    cats["🧰 Heist Prep & Keys"].append(line)
+                else:
+                    cats["🎁 Other Items"].append(line)
+            for cat, clines in cats.items():
+                if clines:
+                    embed.add_field(name=cat, value="\n".join(clines)[:1024], inline=False)
+            if not any(cats.values()):
+                embed.add_field(name="🎒 Items", value="_Empty — visit the shops and complete jobs!_", inline=False)
+            embed.set_thumbnail(url=interaction.user.display_avatar.url)
+            embed.set_footer(text="GTA Roleplay · Personal File · Rank · Crest · Inventory")
             return embed, None
 
         if action == "leaderboard":
@@ -5912,7 +6450,7 @@ class Economy(commands.Cog):
 
     # ── Slash (admin + optional) ───────────────────────────────────────────
 
-    eco = app_commands.Group(name="economy", description="GTA Economy (staff + utility)")
+    eco = app_commands.Group(name="economy", description="GTA Roleplay economy (staff + utility)")
 
     @eco.command(name="panel", description="[LOCKED] Post member panel in Maze Bank")
     async def panel_cmd(self, interaction: discord.Interaction):
@@ -5921,9 +6459,9 @@ class Economy(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         ch = self.bot.get_channel(BANK_CHANNEL_ID) or await self.bot.fetch_channel(BANK_CHANNEL_ID)
         embed = discord.Embed(
-            title=f"{CURRENCY_EMOJI} GTA Economy",
+            title=f"{CURRENCY_EMOJI} GTA Roleplay",
             description=(
-                f"**Welcome to the GTA Economy system!**\n\n"
+                f"**Welcome to the GTA Roleplay system!**\n\n"
                 f"Currency: **{CURRENCY}**\n\n"
                 "Use the buttons below to:\n"
                 "• Daily & Work (always private) · Pay · Maze Bank\n"
@@ -5939,11 +6477,13 @@ class Economy(commands.Cog):
             ),
             color=COLOR_MAIN,
         )
-        embed.set_footer(text="GTA Economy · Maze Bank · Click the buttons")
+        embed.set_footer(text="GTA Roleplay · Maze Bank · Click the buttons")
         view = MemberPanelView(self)
-        panel_gif = _apply_gif_image(embed, "main_panel")
+        # Side thumbnail (smaller, right side) instead of large bottom image
+        panel_gif = _gif_file("main_panel")
         send_kwargs: Dict[str, Any] = {"embed": embed, "view": view}
         if panel_gif is not None:
+            embed.set_thumbnail(url=f"attachment://{panel_gif.filename}")
             send_kwargs["file"] = panel_gif
         msg = await ch.send(**send_kwargs)
         panels = self.data.get_panels()
@@ -5962,7 +6502,7 @@ class Economy(commands.Cog):
                 f"This panel can only be posted in <#{ADMIN_CHANNEL_ID}>.", ephemeral=True
             )
         embed = discord.Embed(
-            title="🛡️ BANK ADMIN — GTA Economy Control",
+            title="🛡️ BANK ADMIN — GTA Roleplay Control",
             description=(
                 "**Staff-only panel.**\n\n"
                 "• Money: Add / Remove / Set / View User (full inventory + bank)\n"
