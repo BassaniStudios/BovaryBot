@@ -4816,7 +4816,7 @@ class AdminPanelView(discord.ui.View):
     async def export_reward(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(AdminExportRewardModal(self.cog))
 
-    @discord.ui.button(label="💰 Heist Prizes", style=discord.ButtonStyle.secondary, custom_id="adm_heist_prizes", row=1)
+    @discord.ui.button(label="💰 Heist Prizes", style=discord.ButtonStyle.secondary, custom_id="adm_heist_prizes", row=4)
     async def heist_prizes(self, interaction: discord.Interaction, button: discord.ui.Button):
         view = AdminHeistPrizeSelectView(self.cog)
         embed = discord.Embed(
