@@ -83,6 +83,15 @@ IMG = {
     "acid_lab": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/images%20(2).jpg?updatedAt=1792032853376",
     "doomsday": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/TheHeistChallenge2024Week2-GTAOe-Header.webp?updatedAt=1792032853654",
     "cayo_success": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/o5eNyCNcZKmvdNZHyitmuQ.jpg",
+    "mansion": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/a-comprehensive-list-of-mansions-features-v0-115jthbn8g5g1.webp?updatedAt=1792030735932",
+    "vanilla_main": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/bf147bfd6f5dd4bd99f7e161d34c9200.jpg",
+    "vanilla_lounge": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/StripClub-GTAV.jpg",
+    "stripper_chastity": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/Chastity-GTAV-FullBody.webp",
+    "stripper_cheetah": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/CheetahStripper-GTAV-FullBody.webp",
+    "stripper_fufu": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/Fufu-GTAV-FullBody.webp",
+    "stripper_juliet": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/Juliet-GTAV-FullBody.webp",
+    "stripper_nikki": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/Nikki-GTAV-FullBody.webp",
+    "stripper_peach": "https://ik.imagekit.io/BassaniStudios/SYSTEM%20ECONOMY/Peach-GTAV-FullBody.webp",
 }
 
 
@@ -765,6 +774,21 @@ DEFAULT_SETTINGS = {
     # Casino Heist (future / admin adjustable)
     "casino_heist_prize_min": 6000,
     "casino_heist_prize_max": 12000,
+    # The Mansion
+    "mansion_party_cost": 2000,
+    "mansion_party_cooldown": 86400,   # 24 hours
+    "mansion_party_reduce_hours": 2,
+    "mansion_spa_cost": 1000,
+    "mansion_spa_cooldown": 86400,     # 24 hours
+    "mansion_spa_reduce_hours": 1,
+    # Vanilla Unicorn
+    "vanilla_main_stage_cost": 1000,
+    "vanilla_main_stage_cooldown": 43200,  # 12 hours
+    "vanilla_main_stage_reduce_seconds": 3600,  # 1 hour from Daily + Work
+    "vanilla_lounge_cost": 2000,
+    "vanilla_lounge_cooldown": 43200,  # 12 hours
+    "vanilla_drinks_limit": 5,         # drinks in 24h before drunk message
+    "vanilla_drinks_window": 86400,    # 24 hours
 }
 
 # Street / location names used in MotoClub route choices
@@ -802,6 +826,116 @@ def _fmt_time(seconds: int) -> str:
     if seconds >= 60:
         return f"{seconds // 60}m {seconds % 60}s"
     return f"{seconds}s"
+
+
+# Cooldown timestamp keys that can be reduced by Mansion / Vanilla services
+ALL_COOLDOWN_KEYS = (
+    "last_daily",
+    "last_work",
+    "last_motoclub",
+    "last_ceo",
+    "last_lucky_wheel",
+    "last_music_event",
+    "last_music_entry",
+    "last_cayo_heist",
+    "last_car_theft",
+    "last_export_car",
+    "last_badonkadonk",
+    "last_call_dax",
+    "last_labrat",
+    "last_doomsday_prep",
+    "last_kortz_heist",
+    "last_penthouse_party",
+    "last_mansion_party",
+    "last_mansion_spa",
+    "last_vanilla_main_stage",
+    "last_vanilla_lounge",
+)
+
+
+def _reduce_cooldowns(u: Dict[str, Any], seconds: int, keys: Optional[Tuple[str, ...]] = None) -> int:
+    """Subtract `seconds` from the given cooldown timestamps. Returns how many keys were adjusted."""
+    if seconds <= 0:
+        return 0
+    target_keys = keys if keys is not None else ALL_COOLDOWN_KEYS
+    adjusted = 0
+    for key in target_keys:
+        val = float(u.get(key, 0) or 0)
+        if val > 0:
+            u[key] = max(0.0, val - seconds)
+            adjusted += 1
+    return adjusted
+
+
+# Vanilla Unicorn — drinks (not stored in inventory)
+VANILLA_DRINKS: List[Dict[str, Any]] = [
+    {"id": "drink_pisswasser", "name": "🍺 Pisswasser", "price": 15, "desc": "Classic Los Santos beer."},
+    {"id": "drink_logger", "name": "🍺 Logger Beer", "price": 18, "desc": "Strong working-class brew."},
+    {"id": "drink_bleuter", "name": "🥂 Bleuter'd Champagne", "price": 45, "desc": "Cheap sparkle for the stage."},
+    {"id": "drink_ragga", "name": "🍹 Ragga Rum", "price": 25, "desc": "Sweet island rum mix."},
+    {"id": "drink_themount", "name": "🥃 The Mount Whiskey", "price": 30, "desc": "Rough whiskey, smooth regrets."},
+    {"id": "drink_cherenkov", "name": "🍸 Cherenkov Vodka", "price": 28, "desc": "Ice-cold Russian-style vodka."},
+    {"id": "drink_richard", "name": "🍷 Richard's Wild Wine", "price": 22, "desc": "Questionable vineyard special."},
+    {"id": "drink_orchard", "name": "🍹 Orchard's Heart Cider", "price": 20, "desc": "Sweet apple cider."},
+]
+
+# Vanilla Unicorn — Premium Lounge strippers
+VANILLA_STRIPPERS: List[Dict[str, Any]] = [
+    {
+        "id": "stripper_chastity",
+        "name": "Chastity",
+        "price": 1200,
+        "reduce_min": 1200,   # 20 minutes
+        "reduce_max": 7200,   # 2 hours
+        "image_key": "stripper_chastity",
+        "desc": "Classic Vanilla Unicorn regular.",
+    },
+    {
+        "id": "stripper_cheetah",
+        "name": "Cheetah",
+        "price": 1500,
+        "reduce_min": 1800,
+        "reduce_max": 7200,
+        "image_key": "stripper_cheetah",
+        "desc": "High-energy dancer.",
+    },
+    {
+        "id": "stripper_fufu",
+        "name": "Fufu",
+        "price": 1100,
+        "reduce_min": 1200,
+        "reduce_max": 5400,
+        "image_key": "stripper_fufu",
+        "desc": "Sweet and playful.",
+    },
+    {
+        "id": "stripper_juliet",
+        "name": "Juliet",
+        "price": 1800,
+        "reduce_min": 2400,
+        "reduce_max": 7200,
+        "image_key": "stripper_juliet",
+        "desc": "Premium private experience.",
+    },
+    {
+        "id": "stripper_nikki",
+        "name": "Nikki",
+        "price": 1400,
+        "reduce_min": 1500,
+        "reduce_max": 6600,
+        "image_key": "stripper_nikki",
+        "desc": "Fan favorite.",
+    },
+    {
+        "id": "stripper_peach",
+        "name": "Peach",
+        "price": 1600,
+        "reduce_min": 1800,
+        "reduce_max": 7200,
+        "image_key": "stripper_peach",
+        "desc": "Smooth and expensive taste.",
+    },
+]
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -863,6 +997,12 @@ class EconomyData:
             "last_labrat": 0,
             "last_doomsday_prep": 0,
             "last_kortz_heist": 0,
+            "last_mansion_party": 0,
+            "last_mansion_spa": 0,
+            "last_vanilla_main_stage": 0,
+            "last_vanilla_lounge": 0,
+            "vanilla_drinks_count": 0,
+            "vanilla_drinks_window": 0,
             "xp": 0,
             "achievements": [],
             "stats": {},
@@ -899,6 +1039,12 @@ class EconomyData:
             "last_labrat": 0,
             "last_doomsday_prep": 0,
             "last_kortz_heist": 0,
+            "last_mansion_party": 0,
+            "last_mansion_spa": 0,
+            "last_vanilla_main_stage": 0,
+            "last_vanilla_lounge": 0,
+            "vanilla_drinks_count": 0,
+            "vanilla_drinks_window": 0,
             "xp": 0,
             "achievements": [],
             "stats": {},
@@ -4025,6 +4171,541 @@ def _dd_pop(session_id: str) -> Optional[Dict[str, Any]]:
         return _doomsday_sessions.pop(session_id, None)
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# THE MANSION HUB + HOME SERVICES
+# ═══════════════════════════════════════════════════════════════════════════
+
+class MansionHubView(discord.ui.View):
+    """First screen after clicking The Mansion on the main panel."""
+
+    def __init__(self, cog: "Economy", user_id: int):
+        super().__init__(timeout=120)
+        self.cog = cog
+        self.user_id = user_id
+
+    def build_embed(self) -> discord.Embed:
+        embed = discord.Embed(
+            title="🏰 The Mansion",
+            description=(
+                "Welcome home.\n\n"
+                "Choose where you want to go:\n\n"
+                "🏠 **The Mansion** — Throw a party or relax at the spa.\n"
+                "🖼️ **Kortz Heist** — Launch The Kortz Center Heist (requires prep)."
+            ),
+            color=COLOR_MAIN,
+        )
+        embed.set_image(url=IMG["mansion"])
+        embed.set_footer(text="GTA Roleplay · The Mansion · Private")
+        return embed
+
+    @discord.ui.button(label="🏠 The Mansion", style=discord.ButtonStyle.success, row=0)
+    async def btn_home(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your panel.", ephemeral=True)
+        view = MansionHomeView(self.cog, self.user_id)
+        embed = view.build_embed()
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    @discord.ui.button(label="🖼️ Kortz Heist", style=discord.ButtonStyle.primary, row=0)
+    async def btn_kortz(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your panel.", ephemeral=True)
+        u = self.cog.data.get_user(self.user_id)
+        view = KortzMainView(self.cog, self.user_id)
+        embed = view.build_embed(u)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+
+class MansionHomeView(discord.ui.View):
+    """Inside the mansion: Throw a Party / Relax at the Spa."""
+
+    def __init__(self, cog: "Economy", user_id: int):
+        super().__init__(timeout=120)
+        self.cog = cog
+        self.user_id = user_id
+
+    def build_embed(self) -> discord.Embed:
+        settings = self.cog.data.get_settings()
+        party_cost = settings.get("mansion_party_cost", 2000)
+        spa_cost = settings.get("mansion_spa_cost", 1000)
+        party_h = settings.get("mansion_party_reduce_hours", 2)
+        spa_h = settings.get("mansion_spa_reduce_hours", 1)
+        embed = discord.Embed(
+            title="🏰 Your Mansion",
+            description=(
+                "Enjoy your private estate.\n\n"
+                f"🎉 **Throw a Party** — **{_fmt(party_cost)}** {CURRENCY}\n"
+                f"Invite a friend. Removes **{party_h} hours** from all cooldowns for you and your guest.\n"
+                f"Cooldown: **24 hours**.\n\n"
+                f"💆 **Relax at the Spa** — **{_fmt(spa_cost)}** {CURRENCY}\n"
+                f"Invite a friend. Removes **{spa_h} hour(s)** from all cooldowns for you and your guest.\n"
+                f"Cooldown: **24 hours**."
+            ),
+            color=COLOR_MAIN,
+        )
+        embed.set_image(url=IMG["mansion"])
+        embed.set_footer(text="GTA Roleplay · Mansion Services · Private")
+        return embed
+
+    @discord.ui.button(label="🎉 Throw a Party", style=discord.ButtonStyle.success, row=0)
+    async def btn_party(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your panel.", ephemeral=True)
+        await interaction.response.send_modal(MansionServiceModal(self.cog, self.user_id, "party"))
+
+    @discord.ui.button(label="💆 Relax at the Spa", style=discord.ButtonStyle.primary, row=0)
+    async def btn_spa(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your panel.", ephemeral=True)
+        await interaction.response.send_modal(MansionServiceModal(self.cog, self.user_id, "spa"))
+
+
+class MansionServiceModal(discord.ui.Modal):
+    """Invite a friend (optional) for Party or Spa."""
+
+    def __init__(self, cog: "Economy", user_id: int, service: str):
+        title = "Throw a Party" if service == "party" else "Relax at the Spa"
+        super().__init__(title=title[:45])
+        self.cog = cog
+        self.user_id = user_id
+        self.service = service
+        self.guest = discord.ui.TextInput(
+            label="Guest User ID or @mention (optional)",
+            placeholder="Leave empty to enjoy alone",
+            required=False,
+            max_length=40,
+        )
+        self.add_item(self.guest)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your action.", ephemeral=True)
+
+        settings = self.cog.data.get_settings()
+        now = _now_ts()
+        u = self.cog.data.get_user(self.user_id)
+
+        if self.service == "party":
+            cost = int(settings.get("mansion_party_cost", 2000))
+            cd = int(settings.get("mansion_party_cooldown", 86400))
+            reduce_h = int(settings.get("mansion_party_reduce_hours", 2))
+            last_key = "last_mansion_party"
+            service_name = "Party"
+            emoji = "🎉"
+        else:
+            cost = int(settings.get("mansion_spa_cost", 1000))
+            cd = int(settings.get("mansion_spa_cooldown", 86400))
+            reduce_h = int(settings.get("mansion_spa_reduce_hours", 1))
+            last_key = "last_mansion_spa"
+            service_name = "Spa"
+            emoji = "💆"
+
+        last = float(u.get(last_key, 0))
+        if now - last < cd:
+            rem = int(cd - (now - last))
+            embed = discord.Embed(
+                title=f"⏳ {service_name} Cooldown",
+                description=f"You can use this service again in **{_fmt_time(rem)}**.",
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        if int(u.get("wallet", 0)) < cost:
+            return await interaction.response.send_message(
+                f"Insufficient balance. You need **{_fmt(cost)}** {CURRENCY}.",
+                ephemeral=True,
+            )
+
+        guest_id: Optional[int] = None
+        raw = (self.guest.value or "").strip()
+        if raw:
+            cleaned = raw.replace("<@", "").replace("!", "").replace(">", "")
+            try:
+                guest_id = int(cleaned)
+            except ValueError:
+                return await interaction.response.send_message(
+                    "Invalid guest ID. Use a numeric User ID or @mention.",
+                    ephemeral=True,
+                )
+            if guest_id == self.user_id:
+                return await interaction.response.send_message(
+                    "You cannot invite yourself.",
+                    ephemeral=True,
+                )
+
+        # Charge owner
+        self.cog.data.add_money(self.user_id, -cost, f"mansion_{self.service}")
+        reduce_sec = reduce_h * 3600
+
+        # Apply cooldown reduction to owner
+        def _mut_owner(data: Dict[str, Any]):
+            data[last_key] = now
+            _reduce_cooldowns(data, reduce_sec)
+
+        self.cog.data.update_user(self.user_id, _mut_owner)
+
+        guest_name = None
+        if guest_id is not None:
+            def _mut_guest(data: Dict[str, Any]):
+                _reduce_cooldowns(data, reduce_sec)
+
+            self.cog.data.update_user(guest_id, _mut_guest)
+            member = interaction.guild.get_member(guest_id) if interaction.guild else None
+            if member is None:
+                try:
+                    member = await self.cog.bot.fetch_user(guest_id)
+                except Exception:
+                    member = None
+            guest_name = member.display_name if member and hasattr(member, "display_name") else str(guest_id)
+
+        desc = (
+            f"You paid **{_fmt(cost)}** {CURRENCY} for a mansion **{service_name}**.\n"
+            f"**{reduce_h} hour(s)** removed from **all cooldowns**."
+        )
+        if guest_name:
+            desc += f"\n\nGuest: **{guest_name}** also received the cooldown reduction."
+
+        embed = discord.Embed(
+            title=f"{emoji} {service_name} Complete!",
+            description=desc,
+            color=COLOR_SUCCESS,
+        )
+        embed.set_footer(text="GTA Roleplay · The Mansion")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        public = discord.Embed(
+            title=f"{emoji} Mansion {service_name}",
+            description=(
+                f"{interaction.user.mention} hosted a mansion **{service_name.lower()}**"
+                + (f" with **{guest_name}**" if guest_name else "")
+                + f".\nCooldown reduction: **{reduce_h}h** for all services."
+            ),
+            color=COLOR_SUCCESS,
+        )
+        await post_to_market(self.cog.bot, interaction.user, public)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# VANILLA UNICORN
+# ═══════════════════════════════════════════════════════════════════════════
+
+class VanillaUnicornMainView(discord.ui.View):
+    """Main Vanilla Unicorn panel."""
+
+    def __init__(self, cog: "Economy", user_id: int):
+        super().__init__(timeout=120)
+        self.cog = cog
+        self.user_id = user_id
+
+    def build_embed(self) -> discord.Embed:
+        settings = self.cog.data.get_settings()
+        stage_cost = settings.get("vanilla_main_stage_cost", 1000)
+        lounge_cost = settings.get("vanilla_lounge_cost", 2000)
+        embed = discord.Embed(
+            title="🦄 Vanilla Unicorn",
+            description=(
+                "The most famous strip club in Los Santos.\n\n"
+                f"🎤 **Main Stage** — **{_fmt(stage_cost)}** {CURRENCY}\n"
+                "Dance floor & pole stage. Removes **1 hour** from Daily and Work cooldowns.\n"
+                "Cooldown: **12 hours**.\n\n"
+                "🍺 **The Bar** — Cheap drinks from the GTA Online world.\n"
+                "Drinks are **not** stored in inventory. Buy **5** in 24h and you get too drunk to drive.\n\n"
+                f"💎 **Premium Lounge** — **{_fmt(lounge_cost)}** {CURRENCY} entry\n"
+                "Private lap dances with the club girls. Reduces a random amount of your cooldowns.\n"
+                "Cooldown: **12 hours**."
+            ),
+            color=COLOR_PURPLE,
+        )
+        embed.set_image(url=IMG["vanilla_main"])
+        embed.set_footer(text="GTA Roleplay · Vanilla Unicorn · Private")
+        return embed
+
+    @discord.ui.button(label="🎤 Main Stage", style=discord.ButtonStyle.primary, row=0)
+    async def btn_main_stage(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your panel.", ephemeral=True)
+
+        settings = self.cog.data.get_settings()
+        cost = int(settings.get("vanilla_main_stage_cost", 1000))
+        cd = int(settings.get("vanilla_main_stage_cooldown", 43200))
+        reduce_sec = int(settings.get("vanilla_main_stage_reduce_seconds", 3600))
+        now = _now_ts()
+        u = self.cog.data.get_user(self.user_id)
+        last = float(u.get("last_vanilla_main_stage", 0))
+        if now - last < cd:
+            rem = int(cd - (now - last))
+            embed = discord.Embed(
+                title="⏳ Main Stage Cooldown",
+                description=f"You can return to the Main Stage in **{_fmt_time(rem)}**.",
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        if int(u.get("wallet", 0)) < cost:
+            return await interaction.response.send_message(
+                f"Insufficient balance. You need **{_fmt(cost)}** {CURRENCY}.",
+                ephemeral=True,
+            )
+
+        self.cog.data.add_money(self.user_id, -cost, "vanilla_main_stage")
+
+        def _mut(data: Dict[str, Any]):
+            data["last_vanilla_main_stage"] = now
+            _reduce_cooldowns(data, reduce_sec, keys=("last_daily", "last_work"))
+
+        self.cog.data.update_user(self.user_id, _mut)
+
+        embed = discord.Embed(
+            title="🎤 Main Stage",
+            description=(
+                f"You paid **{_fmt(cost)}** {CURRENCY} and spent time on the Main Stage.\n\n"
+                f"**1 hour** removed from **Daily** and **Work** cooldowns."
+            ),
+            color=COLOR_SUCCESS,
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        public = discord.Embed(
+            title="🎤 Vanilla Unicorn — Main Stage",
+            description=f"{interaction.user.mention} hit the Main Stage and cooled off Daily & Work by **1 hour**.",
+            color=COLOR_PURPLE,
+        )
+        await post_to_market(self.cog.bot, interaction.user, public)
+
+    @discord.ui.button(label="🍺 The Bar", style=discord.ButtonStyle.success, row=0)
+    async def btn_bar(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your panel.", ephemeral=True)
+        view = VanillaBarView(self.cog, self.user_id)
+        embed = view.build_embed()
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    @discord.ui.button(label="💎 Premium Lounge", style=discord.ButtonStyle.danger, row=0)
+    async def btn_lounge(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your panel.", ephemeral=True)
+
+        settings = self.cog.data.get_settings()
+        cost = int(settings.get("vanilla_lounge_cost", 2000))
+        cd = int(settings.get("vanilla_lounge_cooldown", 43200))
+        now = _now_ts()
+        u = self.cog.data.get_user(self.user_id)
+        last = float(u.get("last_vanilla_lounge", 0))
+        if now - last < cd:
+            rem = int(cd - (now - last))
+            embed = discord.Embed(
+                title="⏳ Premium Lounge Cooldown",
+                description=f"You can enter the Premium Lounge again in **{_fmt_time(rem)}**.",
+                color=COLOR_FAIL,
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        if int(u.get("wallet", 0)) < cost:
+            return await interaction.response.send_message(
+                f"Insufficient balance. Entry costs **{_fmt(cost)}** {CURRENCY}.",
+                ephemeral=True,
+            )
+
+        # Charge entry now; dance price is paid when selecting a girl
+        self.cog.data.add_money(self.user_id, -cost, "vanilla_lounge_entry")
+
+        def _mut(data: Dict[str, Any]):
+            data["last_vanilla_lounge"] = now
+
+        self.cog.data.update_user(self.user_id, _mut)
+
+        view = VanillaPremiumLoungeView(self.cog, self.user_id)
+        embed = view.build_embed()
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+
+class VanillaBarView(discord.ui.View):
+    """Buy cheap drinks. Not stored in inventory. 5 drinks / 24h → drunk announcement."""
+
+    def __init__(self, cog: "Economy", user_id: int):
+        super().__init__(timeout=90)
+        self.cog = cog
+        self.user_id = user_id
+        options = [
+            discord.SelectOption(
+                label=f"{d['name']} — {_fmt(d['price'])} {CURRENCY}"[:100],
+                value=d["id"],
+                description=d["desc"][:100],
+            )
+            for d in VANILLA_DRINKS
+        ]
+        select = discord.ui.Select(placeholder="Choose a drink…", options=options)
+        select.callback = self._buy
+        self.add_item(select)
+
+    def build_embed(self) -> discord.Embed:
+        lines = [f"{d['name']} — **{_fmt(d['price'])}** {CURRENCY}" for d in VANILLA_DRINKS]
+        embed = discord.Embed(
+            title="🍺 The Bar — Vanilla Unicorn",
+            description=(
+                "Pick your poison. Drinks are consumed immediately and **never** go to inventory.\n\n"
+                + "\n".join(lines)
+                + "\n\n⚠️ Buy **5 drinks within 24 hours** and the club will announce that you are too drunk to drive."
+            ),
+            color=COLOR_ORANGE,
+        )
+        embed.set_footer(text="Vanilla Unicorn · The Bar · Private")
+        return embed
+
+    async def _buy(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your bar tab.", ephemeral=True)
+
+        drink_id = interaction.data["values"][0]
+        drink = next((d for d in VANILLA_DRINKS if d["id"] == drink_id), None)
+        if not drink:
+            return await interaction.response.send_message("Drink not found.", ephemeral=True)
+
+        u = self.cog.data.get_user(self.user_id)
+        if int(u.get("wallet", 0)) < drink["price"]:
+            return await interaction.response.send_message(
+                f"Insufficient balance. You need **{_fmt(drink['price'])}** {CURRENCY}.",
+                ephemeral=True,
+            )
+
+        settings = self.cog.data.get_settings()
+        limit = int(settings.get("vanilla_drinks_limit", 5))
+        window = int(settings.get("vanilla_drinks_window", 86400))
+        now = _now_ts()
+
+        self.cog.data.add_money(self.user_id, -drink["price"], "vanilla_drink")
+
+        drunk_triggered = False
+
+        def _mut(data: Dict[str, Any]):
+            nonlocal drunk_triggered
+            wstart = float(data.get("vanilla_drinks_window", 0) or 0)
+            count = int(data.get("vanilla_drinks_count", 0) or 0)
+            if now - wstart >= window:
+                count = 0
+                wstart = now
+            count += 1
+            data["vanilla_drinks_count"] = count
+            data["vanilla_drinks_window"] = wstart
+            if count >= limit:
+                drunk_triggered = True
+                # reset window after announcement so it doesn't spam every next drink
+                data["vanilla_drinks_count"] = 0
+                data["vanilla_drinks_window"] = now
+
+        self.cog.data.update_user(self.user_id, _mut)
+        u2 = self.cog.data.get_user(self.user_id)
+        count_now = int(u2.get("vanilla_drinks_count", 0))
+
+        embed = discord.Embed(
+            title="🍺 Drink Served",
+            description=(
+                f"You bought **{drink['name']}** for **{_fmt(drink['price'])}** {CURRENCY}.\n"
+                f"Drinks in the last 24h: **{count_now if not drunk_triggered else limit}+** / {limit}"
+            ),
+            color=COLOR_SUCCESS,
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        if drunk_triggered:
+            public = discord.Embed(
+                title="🥴 Too Drunk to Drive!",
+                description=(
+                    f"{interaction.user.mention} is **very drunk** at the **Vanilla Unicorn** "
+                    f"after downing too many drinks.\n\n"
+                    f"Someone needs to pick them up — they are in no condition to drive!"
+                ),
+                color=COLOR_ORANGE,
+            )
+            public.set_footer(text="Vanilla Unicorn · Public Safety Notice")
+            await post_to_market(self.cog.bot, interaction.user, public)
+
+
+class VanillaPremiumLoungeView(discord.ui.View):
+    """Select a stripper for a private lap dance (photos revealed after choice)."""
+
+    def __init__(self, cog: "Economy", user_id: int):
+        super().__init__(timeout=90)
+        self.cog = cog
+        self.user_id = user_id
+        options = [
+            discord.SelectOption(
+                label=f"{s['name']} — {_fmt(s['price'])} {CURRENCY}"[:100],
+                value=s["id"],
+                description=s["desc"][:100],
+            )
+            for s in VANILLA_STRIPPERS
+        ]
+        select = discord.ui.Select(placeholder="Choose a dancer…", options=options)
+        select.callback = self._choose
+        self.add_item(select)
+
+    def build_embed(self) -> discord.Embed:
+        lines = [
+            f"**{s['name']}** — {_fmt(s['price'])} {CURRENCY} · reduces {_fmt_time(s['reduce_min'])}–{_fmt_time(s['reduce_max'])}"
+            for s in VANILLA_STRIPPERS
+        ]
+        embed = discord.Embed(
+            title="💎 Premium Lounge",
+            description=(
+                "Private booths. Pick a dancer for a lap dance.\n"
+                "Her photo is revealed only after you choose.\n\n"
+                + "\n".join(lines)
+            ),
+            color=COLOR_PURPLE,
+        )
+        embed.set_image(url=IMG["vanilla_lounge"])
+        embed.set_footer(text="Vanilla Unicorn · Premium Lounge · Private")
+        return embed
+
+    async def _choose(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("This is not your lounge.", ephemeral=True)
+
+        sid = interaction.data["values"][0]
+        stripper = next((s for s in VANILLA_STRIPPERS if s["id"] == sid), None)
+        if not stripper:
+            return await interaction.response.send_message("Dancer not found.", ephemeral=True)
+
+        u = self.cog.data.get_user(self.user_id)
+        if int(u.get("wallet", 0)) < stripper["price"]:
+            return await interaction.response.send_message(
+                f"Insufficient balance. **{stripper['name']}** costs **{_fmt(stripper['price'])}** {CURRENCY}.",
+                ephemeral=True,
+            )
+
+        self.cog.data.add_money(self.user_id, -stripper["price"], "vanilla_lapdance")
+        reduce_sec = random.randint(int(stripper["reduce_min"]), int(stripper["reduce_max"]))
+
+        def _mut(data: Dict[str, Any]):
+            _reduce_cooldowns(data, reduce_sec)
+
+        self.cog.data.update_user(self.user_id, _mut)
+
+        img_url = IMG.get(stripper["image_key"], IMG["vanilla_lounge"])
+        embed = discord.Embed(
+            title=f"💃 Private Dance — {stripper['name']}",
+            description=(
+                f"You paid **{_fmt(stripper['price'])}** {CURRENCY} for a private dance with **{stripper['name']}**.\n\n"
+                f"Cooldown reduction: **{_fmt_time(reduce_sec)}** applied to all services."
+            ),
+            color=COLOR_SUCCESS,
+        )
+        embed.set_image(url=img_url)
+        embed.set_footer(text="Vanilla Unicorn · Premium Lounge")
+        await interaction.response.edit_message(embed=embed, view=None)
+
+        public = discord.Embed(
+            title="💎 Premium Lounge — Private Dance",
+            description=(
+                f"{interaction.user.mention} enjoyed a private dance with **{stripper['name']}** "
+                f"and received **{_fmt_time(reduce_sec)}** cooldown reduction."
+            ),
+            color=COLOR_PURPLE,
+        )
+        public.set_image(url=img_url)
+        await post_to_market(self.cog.bot, interaction.user, public)
+
 
 class DoomsdayMainView(discord.ui.View):
     """Main Doomsday Heist panel (ephemeral). Free prep items, 1 every 12h."""
@@ -4698,6 +5379,10 @@ class MemberPanelView(discord.ui.View):
             f"**📞 Call Dax** — {_status('last_call_dax', 'call_dax_cooldown', 28800)}",
             f"**🐀 Labrat** — {_status('last_labrat', 'labrat_cooldown', 86400)}",
             f"**☢️ Doomsday Prep** — {_status('last_doomsday_prep', 'doomsday_prep_cooldown', 43200)}",
+            f"**🎉 Mansion Party** — {_status('last_mansion_party', 'mansion_party_cooldown', 86400)}",
+            f"**💆 Mansion Spa** — {_status('last_mansion_spa', 'mansion_spa_cooldown', 86400)}",
+            f"**🎤 Vanilla Main Stage** — {_status('last_vanilla_main_stage', 'vanilla_main_stage_cooldown', 43200)}",
+            f"**💎 Vanilla Lounge** — {_status('last_vanilla_lounge', 'vanilla_lounge_cooldown', 43200)}",
         ]
 
         # Slots
@@ -4768,18 +5453,9 @@ class MemberPanelView(discord.ui.View):
 
     @discord.ui.button(label="🦄 Vanilla Unicorn", style=discord.ButtonStyle.secondary, custom_id="eco_vanilla_unicorn", row=1)
     async def btn_vanilla_unicorn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        embed = discord.Embed(
-            title="🦄 Vanilla Unicorn",
-            description=(
-                "The most famous strip club in Los Santos.\n\n"
-                "**Coming soon.**\n"
-                "Private dances, VIP rooms and special services will open here later.\n"
-                "Stay tuned, Freshmeat."
-            ),
-            color=COLOR_CONSTRUCTION,
-        )
-        embed.set_footer(text="GTA Roleplay · Vanilla Unicorn · Coming Soon")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        view = VanillaUnicornMainView(self.cog, interaction.user.id)
+        embed = view.build_embed()
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
     @discord.ui.button(label="☢️ Doomsday Heist", style=discord.ButtonStyle.secondary, custom_id="eco_doomsday", row=2)
     async def btn_doomsday(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -4852,15 +5528,16 @@ class MemberPanelView(discord.ui.View):
             embed = discord.Embed(
                 title="🏰 The Mansion Required",
                 description=(
-                    "You need **The Mansion** to access The Kortz Center Heist.\n\n"
-                    "Buy it at **Dynasty8** (permanent & unique property)."
+                    "You need **The Mansion** to access this area.\n\n"
+                    "Buy it at **Dynasty8** (permanent & unique property).\n"
+                    "Owning the mansion also unlocks **The Kortz Center Heist**."
                 ),
                 color=COLOR_FAIL,
             )
             return await interaction.response.send_message(embed=embed, ephemeral=True)
 
-        view = KortzMainView(self.cog, interaction.user.id)
-        embed = view.build_embed(u)
+        view = MansionHubView(self.cog, interaction.user.id)
+        embed = view.build_embed()
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
     # ── Row 2/4 — Missions + utility ──
@@ -5147,6 +5824,12 @@ class AdminPanelView(discord.ui.View):
             "last_labrat",
             "last_doomsday_prep",
             "last_kortz_heist",
+            "last_mansion_party",
+            "last_mansion_spa",
+            "last_vanilla_main_stage",
+            "last_vanilla_lounge",
+            "vanilla_drinks_count",
+            "vanilla_drinks_window",
         )
         count = 0
         for uid, data in users.items():
@@ -5162,7 +5845,8 @@ class AdminPanelView(discord.ui.View):
             f"✅ Cooldowns reset for **{count}** member(s).\n"
             "Daily · Work · Balance · MotoClub · CEO · Lucky Wheel · Music Entry/Event · "
             "Cayo Heist · slots · Penthouse Party · Car Theft · Export Car · "
-            "Badonkadonk · Call Dax · Labrat are available again.",
+            "Badonkadonk · Call Dax · Labrat · Mansion Party/Spa · Vanilla Main Stage/Lounge "
+            "are available again.",
             ephemeral=True,
         )
 
